@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
+import { Link, NavLink, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import {
   getCreditsAi,
   isLoggedIn,
   refreshSession,
 } from './services/authStore';
+import type { JobType } from './services/api';
 import ProtectedRoute from './components/ProtectedRoute';
 import UserMenuDropdown from './components/user/UserMenuDropdown';
 import LandingPage from './pages/LandingPage';
+import HomePage from './pages/HomePage';
+import ComingSoonPage from './pages/ComingSoonPage';
 import LoginPage from './pages/LoginPage';
 import StudioPage from './pages/StudioPage';
 import ProfilePage from './pages/ProfilePage';
@@ -22,6 +25,41 @@ import AccountPromoPage from './pages/account/AccountPromoPage';
 import AccountSubscriptionPage from './pages/account/AccountSubscriptionPage';
 import AccountTransferPage from './pages/account/AccountTransferPage';
 import AccountTransactionsPage from './pages/account/AccountTransactionsPage';
+
+const MAIN_NAV = [
+  { to: '/home', label: 'Home' },
+  { to: '/explore', label: 'Explore' },
+  { to: '/chat', label: 'Chat' },
+  { to: '/image', label: 'Image' },
+  { to: '/video', label: 'Video' },
+  { to: '/audio', label: 'Audio' },
+  { to: '/music', label: 'Music' },
+  { to: '/workflow', label: 'Auto Workflow' },
+  { to: '/moon-core', label: 'Moon Core' },
+  { to: '/mega-studio', label: 'Mega Studio' },
+  { to: '/apps', label: 'Apps' },
+  { to: '/markets', label: 'Markets' },
+  { to: '/news', label: 'News' },
+  { to: '/notes', label: 'Notes' },
+] as const;
+
+const STUDIO_NAV: Record<string, JobType> = {
+  '/image': 'image',
+  '/video': 'video',
+  '/audio': 'tts',
+  '/music': 'music',
+};
+
+const SUB_TABS = [
+  'Bảng tin',
+  'Của tôi',
+  'Hướng dẫn học',
+  'Videos',
+  'Hình ảnh',
+  'Nhạc',
+  'Âm thanh',
+  'Yêu thích',
+] as const;
 
 function StudioHistoryRedirect() {
   const { type } = useParams<{ type: string }>();
@@ -51,23 +89,33 @@ function AppHeader() {
         <Link to="/" className="brand">79 AI</Link>
         {loggedIn ? (
           <>
-            <nav className="nav nav-compact">
-              <Link to="/app">Studio</Link>
-              <Link to="/playground">Playground</Link>
+            <nav className="nav-main">
+              {MAIN_NAV.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) => `nav-main-link ${isActive ? 'active' : ''}`}
+                >
+                  {item.label}
+                </NavLink>
+              ))}
             </nav>
             <div className="header-meta">
-              <span className="header-balance-label">Số dư</span>
-              <span className="credit-pill header-credit-pill">
-                {credits.toLocaleString('vi-VN')}
-              </span>
+              <button type="button" className="lang-pill">VI</button>
               <a
                 href="https://79ai.net/pricing"
                 target="_blank"
                 rel="noreferrer"
-                className="btn header-upgrade-btn sm"
+                className="price-pill"
               >
-                Nâng cấp
+                Bảng giá
               </a>
+              <div className="header-balance">
+                <span className="header-balance-label">Số dư</span>
+                <span className="credit-pill header-credit-pill">
+                  {credits.toLocaleString('vi-VN')}
+                </span>
+              </div>
               <UserMenuDropdown credits={credits} onCreditsRefresh={refreshCredits} />
             </div>
           </>
@@ -77,6 +125,15 @@ function AppHeader() {
           </nav>
         )}
       </div>
+      {loggedIn && (
+        <div className="sub-tabs">
+          {SUB_TABS.map((t, i) => (
+            <button key={t} type="button" className={`sub-tab ${i === 0 ? 'active' : ''}`}>
+              {t}
+            </button>
+          ))}
+        </div>
+      )}
     </header>
   );
 }
@@ -96,6 +153,29 @@ function AppShell() {
           <Route path="/forgot-password" element={<Navigate to="/login" replace />} />
           <Route path="/reset-password" element={<Navigate to="/login" replace />} />
           <Route element={<ProtectedRoute />}>
+            <Route path="/home" element={<HomePage />} />
+            {Object.entries(STUDIO_NAV).map(([path, type]) => (
+              <Route
+                key={path}
+                path={path}
+                element={
+                  <StudioPage
+                    initialType={type}
+                    lockType
+                    layout={path === '/image' ? 'composer' : 'classic'}
+                  />
+                }
+              />
+            ))}
+            {MAIN_NAV
+              .filter((item) => item.to !== '/home' && !(item.to in STUDIO_NAV))
+              .map((item) => (
+                <Route
+                  key={item.to}
+                  path={item.to}
+                  element={<ComingSoonPage title={item.label} />}
+                />
+              ))}
             <Route path="/app" element={<StudioPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/playground" element={<ApiPlaygroundPage />} />

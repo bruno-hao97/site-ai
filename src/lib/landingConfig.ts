@@ -8,5 +8,5 @@ export const NAV_LINKS = [
 ] as const;
 
 export function appEntryPath(): string {
-  return isLoggedIn() ? '/app' : '/login';
+  return isLoggedIn() ? '/home' : '/login';
 }

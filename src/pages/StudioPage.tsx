@@ -38,16 +38,41 @@ import {
   type ModelSchema,
 } from '../services/modelSchema';
 import { createJobAndPoll, type PollProgress } from '../services/polling';
-import { addHistoryEntry, type HistoryEntry } from '../services/historyStore';
+import {
+  addHistoryEntry,
+  isMediaUrl,
+  listHistory,
+  removeHistoryEntry,
+  type HistoryEntry,
+} from '../services/historyStore';
+import { useHistoryUpdated } from '../hooks/useHistoryUpdated';
 import { extractPollSnapshot } from '../services/mediaGenerationStatus';
 
-export default function StudioPage() {
+function dateGroupLabel(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return 'Hôm nay';
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return 'Hôm qua';
+  return `Tháng ${d.getMonth() + 1} năm ${d.getFullYear()}`;
+}
+
+export default function StudioPage({
+  initialType = 'image',
+  lockType = false,
+  layout = 'classic',
+}: {
+  initialType?: JobType;
+  lockType?: boolean;
+  layout?: 'classic' | 'composer';
+}) {
   const location = useLocation();
-  const [jobType, setJobType] = useState<JobType>('image');
+  const [jobType, setJobType] = useState<JobType>(initialType);
   const [models, setModels] = useState<GommoModel[]>([]);
   const [selectedSlug, setSelectedSlug] = useState('');
   const [schema, setSchema] = useState<ModelSchema | null>(null);
-  const [selections, setSelections] = useState<JobSelections>(defaultSelectionsForType('image'));
+  const [selections, setSelections] = useState<JobSelections>(defaultSelectionsForType(initialType));
   const [loadingModels, setLoadingModels] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -56,6 +81,13 @@ export default function StudioPage() {
   const [recentJobs, setRecentJobs] = useState<LocalJob[]>([]);
   const [sessionItems, setSessionItems] = useState<SessionItem[]>([]);
   const [credits, setCredits] = useState(getCreditsAi());
+  const [qty, setQty] = useState(1);
+  const [zoom, setZoom] = useState(200);
+  const [mainTab, setMainTab] = useState<'feed' | 'history' | 'folder'>('feed');
+  const [uploadedPreview, setUploadedPreview] = useState('');
+  const [dragOver, setDragOver] = useState(false);
+  const [historyTick, setHistoryTick] = useState(0);
+  useHistoryUpdated(() => setHistoryTick((n) => n + 1));
   const abortRef = useRef<AbortController | null>(null);
 
   const client = useMemo(() => (isLoggedIn() ? getGommoClient() : null), []);
@@ -318,6 +350,271 @@ export default function StudioPage() {
     setSelections(defaultSelectionsForType(type));
   }
 
+  async function handleDropFile(file: File) {
+    const url = await handleUpload(file, 'image');
+    if (!url) return;
+    if (schema?.fields.references) updateUrlList('references', 0, url);
+    else if (schema?.fields.subjects) updateUrlList('subjects', 0, url);
+    else if (schema?.fields.startFrame) updateUrlList('images', 0, url);
+    setUploadedPreview(url);
+  }
+
+  const composerResults = useMemo(
+    () => listHistory(jobTypeToHistoryType(jobType)),
+    [jobType, historyTick, resultUrl],
+  );
+
+  const groupedResults = useMemo(() => {
+    const map = new Map<string, HistoryEntry[]>();
+    for (const e of composerResults) {
+      const day = dateGroupLabel(e.createdAt);
+      const list = map.get(day);
+      if (list) list.push(e);
+      else map.set(day, [e]);
+    }
+    return [...map.entries()];
+  }, [composerResults]);
+
+  if (layout === 'composer') {
+    return (
+      <div className="studio-composer">
+        <aside className="composer-side">
+          <div className="composer-side-head">
+            <span className="composer-title">Tạo {jobTypeLabel(jobType)}</span>
+            <button type="button" className="composer-automode">Auto Mode</button>
+          </div>
+
+          <div className="composer-mode-pill">
+            <button type="button" className="active">Edit</button>
+          </div>
+
+          <label className="composer-field">
+            <span className="composer-label">Model</span>
+            <select
+              className="composer-select"
+              value={selectedSlug}
+              onChange={(e) => setSelectedSlug(e.target.value)}
+              disabled={loadingModels}
+            >
+              <option value="">{loadingModels ? 'Đang tải…' : '— Chọn model —'}</option>
+              {models.map((m) => {
+                const slug = modelSlug(m);
+                return (
+                  <option key={slug} value={slug}>
+                    {m.name || slug}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
+
+          {schema && (
+            <div className="composer-selectors">
+              {schema.fields.ratio && (
+                <select
+                  className="composer-select sm"
+                  value={selections.ratio || ''}
+                  onChange={(e) => updateSelection('ratio', e.target.value)}
+                >
+                  {schema.options.ratios.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              )}
+              {schema.fields.mode && (
+                <select
+                  className="composer-select sm"
+                  value={selections.mode || ''}
+                  onChange={(e) => updateSelection('mode', e.target.value)}
+                >
+                  {schema.options.modes.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              )}
+              {schema.fields.resolution && (
+                <select
+                  className="composer-select sm"
+                  value={selections.resolution || ''}
+                  onChange={(e) => updateSelection('resolution', e.target.value)}
+                >
+                  {schema.options.resolutions.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          <label
+            className={`composer-dropzone ${dragOver ? 'drag' : ''}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              const file = e.dataTransfer.files?.[0];
+              if (file) void handleDropFile(file);
+            }}
+          >
+            <input
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleDropFile(file);
+              }}
+            />
+            {uploadedPreview ? (
+              <img className="composer-dropzone-preview" src={uploadedPreview} alt="upload" />
+            ) : (
+              <>
+                <span className="composer-dropzone-plus">+</span>
+                <span className="composer-dropzone-text">Nhấp / Kéo thả / Dán</span>
+                <span className="composer-dropzone-hint">thả ảnh ở đây để tạo / chỉnh sửa</span>
+              </>
+            )}
+          </label>
+
+          <div className="composer-field">
+            <span className="composer-label">Mô tả</span>
+            <textarea
+              className="composer-textarea"
+              rows={4}
+              placeholder="Mô tả hình ảnh của bạn…"
+              value={selections.prompt || ''}
+              onChange={(e) => updateSelection('prompt', e.target.value)}
+            />
+          </div>
+
+          <div className="composer-cost">
+            <span className="composer-coin">💠 {modelPrice || 0}</span>
+            <div className="composer-qty">
+              <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
+              <span>× {qty}</span>
+              <button type="button" onClick={() => setQty((q) => Math.min(8, q + 1))}>+</button>
+            </div>
+            <span className="composer-total">{(modelPrice || 0) * qty}</span>
+          </div>
+
+          {error && <p className="error composer-error">{error}</p>}
+          {progress && <p className="progress composer-progress">{progress}</p>}
+
+          <button
+            type="button"
+            className="composer-submit"
+            disabled={submitting || !schema}
+            onClick={(e) => void handleSubmit(e as unknown as FormEvent)}
+          >
+            {submitting ? 'Đang tạo…' : `Tạo ${jobTypeLabel(jobType)}`}
+          </button>
+        </aside>
+
+        <section className="composer-main">
+          <div className="composer-toolbar">
+            <div className="composer-toolbar-tabs">
+              {([
+                ['feed', 'Bảng tin'],
+                ['history', 'Lịch sử'],
+                ['folder', 'Thư mục'],
+              ] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={mainTab === key ? 'active' : ''}
+                  onClick={() => setMainTab(key)}
+                >
+                  {label}
+                </button>
+              ))}
+              <span className="composer-toolbar-count">{composerResults.length} ảnh</span>
+            </div>
+            <label className="composer-zoom">
+              <input
+                type="range"
+                min={160}
+                max={320}
+                value={zoom}
+                onChange={(e) => setZoom(Number(e.target.value))}
+              />
+            </label>
+          </div>
+
+          {composerResults.length === 0 ? (
+            <p className="muted composer-empty">Chưa có kết quả. Tạo ảnh đầu tiên ở cột bên trái.</p>
+          ) : (
+            <div className="composer-results">
+              {groupedResults.map(([day, entries]) => (
+                <div key={day} className="composer-day-group">
+                  <h3 className="composer-day">{day}</h3>
+                  <div
+                    className="composer-grid"
+                    style={{ ['--thumb' as string]: `${zoom}px` }}
+                  >
+                    {entries.map((entry) => {
+                      const kind = isMediaUrl(entry.resultUrl, entry.type);
+                      return (
+                        <article key={entry.id} className="hist-card">
+                          <a
+                            className="hist-card-thumb"
+                            href={entry.resultUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {kind === 'image' && (
+                              <img src={entry.resultUrl} alt="" loading="lazy" />
+                            )}
+                            {kind === 'video' && (
+                              <video src={entry.resultUrl} muted playsInline preload="metadata" />
+                            )}
+                            {kind === 'audio' && <span className="hist-card-icon">🔊</span>}
+                            {kind === 'file' && <span className="hist-card-icon">📄</span>}
+                          </a>
+                          <div className="hist-card-body">
+                            <p className="hist-card-prompt" title={entry.prompt}>
+                              {entry.prompt || '—'}
+                            </p>
+                            <p className="hist-card-meta">
+                              {entry.modelName || entry.modelSlug || '—'}
+                              {' · '}
+                              {new Date(entry.createdAt).toLocaleTimeString('vi-VN', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </p>
+                            <div className="hist-card-actions">
+                              <button type="button" onClick={() => applyReuse(entry)}>
+                                Dùng lại
+                              </button>
+                              <a href={entry.resultUrl} target="_blank" rel="noreferrer">
+                                Tải
+                              </a>
+                              <button
+                                type="button"
+                                className="danger"
+                                onClick={() => removeHistoryEntry(entry.id)}
+                              >
+                                Xóa
+                              </button>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="page">
       <div className="page-head">
@@ -330,18 +627,20 @@ export default function StudioPage() {
         </p>
       </div>
 
-      <div className="type-tabs studio-type-tabs">
-        {STUDIO_JOB_TYPES.map((t) => (
-          <button
-            key={t.value}
-            type="button"
-            className={`tab ${jobType === t.value ? 'active' : ''}`}
-            onClick={() => switchJobType(t.value)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {!lockType && (
+        <div className="type-tabs studio-type-tabs">
+          {STUDIO_JOB_TYPES.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              className={`tab ${jobType === t.value ? 'active' : ''}`}
+              onClick={() => switchJobType(t.value)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="pg-grid studio-grid">
         <section className="panel">
