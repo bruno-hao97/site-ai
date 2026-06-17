@@ -64,7 +64,7 @@
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  background: var(--accent-gradient);
+  background: linear-gradient(135deg, #0d9488, #14b8a6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -77,7 +77,7 @@
 .landing-page .logo-text {
   font-size: 15px;
   font-weight: 600;
-  color: white;
+  color: #14b8a6;
   margin-left: 8px;
 }
 
@@ -259,7 +259,7 @@
 .landing-page .hero h1 {
   font-size: clamp(48px, 10vw, 76px);
   font-weight: 800;
-  color: #ffffff;
+  color: #14b8a6;
   line-height: 1;
   letter-spacing: -0.02em;
   margin: 0 0 20px;

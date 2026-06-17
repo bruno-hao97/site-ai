@@ -1,6 +1,15 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
+  ChevronLeft,
+  Clipboard,
+  Maximize2,
+  Plus,
+  Sparkles,
+  Trash2,
+  Wand2,
+} from 'lucide-react';
+import {
   GommoApiError,
   type GommoModel,
   type JobType,
@@ -82,6 +91,8 @@ export default function StudioPage({
   const [sessionItems, setSessionItems] = useState<SessionItem[]>([]);
   const [credits, setCredits] = useState(getCreditsAi());
   const [qty, setQty] = useState(1);
+  const [composerMode, setComposerMode] = useState<'single' | 'auto'>('single');
+  const [multiModel, setMultiModel] = useState(false);
   const [zoom, setZoom] = useState(200);
   const [mainTab, setMainTab] = useState<'feed' | 'history' | 'folder'>('feed');
   const [uploadedPreview, setUploadedPreview] = useState('');
@@ -380,16 +391,42 @@ export default function StudioPage({
       <div className="studio-composer">
         <aside className="composer-side">
           <div className="composer-side-head">
+            <button type="button" className="composer-back" aria-label="Quay lại">
+              <ChevronLeft size={16} />
+            </button>
             <span className="composer-title">Tạo {jobTypeLabel(jobType)}</span>
-            <button type="button" className="composer-automode">Auto Mode</button>
           </div>
 
-          <div className="composer-mode-pill">
-            <button type="button" className="active">Edit</button>
+          <div className="composer-mode-tabs">
+            <button
+              type="button"
+              className={composerMode === 'single' ? 'active' : ''}
+              onClick={() => setComposerMode('single')}
+            >
+              Đơn
+            </button>
+            <button
+              type="button"
+              className={composerMode === 'auto' ? 'active' : ''}
+              onClick={() => setComposerMode('auto')}
+            >
+              <Sparkles size={13} />
+              Auto Mode
+            </button>
           </div>
 
-          <label className="composer-field">
-            <span className="composer-label">Model</span>
+          <div className="composer-field">
+            <div className="composer-label-row">
+              <span className="composer-label">Model</span>
+              <label className="composer-toggle">
+                <input
+                  type="checkbox"
+                  checked={multiModel}
+                  onChange={(e) => setMultiModel(e.target.checked)}
+                />
+                <span>Đa model</span>
+              </label>
+            </div>
             <select
               className="composer-select"
               value={selectedSlug}
@@ -406,42 +443,51 @@ export default function StudioPage({
                 );
               })}
             </select>
-          </label>
+          </div>
 
-          {schema && (
+          {schema && (schema.fields.ratio || schema.fields.mode || schema.fields.resolution) && (
             <div className="composer-selectors">
               {schema.fields.ratio && (
-                <select
-                  className="composer-select sm"
-                  value={selections.ratio || ''}
-                  onChange={(e) => updateSelection('ratio', e.target.value)}
-                >
-                  {schema.options.ratios.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
+                <label className="composer-mini-field">
+                  <span className="composer-label">Tỉ lệ</span>
+                  <select
+                    className="composer-select sm"
+                    value={selections.ratio || ''}
+                    onChange={(e) => updateSelection('ratio', e.target.value)}
+                  >
+                    {schema.options.ratios.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </label>
               )}
               {schema.fields.mode && (
-                <select
-                  className="composer-select sm"
-                  value={selections.mode || ''}
-                  onChange={(e) => updateSelection('mode', e.target.value)}
-                >
-                  {schema.options.modes.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
+                <label className="composer-mini-field">
+                  <span className="composer-label">Chế độ</span>
+                  <select
+                    className="composer-select sm"
+                    value={selections.mode || ''}
+                    onChange={(e) => updateSelection('mode', e.target.value)}
+                  >
+                    {schema.options.modes.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </label>
               )}
               {schema.fields.resolution && (
-                <select
-                  className="composer-select sm"
-                  value={selections.resolution || ''}
-                  onChange={(e) => updateSelection('resolution', e.target.value)}
-                >
-                  {schema.options.resolutions.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
+                <label className="composer-mini-field">
+                  <span className="composer-label">Phân giải</span>
+                  <select
+                    className="composer-select sm"
+                    value={selections.resolution || ''}
+                    onChange={(e) => updateSelection('resolution', e.target.value)}
+                  >
+                    {schema.options.resolutions.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                </label>
               )}
             </div>
           )}
@@ -473,15 +519,56 @@ export default function StudioPage({
               <img className="composer-dropzone-preview" src={uploadedPreview} alt="upload" />
             ) : (
               <>
-                <span className="composer-dropzone-plus">+</span>
+                <span className="composer-dropzone-plus">
+                  <Plus size={18} />
+                </span>
                 <span className="composer-dropzone-text">Nhấp / Kéo thả / Dán</span>
-                <span className="composer-dropzone-hint">thả ảnh ở đây để tạo / chỉnh sửa</span>
+                <span className="composer-dropzone-hint">
+                  Hỗ trợ JPG / PNG tối đa 10MB, kích thước tối thiểu 300px
+                </span>
               </>
             )}
           </label>
 
+          <div className="composer-label-row composer-ref-row">
+            <span className="composer-label">Ảnh tham chiếu</span>
+            <span className="composer-ref-count">{uploadedPreview ? 1 : 0}/5</span>
+          </div>
+
           <div className="composer-field">
-            <span className="composer-label">Mô tả</span>
+            <div className="composer-label-row">
+              <span className="composer-label">Mô tả</span>
+              <div className="composer-desc-tools">
+                <button
+                  type="button"
+                  aria-label="Xóa mô tả"
+                  onClick={() => updateSelection('prompt', '')}
+                >
+                  <Trash2 size={14} />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Dán"
+                  onClick={async () => {
+                    try {
+                      const text = await navigator.clipboard.readText();
+                      if (text) updateSelection('prompt', text);
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                >
+                  <Clipboard size={14} />
+                </button>
+                <button type="button" aria-label="Mở rộng">
+                  <Maximize2 size={14} />
+                </button>
+                <button type="button" className="composer-enhance">
+                  <Sparkles size={13} />
+                  Nâng cao
+                </button>
+              </div>
+            </div>
             <textarea
               className="composer-textarea"
               rows={4}
@@ -492,13 +579,17 @@ export default function StudioPage({
           </div>
 
           <div className="composer-cost">
-            <span className="composer-coin">💠 {modelPrice || 0}</span>
+            <span className="composer-coin">
+              <Sparkles size={13} /> {modelPrice || 0}
+            </span>
             <div className="composer-qty">
               <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
-              <span>× {qty}</span>
+              <span>{qty}</span>
               <button type="button" onClick={() => setQty((q) => Math.min(8, q + 1))}>+</button>
             </div>
-            <span className="composer-total">{(modelPrice || 0) * qty}</span>
+            <span className="composer-total">
+              <Sparkles size={13} /> {(modelPrice || 0) * qty}
+            </span>
           </div>
 
           {error && <p className="error composer-error">{error}</p>}
@@ -510,6 +601,7 @@ export default function StudioPage({
             disabled={submitting || !schema}
             onClick={(e) => void handleSubmit(e as unknown as FormEvent)}
           >
+            <Wand2 size={16} />
             {submitting ? 'Đang tạo…' : `Tạo ${jobTypeLabel(jobType)}`}
           </button>
         </aside>

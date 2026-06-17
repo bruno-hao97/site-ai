@@ -10,6 +10,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import UserMenuDropdown from './components/user/UserMenuDropdown';
 import LandingPage from './pages/LandingPage';
 import HomePage from './pages/HomePage';
+import ExplorePage from './pages/ExplorePage';
 import ComingSoonPage from './pages/ComingSoonPage';
 import LoginPage from './pages/LoginPage';
 import StudioPage from './pages/StudioPage';
@@ -50,17 +51,6 @@ const STUDIO_NAV: Record<string, JobType> = {
   '/music': 'music',
 };
 
-const SUB_TABS = [
-  'Bảng tin',
-  'Của tôi',
-  'Hướng dẫn học',
-  'Videos',
-  'Hình ảnh',
-  'Nhạc',
-  'Âm thanh',
-  'Yêu thích',
-] as const;
-
 function StudioHistoryRedirect() {
   const { type } = useParams<{ type: string }>();
   return <Navigate to={type ? `/studio-history/${type}` : '/studio-history'} replace />;
@@ -86,7 +76,7 @@ function AppHeader() {
   return (
     <header className="app-header">
       <div className="app-header-inner">
-        <Link to="/" className="brand">79 AI</Link>
+        <Link to="/" className="brand">LN AI</Link>
         {loggedIn ? (
           <>
             <nav className="nav-main">
@@ -125,15 +115,6 @@ function AppHeader() {
           </nav>
         )}
       </div>
-      {loggedIn && (
-        <div className="sub-tabs">
-          {SUB_TABS.map((t, i) => (
-            <button key={t} type="button" className={`sub-tab ${i === 0 ? 'active' : ''}`}>
-              {t}
-            </button>
-          ))}
-        </div>
-      )}
     </header>
   );
 }
@@ -141,11 +122,12 @@ function AppHeader() {
 function AppShell() {
   const location = useLocation();
   const isBarePage = location.pathname === '/' || location.pathname === '/login';
+  const isFullBleed = location.pathname in STUDIO_NAV;
 
   return (
     <div className={isBarePage ? '' : 'app'}>
       {!isBarePage && <AppHeader />}
-      <main className={isBarePage ? '' : 'app-main'}>
+      <main className={isBarePage ? '' : `app-main ${isFullBleed ? 'app-main-full' : ''}`}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={isLoggedIn() ? <Navigate to="/app" /> : <LoginPage />} />
@@ -154,6 +136,7 @@ function AppShell() {
           <Route path="/reset-password" element={<Navigate to="/login" replace />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/home" element={<HomePage />} />
+            <Route path="/explore" element={<ExplorePage />} />
             {Object.entries(STUDIO_NAV).map(([path, type]) => (
               <Route
                 key={path}
@@ -168,7 +151,12 @@ function AppShell() {
               />
             ))}
             {MAIN_NAV
-              .filter((item) => item.to !== '/home' && !(item.to in STUDIO_NAV))
+              .filter(
+                (item) =>
+                  item.to !== '/home' &&
+                  item.to !== '/explore' &&
+                  !(item.to in STUDIO_NAV),
+              )
               .map((item) => (
                 <Route
                   key={item.to}

@@ -13,8 +13,8 @@ export default function LandingNavbar() {
     <nav className="landing-nav">
       <div className="container">
         <Link to="/" className="logo-row">
-          <span className="logo-icon">79</span>
-          <span className="logo-text">79 AI</span>
+          <span className="logo-icon">LN</span>
+          <span className="logo-text">LN AI</span>
         </Link>
 
         <div className="nav-links">

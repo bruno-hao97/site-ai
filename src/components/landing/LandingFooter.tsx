@@ -24,8 +24,8 @@ export default function LandingFooter() {
         <div className="footer-grid">
           <div className="footer-logo-col">
             <Link to="/" className="logo-row" style={{ marginBottom: 12 }}>
-              <span className="logo-icon">79</span>
-              <span className="logo-text">79 AI</span>
+              <span className="logo-icon">LN</span>
+              <span className="logo-text">LN AI</span>
             </Link>
             <p className="footer-tagline">
               Nền tảng AI đa phương thức — ảnh, video, âm nhạc, text và code trong một cổng API thống nhất.
@@ -51,7 +51,7 @@ export default function LandingFooter() {
         </div>
 
         <div className="footer-bottom">
-          <span className="copyright">© {new Date().getFullYear()} 79 AI. All rights reserved.</span>
+          <span className="copyright">© {new Date().getFullYear()} LN AI. All rights reserved.</span>
         </div>
       </div>
     </footer>

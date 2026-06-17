@@ -1,24 +1,40 @@
-const IMAGES = Array.from({ length: 40 }, (_, i) => ({
-  id: i,
-  src: `https://picsum.photos/seed/79ai-${i}/400/${500 + (i % 4) * 90}`,
-}));
+import { useState } from 'react';
+import HomeNewsCarousel from '../components/HomeNewsCarousel';
+import HomeFeed from '../components/HomeFeed';
+
+const HOME_TABS = [
+  'Bảng tin',
+  'Của tôi',
+  'Hướng cho bạn',
+  'Videos',
+  'Hình ảnh',
+  'Nhạc',
+  'Âm thanh',
+  'Yêu thích',
+] as const;
 
 export default function HomePage() {
+  const [tab, setTab] = useState<(typeof HOME_TABS)[number]>('Bảng tin');
+
   return (
     <div className="home-explore">
-      <div className="home-masonry">
-        {IMAGES.map((img) => (
-          <a
-            key={img.id}
-            href={img.src}
-            className="home-card"
-            target="_blank"
-            rel="noreferrer"
+      <div className="home-tabs">
+        {HOME_TABS.map((t) => (
+          <button
+            key={t}
+            type="button"
+            className={`home-tab ${tab === t ? 'active' : ''}`}
+            onClick={() => setTab(t)}
           >
-            <img src={img.src} alt="" loading="lazy" />
-          </a>
+            {t}
+          </button>
         ))}
       </div>
+      {tab === 'Bảng tin' && <HomeNewsCarousel />}
+      {tab === 'Của tôi' && (
+        <p className="muted home-news-status">Chưa có dữ liệu cho “Của tôi”.</p>
+      )}
+      <HomeFeed />
     </div>
   );
 }
