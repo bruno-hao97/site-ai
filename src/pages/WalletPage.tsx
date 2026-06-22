@@ -10,7 +10,8 @@ import {
   type CreditTransaction,
   type TopupOrder,
 } from '../services/backendApi';
-import { getCreditsAi } from '../services/authStore';
+import { fetchGommoDashboardStats } from '../services/gommoDashboard';
+import { getCreditsAi, loadAuth } from '../services/authStore';
 
 const TX_LABELS: Record<string, string> = {
   signup_bonus: 'Bonus đăng ký',
@@ -33,7 +34,9 @@ function formatDate(iso: string) {
 }
 
 export default function WalletPage() {
+  const isGommo = Boolean(loadAuth());
   const [balance, setBalance] = useState(getCreditsAi());
+  const [consumed, setConsumed] = useState(0);
   const [packages, setPackages] = useState<CreditPackage[]>([]);
   const [mockEnabled, setMockEnabled] = useState(true);
   const [bonusPercent, setBonusPercent] = useState(0);
@@ -52,6 +55,16 @@ export default function WalletPage() {
     setLoading(true);
     setError('');
     try {
+      if (isGommo) {
+        // User Gommo: số dư + lịch sử chi tiêu thật từ Gommo (chưa có endpoint nạp).
+        const stats = await fetchGommoDashboardStats('all');
+        setBalance(stats.balance);
+        setConsumed(stats.credits.consumed_net);
+        setTransactions(stats.recent_transactions);
+        setPackages([]);
+        setOrders([]);
+        return;
+      }
       const [pkgData, txData, orderData] = await Promise.all([
         fetchTopupPackages(),
         listTransactions(),
@@ -68,7 +81,7 @@ export default function WalletPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isGommo]);
 
   useEffect(() => {
     void load();
@@ -100,16 +113,27 @@ export default function WalletPage() {
     <div className="page wallet-page">
       <div className="page-head">
         <p className="kicker">Ví credit</p>
-        <h1>Nạp tiền</h1>
+        <h1>{isGommo ? 'Ví credit' : 'Nạp tiền'}</h1>
         <p className="lead">
           Số dư: <strong>{balance} credit</strong>
-          {bonusPercent > 0 && (
-            <> · Lần nạp đầu: <strong>+{bonusPercent}%</strong> bonus</>
+          {isGommo ? (
+            <> · Đã tiêu: <strong>{consumed} credit</strong></>
+          ) : (
+            bonusPercent > 0 && (
+              <> · Lần nạp đầu: <strong>+{bonusPercent}%</strong> bonus</>
+            )
           )}
         </p>
       </div>
 
-      {mockEnabled && (
+      {isGommo && (
+        <div className="banner warn">
+          Tài khoản Gommo — số dư &amp; lịch sử chi tiêu lấy trực tiếp từ Gommo. Nạp credit thực
+          hiện trên hệ thống Gommo.
+        </div>
+      )}
+
+      {!isGommo && mockEnabled && (
         <div className="banner warn">
           Chế độ <strong>mock payment</strong> (dev) — bấm nạp sẽ cộng credit ngay, không trừ tiền thật.
           Production: tắt <code>ALLOW_MOCK_TOPUP=false</code> và gắn VNPay/Momo.
@@ -120,6 +144,7 @@ export default function WalletPage() {
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
 
+      {!isGommo && (
       <section className="packages-grid">
         {packages.map((pkg) => (
           <div key={pkg.id} className={`package-card panel ${pkg.popular ? 'popular' : ''}`}>
@@ -139,11 +164,12 @@ export default function WalletPage() {
           </div>
         ))}
       </section>
+      )}
 
       <div className="tables-grid wallet-tables">
         <section className="panel">
           <div className="panel-head">
-            <h2>Lịch sử giao dịch</h2>
+            <h2>{isGommo ? 'Lịch sử chi tiêu' : 'Lịch sử giao dịch'}</h2>
             <Link to="/dashboard" className="btn ghost sm">Dashboard →</Link>
           </div>
           {transactions.length === 0 ? (
@@ -174,6 +200,7 @@ export default function WalletPage() {
           )}
         </section>
 
+        {!isGommo && (
         <section className="panel">
           <h2>Đơn nạp</h2>
           {orders.length === 0 ? (
@@ -208,6 +235,7 @@ export default function WalletPage() {
             </table>
           )}
         </section>
+        )}
       </div>
     </div>
   );

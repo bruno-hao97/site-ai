@@ -132,3 +132,27 @@ export function isMediaUrl(url: string, type?: HistoryType): HistoryMediaKind {
 export function isValidHistoryType(value: string | undefined): value is HistoryType {
   return JOB_TYPES.some((t) => t.value === value);
 }
+
+const FAV_KEY = 'ai_studio_favorites';
+
+export function loadFavorites(): Set<string> {
+  try {
+    const raw = localStorage.getItem(FAV_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? (arr as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function isFavorite(id: string): boolean {
+  return loadFavorites().has(id);
+}
+
+export function toggleFavorite(id: string): void {
+  const favs = loadFavorites();
+  if (favs.has(id)) favs.delete(id);
+  else favs.add(id);
+  localStorage.setItem(FAV_KEY, JSON.stringify([...favs]));
+  dispatchUpdated();
+}

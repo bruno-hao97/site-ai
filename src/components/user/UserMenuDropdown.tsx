@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   clearAuth,
   getDisplayUser,
+  loadAuth,
 } from '../../services/authStore';
 import { loadTheme, saveTheme, type ThemeMode } from '../../services/themeStore';
 import { loadSettings, saveSettings } from '../../services/settingsStore';
@@ -128,12 +129,23 @@ export default function UserMenuDropdown({ credits, onCreditsRefresh }: Props) {
           </div>
 
           <nav className="user-menu-nav">
+            <Link to="/dashboard" className="user-menu-item" onClick={() => setOpen(false)}>
+              <span>📊</span> Dashboard
+            </Link>
+            <Link to="/wallet" className="user-menu-item" onClick={() => setOpen(false)}>
+              <span>💳</span> Ví credit
+            </Link>
             <Link to="/profile" className="user-menu-item" onClick={() => setOpen(false)}>
               <span>👤</span> Xem hồ sơ
             </Link>
             <Link to="/usage-history" className="user-menu-item" onClick={() => setOpen(false)}>
               <span>🕐</span> Lịch sử sử dụng
             </Link>
+            {!loadAuth() && (
+              <Link to="/api-keys" className="user-menu-item" onClick={() => setOpen(false)}>
+                <span>🔑</span> Quản lý API Key
+              </Link>
+            )}
             <Link to="/account" className="user-menu-item" onClick={() => setOpen(false)}>
               <span>🛡</span> Quản lý tài khoản
             </Link>

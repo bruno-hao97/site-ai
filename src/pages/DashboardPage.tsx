@@ -5,6 +5,8 @@ import {
   type DashboardPeriod,
   type DashboardStats,
 } from '../services/backendApi';
+import { fetchGommoDashboardStats } from '../services/gommoDashboard';
+import { loadAuth } from '../services/authStore';
 const PERIODS: { value: DashboardPeriod; label: string }[] = [
   { value: '7d', label: '7 ngày' },
   { value: '30d', label: '30 ngày' },
@@ -74,7 +76,11 @@ export default function DashboardPage() {
     setLoading(true);
     setError('');
     try {
-      const data = await fetchDashboardStats(period);
+      // User đăng nhập Gommo: dựng thống kê từ data Gommo thật.
+      // User backend (Google/local): dùng ledger backend.
+      const data = loadAuth()
+        ? await fetchGommoDashboardStats(period)
+        : await fetchDashboardStats(period);
       setStats(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

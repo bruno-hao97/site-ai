@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { loadAuth } from '../services/authStore';
+import { isLoggedIn } from '../services/authStore';
 import {
   fetchAllNews,
   formatNewsDate,
@@ -28,8 +28,7 @@ export default function HomeNewsCarousel() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const auth = loadAuth();
-    if (!auth?.access_token) {
+    if (!isLoggedIn()) {
       setLoading(false);
       setError('Chưa đăng nhập.');
       return;
@@ -39,7 +38,7 @@ export default function HomeNewsCarousel() {
     setLoading(true);
     setError('');
 
-    fetchAllNews(auth.access_token, auth.domain, 5)
+    fetchAllNews(5)
       .then((list) => {
         if (!cancelled) setItems(list);
       })

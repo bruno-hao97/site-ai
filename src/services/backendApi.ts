@@ -1,4 +1,4 @@
-import { getToken, updateBalance } from './authStore';
+import { clearSession, getSessionToken, setSessionBalance } from './session';
 
 export interface BackendUser {
   id: string;
@@ -25,7 +25,7 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
-  const token = getToken();
+  const token = getSessionToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(opts.headers as Record<string, string>),
@@ -36,10 +36,17 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const body = await res.json().catch(() => ({}));
 
   if (!res.ok || body.success === false) {
+    // Phiên hết hạn / token không hợp lệ trên request đã xác thực → đăng xuất.
+    if (res.status === 401 && token) {
+      clearSession();
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
+    }
     throw new ApiError(body.message || `HTTP ${res.status}`, { status: res.status, data: body });
   }
 
-  if (body.data?.balance != null) updateBalance(body.data.balance);
+  if (body.data?.balance != null) setSessionBalance(body.data.balance);
   return body.data as T;
 }
 
@@ -47,11 +54,14 @@ export interface RegisterInput {
   email: string;
   password: string;
   name?: string;
+  phone?: string;
+  domain?: string;
 }
 
 export interface LoginInput {
   email: string;
   password: string;
+  domain?: string;
 }
 
 export interface LoginTokenInput {
@@ -84,20 +94,50 @@ export async function updateUpstreamToken(input: LoginTokenInput): Promise<{
   });
 }
 
-export async function register(input: RegisterInput): Promise<JwtAuthState> {
-  const data = await request<{ token: string; user: BackendUser; balance: number }>('/auth/register', {
+export async function register(input: RegisterInput): Promise<LoginResult> {
+  const data = await request<{
+    token: string;
+    user: BackendUser;
+    balance: number;
+    access_token?: string;
+    domain?: string;
+  }>('/auth/register', {
     method: 'POST',
     body: JSON.stringify(input),
   });
-  return { token: data.token, user: data.user, balance: data.balance };
+  return {
+    token: data.token,
+    user: data.user,
+    balance: data.balance,
+    access_token: data.access_token,
+    domain: data.domain,
+  };
 }
 
-export async function login(input: LoginInput): Promise<JwtAuthState> {
-  const data = await request<{ token: string; user: BackendUser; balance: number }>('/auth/login', {
+export interface LoginResult extends JwtAuthState {
+  /** Có khi đăng nhập thành công qua Gommo → frontend lưu session Gommo. */
+  access_token?: string;
+  domain?: string;
+}
+
+export async function login(input: LoginInput): Promise<LoginResult> {
+  const data = await request<{
+    token: string;
+    user: BackendUser;
+    balance: number;
+    access_token?: string;
+    domain?: string;
+  }>('/auth/login', {
     method: 'POST',
     body: JSON.stringify(input),
   });
-  return { token: data.token, user: data.user, balance: data.balance };
+  return {
+    token: data.token,
+    user: data.user,
+    balance: data.balance,
+    access_token: data.access_token,
+    domain: data.domain,
+  };
 }
 
 export async function fetchMe(): Promise<{ user: BackendUser; balance: number }> {
@@ -215,11 +255,21 @@ export interface CreateImageJobInput {
   resolution?: string;
   mode?: string;
   duration?: string;
+  template_id?: string;
   references?: { url: string }[];
   images?: { url: string }[];
+  subjects?: { url: string }[];
 }
 
-export async function fetchJobCosts(): Promise<{ image: number; video: number }> {
+export type JobCosts = {
+  image: number;
+  video: number;
+  tts: number;
+  music: number;
+  'avatar-lipsync': number;
+};
+
+export async function fetchJobCosts(): Promise<JobCosts> {
   return request('/jobs/costs');
 }
 
@@ -229,6 +279,47 @@ export async function createImageJob(input: CreateImageJobInput): Promise<{ job:
 
 export async function createVideoJob(input: CreateImageJobInput): Promise<{ job: Job; balance: number; cost: number }> {
   return request('/jobs/video', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export interface CreateStudioJobInput {
+  type: string;
+  model_id: string;
+  payload: Record<string, unknown>;
+}
+
+export async function createStudioJob(
+  input: CreateStudioJobInput,
+): Promise<{ job: Job; balance: number; cost: number }> {
+  return request('/jobs/create', { method: 'POST', body: JSON.stringify(input) });
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      const comma = result.indexOf(',');
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('Đọc file thất bại'));
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function uploadMediaBackend(
+  kind: 'image' | 'video',
+  file: File,
+): Promise<{ url: string }> {
+  const file_base64 = await fileToBase64(file);
+  return request('/jobs/upload', {
+    method: 'POST',
+    body: JSON.stringify({
+      kind,
+      file_name: file.name,
+      mime: file.type,
+      file_base64,
+    }),
+  });
 }
 
 export async function getJob(id: string): Promise<{ job: Job; balance: number }> {

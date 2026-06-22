@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Heart, MessageCircle, Play, Share2, Wand2 } from 'lucide-react';
-import { loadAuth } from '../services/authStore';
+import { isLoggedIn } from '../services/authStore';
 import {
   feedMediaUrl,
   feedModelLabel,
@@ -88,8 +88,7 @@ export default function ExplorePage() {
 
   const loadMore = useCallback(async () => {
     if (loading || done) return;
-    const auth = loadAuth();
-    if (!auth?.access_token) {
+    if (!isLoggedIn()) {
       setError('Chưa đăng nhập.');
       setDone(true);
       return;
@@ -99,8 +98,6 @@ export default function ExplorePage() {
     setError('');
     try {
       const page = await fetchPublicVideos({
-        accessToken: auth.access_token,
-        domain: auth.domain,
         limit: 30,
         afterId: afterIdRef.current,
       });

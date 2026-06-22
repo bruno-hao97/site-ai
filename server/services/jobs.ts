@@ -10,12 +10,25 @@ import {
 import { deductCredits, refundJobCredits } from './credits.js';
 import { getUpstreamContext } from './upstreamAuth.js';
 
-export type StudioJobType = 'image' | 'video';
+export type StudioJobType = 'image' | 'video' | 'tts' | 'music' | 'avatar-lipsync';
 
-const JOB_CONFIG: Record<StudioJobType, { pollMedia: 'image' | 'video'; cost: () => number; label: string }> = {
+const JOB_CONFIG: Record<
+  StudioJobType,
+  { pollMedia: 'image' | 'video' | 'music' | null; cost: () => number; label: string }
+> = {
   image: { pollMedia: 'image', cost: () => config.credits.imageJobCost, label: 'ảnh' },
   video: { pollMedia: 'video', cost: () => config.credits.videoJobCost, label: 'video' },
+  // tts: kết quả nằm ngay trong envelope tạo job (không cần poll).
+  tts: { pollMedia: null, cost: () => config.credits.audioJobCost, label: 'giọng đọc' },
+  music: { pollMedia: 'music', cost: () => config.credits.musicJobCost, label: 'nhạc' },
+  'avatar-lipsync': { pollMedia: 'video', cost: () => config.credits.lipsyncJobCost, label: 'avatar' },
 };
+
+export const STUDIO_JOB_TYPES: StudioJobType[] = ['image', 'video', 'tts', 'music', 'avatar-lipsync'];
+
+export function isStudioJobType(value: string): value is StudioJobType {
+  return (STUDIO_JOB_TYPES as string[]).includes(value);
+}
 
 export function getJobCost(type: StudioJobType): number {
   return JOB_CONFIG[type].cost();
@@ -82,7 +95,7 @@ export function toPublicJob(row: JobRow) {
   };
 }
 
-function startJob(
+export function startStudioJob(
   userId: string,
   type: StudioJobType,
   modelId: string,
@@ -107,7 +120,7 @@ export function startImageJob(
   modelId: string,
   payload: Record<string, unknown>,
 ): JobRow {
-  return startJob(userId, 'image', modelId, payload);
+  return startStudioJob(userId, 'image', modelId, payload);
 }
 
 export function startVideoJob(
@@ -115,7 +128,7 @@ export function startVideoJob(
   modelId: string,
   payload: Record<string, unknown>,
 ): JobRow {
-  return startJob(userId, 'video', modelId, payload);
+  return startStudioJob(userId, 'video', modelId, payload);
 }
 
 async function runGommoJob(
@@ -139,6 +152,17 @@ async function runGommoJob(
 
     if (snap.resultUrl && classifyStatus(snap.status, snap.resultUrl) === 'success') {
       updateJob(jobId, { status: 'success', result_url: snap.resultUrl });
+      return;
+    }
+
+    // tts/audio: không poll — kết quả phải có ngay trong envelope tạo job.
+    if (!pollMedia) {
+      if (snap.resultUrl) {
+        updateJob(jobId, { status: 'success', result_url: snap.resultUrl });
+      } else {
+        updateJob(jobId, { status: 'failed', error: snap.status || 'Job thất bại' });
+        refundJobCredits(userId, jobId, cost);
+      }
       return;
     }
 

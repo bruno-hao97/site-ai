@@ -1,21 +1,33 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Heart, MessageCircle, Play, Share2, Sparkles, Wand2 } from 'lucide-react';
+import { Heart, MessageCircle, Play, Share2, Wand2 } from 'lucide-react';
 import { isLoggedIn } from '../services/authStore';
 import {
   feedMediaUrl,
+  feedModelLabel,
   feedSourceCount,
   feedThumb,
-  fetchNewsfeed,
+  fetchMyImages,
+  fetchMyVideos,
   formatFeedTime,
   type FeedItem,
+  type MinePage,
 } from '../services/feedApi';
 import { UpstreamMeError } from '../services/upstreamMe';
 
-function FeedCard({ item }: { item: FeedItem }) {
+export type MineFilter = 'all' | 'video' | 'image';
+
+function mineTime(item: FeedItem): number {
+  const v = item.created_time;
+  const n = typeof v === 'string' ? Number(v) : v ?? 0;
+  return Number.isFinite(n) ? Number(n) : 0;
+}
+
+function MineCard({ item }: { item: FeedItem }) {
   const thumb = feedThumb(item);
   const media = feedMediaUrl(item);
-  const isVideo = item.type === 'video';
+  const isVideo = item.type !== 'image';
   const sources = feedSourceCount(item);
+  const model = feedModelLabel(item);
 
   return (
     <article className="feed-card">
@@ -25,16 +37,13 @@ function FeedCard({ item }: { item: FeedItem }) {
         ) : (
           <span className="feed-avatar feed-avatar-empty" />
         )}
-        <span className="feed-author">{item.author?.name || 'Ẩn danh'}</span>
-        {item.resolution && <span className="feed-res">{item.resolution}</span>}
+        <span className="feed-author">{item.author?.name || 'Bạn'}</span>
+        {item.resolution && item.resolution !== 'unknow' && (
+          <span className="feed-res">{item.resolution}</span>
+        )}
       </header>
 
-      <a
-        className="feed-media"
-        href={media || thumb || '#'}
-        target="_blank"
-        rel="noreferrer"
-      >
+      <a className="feed-media" href={media || thumb || '#'} target="_blank" rel="noreferrer">
         {thumb ? (
           <img src={thumb} alt="" loading="lazy" />
         ) : (
@@ -45,6 +54,7 @@ function FeedCard({ item }: { item: FeedItem }) {
             <Play size={20} fill="currentColor" />
           </span>
         )}
+        {model && <span className="feed-model-badge">{model}</span>}
         {sources > 1 && <span className="feed-count">{sources}</span>}
         {item.duration && Number(item.duration) > 0 && (
           <span className="feed-duration">{item.duration}s</span>
@@ -52,11 +62,6 @@ function FeedCard({ item }: { item: FeedItem }) {
       </a>
 
       <div className="feed-card-meta">
-        {item.model && (
-          <span className="feed-model">
-            <Sparkles size={11} /> {item.model}
-          </span>
-        )}
         <span className="feed-time">{formatFeedTime(item.created_time)}</span>
       </div>
 
@@ -67,31 +72,25 @@ function FeedCard({ item }: { item: FeedItem }) {
           <span><Share2 size={14} /></span>
         </div>
         <button type="button" className="feed-remix">
-          {isVideo ? (
-            <>
-              <Wand2 size={13} /> Edit video
-            </>
-          ) : (
-            <>
-              <Wand2 size={13} /> Remix
-            </>
-          )}
+          <Wand2 size={13} /> {isVideo ? 'Edit video' : 'Remix'}
         </button>
       </footer>
     </article>
   );
 }
 
-export default function HomeFeed() {
+export default function HomeMyContent({ filter }: { filter: MineFilter }) {
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
 
-  const afterVideoRef = useRef('');
-  const afterImageRef = useRef('');
+  const videoAfter = useRef('');
+  const imageAfter = useRef('');
+  const videoDone = useRef(false);
+  const imageDone = useRef(false);
+  const seen = useRef<Set<string>>(new Set());
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const seenRef = useRef<Set<string>>(new Set());
 
   const loadMore = useCallback(async () => {
     if (loading || done) return;
@@ -104,36 +103,49 @@ export default function HomeFeed() {
     setLoading(true);
     setError('');
     try {
-      const page = await fetchNewsfeed({
-        limit: 30,
-        afterVideoId: afterVideoRef.current,
-        afterImageId: afterImageRef.current,
-      });
+      const wantVideo = filter !== 'image' && !videoDone.current;
+      const wantImage = filter !== 'video' && !imageDone.current;
 
-      const fresh = page.items.filter((it) => {
-        if (!it.id_base || seenRef.current.has(it.id_base)) return false;
-        if (!feedThumb(it)) return false;
-        seenRef.current.add(it.id_base);
-        return true;
-      });
+      const [vid, img] = await Promise.all([
+        wantVideo ? fetchMyVideos({ afterId: videoAfter.current, limit: 30 }) : Promise.resolve(null),
+        wantImage ? fetchMyImages({ afterId: imageAfter.current, limit: 30 }) : Promise.resolve(null),
+      ]);
 
-      setItems((prev) => [...prev, ...fresh]);
+      const fresh: FeedItem[] = [];
+      const ingest = (
+        page: MinePage | null,
+        afterRef: React.MutableRefObject<string>,
+        doneRef: React.MutableRefObject<boolean>,
+      ) => {
+        if (!page) return;
+        for (const it of page.items) {
+          if (!it.id_base || seen.current.has(it.id_base)) continue;
+          if (!feedThumb(it) && !feedMediaUrl(it)) continue; // bỏ job lỗi/đang xử lý
+          seen.current.add(it.id_base);
+          fresh.push(it);
+        }
+        const noProgress = !page.nextAfterId || page.nextAfterId === afterRef.current;
+        afterRef.current = page.nextAfterId;
+        if (!page.items.length || noProgress) doneRef.current = true;
+      };
 
-      const noProgress =
-        page.nextAfterVideoId === afterVideoRef.current &&
-        page.nextAfterImageId === afterImageRef.current;
+      ingest(vid, videoAfter, videoDone);
+      ingest(img, imageAfter, imageDone);
 
-      afterVideoRef.current = page.nextAfterVideoId;
-      afterImageRef.current = page.nextAfterImageId;
+      if (fresh.length) {
+        setItems((prev) => [...prev, ...fresh].sort((a, b) => mineTime(b) - mineTime(a)));
+      }
 
-      if (!page.items.length || noProgress) setDone(true);
+      const vDone = filter === 'image' || videoDone.current;
+      const iDone = filter === 'video' || imageDone.current;
+      if (vDone && iDone) setDone(true);
     } catch (err) {
       setError(err instanceof UpstreamMeError ? err.message : String(err));
       setDone(true);
     } finally {
       setLoading(false);
     }
-  }, [loading, done]);
+  }, [loading, done, filter]);
 
   useEffect(() => {
     void loadMore();
@@ -147,7 +159,7 @@ export default function HomeFeed() {
       (entries) => {
         if (entries[0]?.isIntersecting) void loadMore();
       },
-      { rootMargin: '400px' },
+      { rootMargin: '600px' },
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -157,14 +169,14 @@ export default function HomeFeed() {
     <div className="home-feed">
       <div className="home-masonry">
         {items.map((item) => (
-          <FeedCard key={item.id_base} item={item} />
+          <MineCard key={item.id_base} item={item} />
         ))}
       </div>
 
       {error && <p className="error feed-status">{error}</p>}
       {loading && <p className="muted feed-status">Đang tải…</p>}
       {!loading && !items.length && !error && (
-        <p className="muted feed-status">Chưa có nội dung.</p>
+        <p className="muted feed-status">Bạn chưa có nội dung nào.</p>
       )}
 
       <div ref={sentinelRef} className="feed-sentinel" />

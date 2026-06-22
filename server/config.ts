@@ -16,6 +16,9 @@ export const config = {
     signupBonus: Number(process.env.SIGNUP_BONUS_CREDITS) || 1000,
     imageJobCost: Number(process.env.IMAGE_JOB_COST) || 10,
     videoJobCost: Number(process.env.VIDEO_JOB_COST) || 25,
+    audioJobCost: Number(process.env.AUDIO_JOB_COST) || 8,
+    musicJobCost: Number(process.env.MUSIC_JOB_COST) || 15,
+    lipsyncJobCost: Number(process.env.LIPSYNC_JOB_COST) || 30,
   },
   dbPath: process.env.DB_PATH || 'data/app.db',
   topup: {

@@ -1,52 +1,56 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { randomUUID } from 'crypto';
 import { db } from '../db.js';
 import { config } from '../config.js';
 import { authMiddleware, signToken } from '../middleware/auth.js';
-import { getBalance, seedSignupBonus } from '../services/credits.js';
+import { getBalance } from '../services/credits.js';
 import { changePassword, requestPasswordReset, resetPassword } from '../services/passwordReset.js';
 import { getPublicUser, loginWithGoogleCredential, updateProfile } from '../services/users.js';
 import { loginWithAccessToken, updateUserUpstreamToken } from '../services/upstreamAuth.js';
+import { GommoError, gommoLoginWithPassword, gommoRegisterWithPassword } from '../services/gommo.js';
 
 const router = Router();
 
-router.post('/register', (req, res) => {
-  const { email, password, name } = req.body as { email?: string; password?: string; name?: string };
+router.post('/register', async (req, res) => {
+  const { email, password, name, phone, domain } = req.body as {
+    email?: string;
+    password?: string;
+    name?: string;
+    phone?: string;
+    domain?: string;
+  };
 
   if (!email?.trim() || !password || password.length < 6) {
     res.status(400).json({ success: false, message: 'Email và mật khẩu (≥6 ký tự) là bắt buộc' });
     return;
   }
-
-  const normalizedEmail = email.trim().toLowerCase();
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(normalizedEmail);
-  if (existing) {
-    res.status(409).json({ success: false, message: 'Email đã được sử dụng' });
+  if (!phone?.trim()) {
+    res.status(400).json({ success: false, message: 'Số điện thoại là bắt buộc' });
     return;
   }
 
-  const userId = randomUUID();
-  const passwordHash = bcrypt.hashSync(password, 10);
+  const dom = domain?.trim() || config.gommo.domain;
 
-  const tx = db.transaction(() => {
-    db.prepare(
-      `INSERT INTO users (id, email, password_hash, name, auth_provider) VALUES (?, ?, ?, ?, 'local')`,
-    ).run(userId, normalizedEmail, passwordHash, name?.trim() || null);
-    db.prepare('INSERT INTO credit_balances (user_id, balance) VALUES (?, 0)').run(userId);
-    seedSignupBonus(userId, config.credits.signupBonus);
-  });
-  tx();
-
-  const token = signToken({ userId, email: normalizedEmail });
-  res.status(201).json({
-    success: true,
-    data: {
-      token,
-      user: { id: userId, email: normalizedEmail, name: name?.trim() || null, auth_provider: 'local' },
-      balance: getBalance(userId),
-    },
-  });
+  // Đăng ký qua Gommo → tài khoản + credit thật. Không fallback local để tránh tài khoản lệch hệ.
+  try {
+    const accessToken = await gommoRegisterWithPassword({
+      name: name?.trim(),
+      email: email.trim(),
+      password,
+      phone: phone.trim(),
+      domain: dom,
+    });
+    const data = await loginWithAccessToken(accessToken, { domain: dom });
+    res.status(201).json({
+      success: true,
+      data: { ...data, access_token: accessToken, domain: data.upstream.domain },
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // Lỗi trùng email/phone của Gommo → 409, còn lại 400.
+    const status = err instanceof GommoError && /tồn tại|exist/i.test(message) ? 409 : 400;
+    res.status(status).json({ success: false, message });
+  }
 });
 
 router.post('/login-token', async (req, res) => {
@@ -98,14 +102,36 @@ router.post('/upstream-token', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/login', (req, res) => {
-  const { email, password } = req.body as { email?: string; password?: string };
+router.post('/login', async (req, res) => {
+  const { email, password, domain } = req.body as {
+    email?: string;
+    password?: string;
+    domain?: string;
+  };
 
   if (!email?.trim() || !password) {
     res.status(400).json({ success: false, message: 'Email và mật khẩu là bắt buộc' });
     return;
   }
 
+  const dom = domain?.trim() || config.gommo.domain;
+
+  // (1) Ưu tiên đăng nhập qua Gommo: lấy access_token của chính user rồi
+  // link/tạo user + cấp JWT + lưu upstream credentials (để /me, credit, job đúng tài khoản).
+  try {
+    const accessToken = await gommoLoginWithPassword(email.trim(), password, dom);
+    const data = await loginWithAccessToken(accessToken, { domain: dom });
+    // Trả access_token + domain để frontend lưu session Gommo (đọc thẳng credit/tài khoản upstream).
+    res.json({
+      success: true,
+      data: { ...data, access_token: accessToken, domain: data.upstream.domain },
+    });
+    return;
+  } catch {
+    // Gommo từ chối → thử tài khoản local bên dưới.
+  }
+
+  // (2) Fallback: tài khoản đăng ký local (bcrypt).
   const normalizedEmail = email.trim().toLowerCase();
   const user = db
     .prepare('SELECT id, email, password_hash, name, auth_provider FROM users WHERE email = ?')

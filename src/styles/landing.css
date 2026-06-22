@@ -1,16 +1,26 @@
 /* 79 AI Landing — scoped pixel styles */
 .landing-page {
-  --bg-base: #0c0b18;
-  --bg-card: rgba(255, 255, 255, 0.035);
-  --border: rgba(255, 255, 255, 0.07);
-  --border-hover: rgba(255, 255, 255, 0.14);
+  --bg-base: #050816;
+  --bg-elevated: #0b1220;
+  --bg-card: #111827;
+  --border: #1e293b;
+  --border-hover: rgba(83, 235, 103, 0.45);
   --text-primary: #ffffff;
-  --text-secondary: rgba(255, 255, 255, 0.65);
-  --text-muted: rgba(255, 255, 255, 0.4);
-  --accent-purple: #7c5cfc;
-  --accent-blue: #5b9cf6;
-  --accent-gradient: linear-gradient(135deg, #7c5cfc, #5b9cf6);
-  --success: #10b981;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+
+  --brand: #53eb67;
+  --brand-hover: #3cd74d;
+  --brand-light: #7bf48a;
+  --accent-cyan: #22d3ee;
+  --brand-glow: rgba(83, 235, 103, 0.15);
+  --on-brand: #04140a;
+
+  /* tên cũ giữ lại, repoint sang mint để mọi usage cũ tự đổi */
+  --accent-purple: #53eb67;
+  --accent-blue: #22d3ee;
+  --accent-gradient: linear-gradient(135deg, #53eb67, #3cd74d);
+  --success: #53eb67;
 
   background-color: var(--bg-base);
   color: var(--text-primary);
@@ -64,7 +74,7 @@
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  background: linear-gradient(135deg, #0d9488, #14b8a6);
+  background: linear-gradient(135deg, #53eb67, #22d3ee);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -77,7 +87,7 @@
 .landing-page .logo-text {
   font-size: 15px;
   font-weight: 600;
-  color: #14b8a6;
+  color: #53eb67;
   margin-left: 8px;
 }
 
@@ -188,9 +198,9 @@
   height: 560px;
   background: radial-gradient(
     ellipse at center top,
-    rgba(88, 28, 220, 0.32) 0%,
-    rgba(60, 20, 160, 0.16) 35%,
-    rgba(30, 10, 80, 0.06) 62%,
+    rgba(83, 235, 103, 0.22) 0%,
+    rgba(34, 211, 238, 0.12) 35%,
+    rgba(83, 235, 103, 0.05) 62%,
     transparent 100%
   );
   pointer-events: none;
@@ -206,8 +216,8 @@
   height: 520px;
   background: radial-gradient(
     ellipse at center,
-    rgba(124, 92, 252, 0.22) 0%,
-    rgba(88, 28, 220, 0.12) 40%,
+    rgba(83, 235, 103, 0.18) 0%,
+    rgba(34, 211, 238, 0.1) 40%,
     transparent 72%
   );
   pointer-events: none;
@@ -249,9 +259,9 @@
   gap: 8px;
   padding: 6px 14px;
   border-radius: 9999px;
-  background: rgba(139, 92, 246, 0.12);
-  border: 1px solid rgba(139, 92, 246, 0.35);
-  color: #c4b5fd;
+  background: rgba(83, 235, 103, 0.12);
+  border: 1px solid rgba(83, 235, 103, 0.35);
+  color: #7bf48a;
   font-size: 13px;
   margin-bottom: 28px;
 }
@@ -259,7 +269,11 @@
 .landing-page .hero h1 {
   font-size: clamp(48px, 10vw, 76px);
   font-weight: 800;
-  color: #14b8a6;
+  background: linear-gradient(90deg, #53eb67, #22d3ee);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
   line-height: 1;
   letter-spacing: -0.02em;
   margin: 0 0 20px;
@@ -291,20 +305,20 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: linear-gradient(135deg, #7c5cfc 0%, #5b9cf6 100%);
-  color: white;
+  background: linear-gradient(135deg, #53eb67, #3cd74d);
+  color: #04140a;
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   padding: 12px 24px;
   border-radius: 10px;
   border: none;
   cursor: pointer;
-  transition: opacity 0.2s, transform 0.2s;
+  transition: box-shadow 0.2s, transform 0.2s;
 }
 
 .landing-page .btn-primary:hover {
-  opacity: 0.9;
   transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(83, 235, 103, 0.25);
 }
 
 .landing-page .btn-secondary {
@@ -406,8 +420,8 @@
   height: 480px;
   background: radial-gradient(
     ellipse at center,
-    rgba(60, 110, 200, 0.14) 0%,
-    rgba(40, 80, 160, 0.07) 45%,
+    rgba(34, 211, 238, 0.12) 0%,
+    rgba(83, 235, 103, 0.06) 45%,
     transparent 72%
   );
   pointer-events: none;
@@ -450,15 +464,17 @@
 }
 
 .landing-page .feature-card {
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: #111827;
+  border: 1px solid #1e293b;
   border-radius: 16px;
   padding: 28px 32px;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .landing-page .feature-card:hover {
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(83, 235, 103, 0.45);
+  box-shadow: 0 0 0 1px rgba(83, 235, 103, 0.15),
+    0 8px 30px rgba(83, 235, 103, 0.08);
 }
 
 .landing-page .feature-icon {
@@ -471,9 +487,9 @@
   margin-bottom: 16px;
 }
 
-.landing-page .icon-purple { background: rgba(124, 92, 252, 0.18); color: #a78bfa; }
-.landing-page .icon-blue { background: rgba(91, 156, 246, 0.18); color: #7dd3fc; }
-.landing-page .icon-green { background: rgba(16, 185, 129, 0.18); color: #34d399; }
+.landing-page .icon-purple { background: rgba(83, 235, 103, 0.18); color: #7bf48a; }
+.landing-page .icon-blue { background: rgba(34, 211, 238, 0.18); color: #67e8f9; }
+.landing-page .icon-green { background: rgba(83, 235, 103, 0.18); color: #7bf48a; }
 
 .landing-page .feature-card h3 {
   font-size: 18px;
@@ -524,10 +540,10 @@
 }
 
 .landing-page .multimodal-card {
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid #1e293b;
   border-radius: 20px;
   padding: 36px;
-  background: rgba(255, 255, 255, 0.02);
+  background: #111827;
   text-align: center;
 }
 
@@ -537,9 +553,9 @@
   gap: 6px;
   padding: 4px 12px;
   border-radius: 9999px;
-  background: rgba(91, 156, 246, 0.12);
-  border: 1px solid rgba(91, 156, 246, 0.25);
-  color: #93c5fd;
+  background: rgba(83, 235, 103, 0.12);
+  border: 1px solid rgba(83, 235, 103, 0.3);
+  color: #7bf48a;
   font-size: 12px;
   margin-bottom: 12px;
 }
@@ -642,12 +658,13 @@
   justify-content: center;
 }
 
-.landing-page .cap-icon-blue { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
-.landing-page .cap-icon-purple { background: rgba(124, 92, 252, 0.2); color: #a78bfa; }
-.landing-page .cap-icon-orange { background: rgba(249, 115, 22, 0.2); color: #fb923c; }
-.landing-page .cap-icon-pink { background: rgba(236, 72, 153, 0.2); color: #f472b6; }
-.landing-page .cap-icon-green { background: rgba(16, 185, 129, 0.2); color: #34d399; }
-.landing-page .cap-icon-yellow { background: rgba(234, 179, 8, 0.2); color: #facc15; }
+/* Hướng C — bảng màu hài hòa quanh brand mint + cyan, 1 điểm nhấn ấm */
+.landing-page .cap-icon-blue { background: rgba(59, 130, 246, 0.18); color: #93c5fd; }
+.landing-page .cap-icon-purple { background: rgba(129, 140, 248, 0.16); color: #a5b4fc; }
+.landing-page .cap-icon-orange { background: rgba(234, 179, 8, 0.16); color: #fcd34d; }
+.landing-page .cap-icon-pink { background: rgba(45, 212, 191, 0.18); color: #5eead4; }
+.landing-page .cap-icon-green { background: rgba(83, 235, 103, 0.18); color: #7bf48a; }
+.landing-page .cap-icon-yellow { background: rgba(34, 211, 238, 0.18); color: #67e8f9; }
 
 .landing-page .cap-label {
   font-size: 12px;
@@ -727,7 +744,7 @@
 
 .landing-page .view-all-link {
   font-size: 13px;
-  color: #a78bfa;
+  color: #53eb67;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -736,7 +753,7 @@
 }
 
 .landing-page .view-all-link:hover {
-  color: #c4b5fd;
+  color: #7bf48a;
 }
 
 .landing-page .models-grid {
@@ -788,7 +805,7 @@
 .landing-page .badge-new { background: rgba(16, 185, 129, 0.18); color: #34d399; }
 .landing-page .badge-trending { background: rgba(249, 115, 22, 0.18); color: #fb923c; }
 .landing-page .badge-stable { background: rgba(59, 130, 246, 0.18); color: #60a5fa; }
-.landing-page .badge-popular { background: rgba(124, 92, 252, 0.18); color: #a78bfa; }
+.landing-page .badge-popular { background: rgba(34, 211, 238, 0.18); color: #67e8f9; }
 
 .landing-page .model-icon {
   font-size: 28px;
@@ -825,9 +842,9 @@
 }
 
 .landing-page .model-btn:hover {
-  background: rgba(124, 92, 252, 0.15);
-  border-color: rgba(124, 92, 252, 0.4);
-  color: #c4b5fd;
+  background: rgba(83, 235, 103, 0.12);
+  border-color: rgba(83, 235, 103, 0.4);
+  color: #7bf48a;
 }
 
 /* —— PRICING —— */
@@ -867,16 +884,17 @@
 }
 
 .landing-page .pricing-card {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #111827;
+  border: 1px solid #1e293b;
   border-radius: 16px;
   padding: 28px 24px;
   position: relative;
 }
 
 .landing-page .pricing-card.featured {
-  background: rgba(124, 92, 252, 0.08);
-  border: 1px solid rgba(124, 92, 252, 0.5);
+  background: rgba(83, 235, 103, 0.07);
+  border: 2px solid #53eb67;
+  box-shadow: 0 0 40px rgba(83, 235, 103, 0.15);
 }
 
 .landing-page .featured-badge {
@@ -884,8 +902,8 @@
   top: -13px;
   left: 50%;
   transform: translateX(-50%);
-  background: #7c5cfc;
-  color: white;
+  background: #53eb67;
+  color: #04140a;
   font-size: 11px;
   font-weight: 600;
   padding: 4px 14px;
@@ -986,13 +1004,14 @@
 }
 
 .landing-page .pricing-cta.solid {
-  background: linear-gradient(135deg, #7c5cfc, #5b9cf6);
+  background: linear-gradient(135deg, #53eb67, #3cd74d);
   border: none;
-  color: white;
+  color: #04140a;
+  font-weight: 600;
 }
 
 .landing-page .pricing-cta.solid:hover {
-  opacity: 0.9;
+  box-shadow: 0 8px 24px rgba(83, 235, 103, 0.25);
 }
 
 /* —— FOOTER —— */

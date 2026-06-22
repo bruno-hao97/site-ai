@@ -161,6 +161,191 @@ export async function validateUpstreamToken(ctx: GommoContext): Promise<Upstream
   return fetchUpstreamMe(ctx.accessToken, ctx.domain);
 }
 
+/**
+ * Đăng nhập Gommo bằng email + mật khẩu để lấy access_token của chính user.
+ * POST {authBaseUrl}{authPath}/auth/login (x-www-form-urlencoded).
+ */
+export async function gommoLoginWithPassword(
+  email: string,
+  password: string,
+  domain: string,
+): Promise<string> {
+  const url = `${config.gommo.authBaseUrl}${config.gommo.authPath}/auth/login`;
+  const body = new URLSearchParams({
+    email: email.trim(),
+    password,
+    domain: domain.trim(),
+  }).toString();
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+
+  const text = await res.text();
+  let parsed: { access_token?: string; success?: boolean; message?: string };
+  try {
+    parsed = JSON.parse(text) as typeof parsed;
+  } catch {
+    throw new GommoError(text || `auth/login HTTP ${res.status}`, { status: res.status });
+  }
+
+  if (!res.ok || parsed.success === false || !parsed.access_token) {
+    throw new GommoError(parsed.message || 'Đăng nhập Gommo thất bại', { status: res.status });
+  }
+
+  return parsed.access_token;
+}
+
+/**
+ * Đăng ký tài khoản Gommo. POST {authBaseUrl}{authPath}/auth/register.
+ * Thành công trả thẳng access_token; lỗi trùng dùng dạng { error: 1, message }.
+ */
+export async function gommoRegisterWithPassword(input: {
+  name?: string;
+  email: string;
+  password: string;
+  phone: string;
+  domain: string;
+}): Promise<string> {
+  const url = `${config.gommo.authBaseUrl}${config.gommo.authPath}/auth/register`;
+  const body = new URLSearchParams({
+    name: input.name?.trim() || '',
+    email: input.email.trim(),
+    password: input.password,
+    phone: input.phone.trim(),
+    domain: input.domain.trim(),
+  }).toString();
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+
+  const text = await res.text();
+  let parsed: { access_token?: string; success?: boolean; error?: number; message?: string };
+  try {
+    parsed = JSON.parse(text) as typeof parsed;
+  } catch {
+    throw new GommoError(text || `auth/register HTTP ${res.status}`, { status: res.status });
+  }
+
+  if (!res.ok || parsed.error || parsed.success === false || !parsed.access_token) {
+    throw new GommoError(parsed.message || 'Đăng ký Gommo thất bại', { status: res.status });
+  }
+
+  return parsed.access_token;
+}
+
+/**
+ * Proxy tới các endpoint công khai trên auth host (api.gommo.net): newsfeed,
+ * public-videos, news/getAll. Token nằm trong body (không phải Bearer header).
+ * Trả raw JSON của upstream để client parse như cũ.
+ */
+async function authPost(
+  ctx: GommoContext,
+  path: string,
+  fields: Record<string, string>,
+): Promise<unknown> {
+  if (!ctx.accessToken) {
+    throw new GommoError('Chưa có access token upstream');
+  }
+  const body = new URLSearchParams({
+    access_token: ctx.accessToken,
+    domain: ctx.domain,
+    ...fields,
+  }).toString();
+
+  const res = await fetch(`${config.gommo.authBaseUrl}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+
+  const text = await res.text();
+  let parsed: { success?: boolean; message?: string } & Record<string, unknown>;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new GommoError(text || `Gommo HTTP ${res.status}`, { status: res.status });
+  }
+  if (!res.ok || parsed.success === false) {
+    throw new GommoError(parsed.message || `Gommo HTTP ${res.status}`, { status: res.status });
+  }
+  return parsed;
+}
+
+export function fetchNewsfeed(ctx: GommoContext, fields: Record<string, string>): Promise<unknown> {
+  return authPost(ctx, '/ai/newfeeds', fields);
+}
+
+export function fetchPublicVideos(ctx: GommoContext, fields: Record<string, string>): Promise<unknown> {
+  return authPost(ctx, `${config.gommo.authPath}/ai/public-videos`, fields);
+}
+
+export function fetchNewsList(ctx: GommoContext, fields: Record<string, string>): Promise<unknown> {
+  return authPost(ctx, `${config.gommo.authPath}/news/getAll`, fields);
+}
+
+/** Video của chính user (theo token + project_id). */
+export function fetchMyVideos(ctx: GommoContext, fields: Record<string, string>): Promise<unknown> {
+  return authPost(ctx, '/ai/videos', { project_id: ctx.projectId, ...fields });
+}
+
+/** Ảnh của chính user (theo token + project_id). */
+export function fetchMyImages(ctx: GommoContext, fields: Record<string, string>): Promise<unknown> {
+  return authPost(ctx, '/ai/images', { project_id: ctx.projectId, ...fields });
+}
+
+/** Proxy upload ảnh/video lên Gommo (multipart) bằng token của ctx. */
+export async function uploadMedia(
+  ctx: GommoContext,
+  kind: 'image' | 'video',
+  buffer: Buffer,
+  fileName: string,
+  mime: string,
+): Promise<{ url: string }> {
+  if (!ctx.accessToken) {
+    throw new GommoError('Chưa có access token upstream');
+  }
+  const form = new FormData();
+  form.append('access_token', ctx.accessToken);
+  form.append('domain', ctx.domain);
+  form.append('project_id', ctx.projectId);
+  const blob = new Blob([buffer], { type: mime });
+  if (kind === 'image') {
+    form.append('file', blob, fileName);
+    form.append('file_name', fileName);
+    form.append('size', String(buffer.length));
+  } else {
+    form.append('video_file', blob, fileName);
+  }
+
+  const res = await fetch(`${config.gommo.baseUrl}/ai/upload/${kind}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${ctx.accessToken}` },
+    body: form,
+  });
+
+  const text = await res.text();
+  let parsed: { success?: boolean; message?: string; data?: Record<string, string>; url?: string };
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new GommoError(text || `Upload HTTP ${res.status}`, { status: res.status });
+  }
+  if (!res.ok || parsed.success === false) {
+    throw new GommoError(parsed.message || `Upload HTTP ${res.status}`, { status: res.status });
+  }
+
+  const data = parsed.data || {};
+  const url = data.url || data.result_url || data.image_url || data.video_url || parsed.url;
+  if (!url) throw new GommoError('Upload thành công nhưng không có URL');
+  return { url };
+}
+
 export async function fetchModels(type: string, ctx: GommoContext): Promise<GommoEnvelope> {
   const q = `type=${encodeURIComponent(type)}&domain=${encodeURIComponent(ctx.domain)}`;
   try {
@@ -211,13 +396,22 @@ export function extractPollSnapshot(envelope: GommoEnvelope) {
   const raw = envelope.raw || {};
   const imageInfo = raw.imageInfo as { status?: string; result_url?: string } | undefined;
   const videoInfo = raw.videoInfo as { status?: string; result_url?: string; url?: string } | undefined;
+  const musicInfo = raw.musicInfo as { status?: string; result_url?: string; url?: string } | undefined;
+  const audioInfo = raw.audioInfo as { status?: string; result_url?: string; url?: string } | undefined;
   return {
-    status: String(data.status || imageInfo?.status || videoInfo?.status || ''),
+    status: String(
+      data.status || imageInfo?.status || videoInfo?.status || musicInfo?.status || audioInfo?.status || '',
+    ),
     resultUrl:
       (data.result_url as string) ||
+      (data.url as string) ||
       imageInfo?.result_url ||
       videoInfo?.result_url ||
       videoInfo?.url ||
+      musicInfo?.result_url ||
+      musicInfo?.url ||
+      audioInfo?.result_url ||
+      audioInfo?.url ||
       null,
     idBase: String(data.id_base || data.job_id || ''),
   };

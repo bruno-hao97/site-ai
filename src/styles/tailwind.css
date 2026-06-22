@@ -12,7 +12,7 @@
   .gradient-border-featured {
     position: relative;
     border-radius: 1rem;
-    background: rgba(124, 92, 252, 0.08);
+    background: rgba(83, 235, 103, 0.08);
   }
 
   .gradient-border-featured::before {
@@ -21,7 +21,7 @@
     inset: -1px;
     border-radius: inherit;
     padding: 1px;
-    background: linear-gradient(135deg, #7c5cfc, #4a9af4);
+    background: linear-gradient(135deg, #53eb67, #22d3ee);
     -webkit-mask:
       linear-gradient(#fff 0 0) content-box,
       linear-gradient(#fff 0 0);

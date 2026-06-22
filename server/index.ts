@@ -3,6 +3,7 @@ import cors from 'cors';
 import authRoutes from './routes/auth.js';
 import creditsRoutes from './routes/credits.js';
 import jobsRoutes from './routes/jobs.js';
+import feedRoutes from './routes/feed.js';
 import dashboardRoutes from './routes/dashboard.js';
 import apiKeysRoutes from './routes/apiKeys.js';
 import { config } from './config.js';
@@ -11,7 +12,7 @@ import './db.js';
 const app = express();
 
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: '25mb' }));
 
 app.get('/api/health', (_req, res) => {
   res.json({
@@ -26,6 +27,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/credits', creditsRoutes);
 app.use('/api/jobs', jobsRoutes);
+app.use('/api/feed', feedRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/api-keys', apiKeysRoutes);
 

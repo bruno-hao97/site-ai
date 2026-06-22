@@ -1,6 +1,7 @@
 import { GommoClient } from './api';
 import { fetchUpstreamMe, type UpstreamMeResponse } from './upstreamMe';
 import { saveSettings } from './settingsStore';
+import { clearSession, isBackendLoggedIn, loadSession } from './session';
 
 const SESSION_KEY = 'gommo_session';
 export const DEFAULT_PROJECT_ID = 'default';
@@ -40,11 +41,12 @@ export function saveAuth(state: AuthState): void {
 
 export function clearAuth(): void {
   localStorage.removeItem(SESSION_KEY);
+  clearSession();
   saveSettings({ accessToken: '' });
 }
 
 export function isLoggedIn(): boolean {
-  return Boolean(loadAuth()?.access_token?.trim());
+  return Boolean(loadAuth()?.access_token?.trim()) || isBackendLoggedIn();
 }
 
 export function getGommoClient(): GommoClient {
@@ -59,16 +61,35 @@ export function getGommoClient(): GommoClient {
 
 export function getDisplayUser(): DisplayUser {
   const u = loadAuth()?.upstream_me?.userInfo;
-  return {
-    name: u?.name?.trim() || u?.username?.trim() || null,
-    email: u?.email?.trim() || '',
-    avatar: u?.avatar || null,
-    username: u?.username || null,
-  };
+  if (u) {
+    return {
+      name: u.name?.trim() || u.username?.trim() || null,
+      email: u.email?.trim() || '',
+      avatar: u.avatar || null,
+      username: u.username || null,
+    };
+  }
+  const session = loadSession();
+  if (session) {
+    return {
+      name: session.user.name?.trim() || null,
+      email: session.user.email || '',
+      avatar: null,
+      username: null,
+    };
+  }
+  return { name: null, email: '', avatar: null, username: null };
 }
 
 export function getCreditsAi(): number {
-  return loadAuth()?.upstream_me?.balancesInfo?.credits_ai ?? 0;
+  const auth = loadAuth();
+  if (auth?.upstream_me) return auth.upstream_me.balancesInfo?.credits_ai ?? 0;
+  return loadSession()?.balance ?? 0;
+}
+
+/** Thông báo số dư credit vừa thay đổi (vd sau khi tạo job) để header tự refresh. */
+export function notifyCreditsUpdated(): void {
+  document.dispatchEvent(new CustomEvent('credits:updated'));
 }
 
 export function getUpstreamMe(): UpstreamMeResponse | null {

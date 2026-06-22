@@ -1,10 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
+import { Menu, X } from 'lucide-react';
 import {
+  clearAuth,
   getCreditsAi,
   isLoggedIn,
+  loadAuth,
   refreshSession,
 } from './services/authStore';
+import { fetchMe } from './services/backendApi';
+import { isBackendLoggedIn, setSessionUser } from './services/session';
+import { UpstreamMeError } from './services/upstreamMe';
+import { useCreditsUpdated } from './hooks/useCreditsUpdated';
 import type { JobType } from './services/api';
 import ProtectedRoute from './components/ProtectedRoute';
 import UserMenuDropdown from './components/user/UserMenuDropdown';
@@ -13,6 +20,9 @@ import HomePage from './pages/HomePage';
 import ExplorePage from './pages/ExplorePage';
 import ComingSoonPage from './pages/ComingSoonPage';
 import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import StudioPage from './pages/StudioPage';
 import ProfilePage from './pages/ProfilePage';
 import SettingsPage from './pages/SettingsPage';
@@ -20,6 +30,9 @@ import SettingsTokensPage from './pages/SettingsTokensPage';
 import UsageHistoryPage from './pages/UsageHistoryPage';
 import StudioHistoryPage from './pages/StudioHistoryPage';
 import ApiPlaygroundPage from './pages/ApiPlaygroundPage';
+import DashboardPage from './pages/DashboardPage';
+import WalletPage from './pages/WalletPage';
+import ApiKeysPage from './pages/ApiKeysPage';
 import AccountLayout from './pages/account/AccountLayout';
 import AccountSettingsPage from './pages/account/AccountSettingsPage';
 import AccountPromoPage from './pages/account/AccountPromoPage';
@@ -58,28 +71,61 @@ function StudioHistoryRedirect() {
 
 function AppHeader() {
   const [credits, setCredits] = useState(getCreditsAi());
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const loggedIn = isLoggedIn();
+  const location = useLocation();
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
+
+  function refreshCredits() {
+    if (loadAuth()) {
+      refreshSession()
+        .then((s) => setCredits(s.upstream_me.balancesInfo?.credits_ai ?? 0))
+        .catch((err) => {
+          // Token Gommo hết hạn / bị thu hồi → đăng xuất, về trang login.
+          if (err instanceof UpstreamMeError && (err.status === 401 || err.status === 403)) {
+            clearAuth();
+            window.location.href = '/login';
+          }
+        });
+    } else if (isBackendLoggedIn()) {
+      fetchMe()
+        .then((d) => setCredits(d.balance))
+        .catch(() => {});
+    }
+  }
 
   useEffect(() => {
     if (!loggedIn) return;
-    refreshSession()
-      .then((s) => setCredits(s.upstream_me.balancesInfo?.credits_ai ?? 0))
-      .catch(() => {});
+    refreshCredits();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loggedIn]);
 
-  function refreshCredits() {
-    refreshSession()
-      .then((s) => setCredits(s.upstream_me.balancesInfo?.credits_ai ?? 0))
-      .catch(() => {});
-  }
+  // Tạo job xong → StudioPage bắn 'credits:updated' → header refresh số dư.
+  useCreditsUpdated(() => {
+    if (loggedIn) refreshCredits();
+  });
 
   return (
     <header className="app-header">
       <div className="app-header-inner">
+        {loggedIn && (
+          <button
+            type="button"
+            className="nav-toggle"
+            aria-label="Mở menu"
+            aria-expanded={mobileNavOpen}
+            onClick={() => setMobileNavOpen((v) => !v)}
+          >
+            {mobileNavOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        )}
         <Link to="/" className="brand">LN AI</Link>
         {loggedIn ? (
           <>
-            <nav className="nav-main">
+            <nav className={`nav-main ${mobileNavOpen ? 'open' : ''}`}>
               {MAIN_NAV.map((item) => (
                 <NavLink
                   key={item.to}
@@ -90,6 +136,13 @@ function AppHeader() {
                 </NavLink>
               ))}
             </nav>
+            {mobileNavOpen && (
+              <div
+                className="nav-backdrop"
+                onClick={() => setMobileNavOpen(false)}
+                aria-hidden="true"
+              />
+            )}
             <div className="header-meta">
               <button type="button" className="lang-pill">VI</button>
               <a
@@ -121,7 +174,8 @@ function AppHeader() {
 
 function AppShell() {
   const location = useLocation();
-  const isBarePage = location.pathname === '/' || location.pathname === '/login';
+  const BARE_PAGES = ['/', '/login', '/register', '/forgot-password', '/reset-password'];
+  const isBarePage = BARE_PAGES.includes(location.pathname);
   const isFullBleed = location.pathname in STUDIO_NAV;
 
   return (
@@ -130,10 +184,10 @@ function AppShell() {
       <main className={isBarePage ? '' : `app-main ${isFullBleed ? 'app-main-full' : ''}`}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={isLoggedIn() ? <Navigate to="/app" /> : <LoginPage />} />
-          <Route path="/register" element={<Navigate to="/login" replace />} />
-          <Route path="/forgot-password" element={<Navigate to="/login" replace />} />
-          <Route path="/reset-password" element={<Navigate to="/login" replace />} />
+          <Route path="/login" element={isLoggedIn() ? <Navigate to="/home" /> : <LoginPage />} />
+          <Route path="/register" element={isLoggedIn() ? <Navigate to="/home" /> : <RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/home" element={<HomePage />} />
             <Route path="/explore" element={<ExplorePage />} />
@@ -142,11 +196,7 @@ function AppShell() {
                 key={path}
                 path={path}
                 element={
-                  <StudioPage
-                    initialType={type}
-                    lockType
-                    layout={path === '/image' ? 'composer' : 'classic'}
-                  />
+                  <StudioPage key={path} initialType={type} lockType layout="composer" />
                 }
               />
             ))}
@@ -182,9 +232,12 @@ function AppShell() {
               <Route path="transfer" element={<AccountTransferPage />} />
               <Route path="transactions" element={<AccountTransactionsPage />} />
             </Route>
-            <Route path="/dashboard" element={<Navigate to="/profile" replace />} />
-            <Route path="/wallet" element={<Navigate to="/usage-history" replace />} />
-            <Route path="/api-keys" element={<Navigate to="/settings/tokens" replace />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/wallet" element={<WalletPage />} />
+            <Route
+              path="/api-keys"
+              element={loadAuth() ? <Navigate to="/settings/tokens" replace /> : <ApiKeysPage />}
+            />
           </Route>
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
@@ -194,5 +247,15 @@ function AppShell() {
 }
 
 export default function App() {
+  useEffect(() => {
+    if (isBackendLoggedIn() && !loadAuth()) {
+      fetchMe()
+        .then((d) => setSessionUser(d.user, d.balance))
+        .catch(() => {
+          /* 401 trong fetchMe đã tự xử lý đăng xuất ở backendApi */
+        });
+    }
+  }, []);
+
   return <AppShell />;
 }

@@ -1,4 +1,6 @@
 import { GOMMO_AUTH_BASE, GOMMO_AUTH_PATH, UpstreamMeError } from './upstreamMe';
+import { getSessionToken } from './session';
+import { loadAuth } from './authStore';
 
 export interface NewsAttachment {
   url: string;
@@ -83,15 +85,33 @@ export function sortNewsItems(items: NewsItem[]): NewsItem[] {
   });
 }
 
-export async function fetchAllNews(
-  accessToken: string,
-  domain: string,
-  limit = 5,
-): Promise<NewsItem[]> {
+export async function fetchAllNews(limit = 5): Promise<NewsItem[]> {
+  const token = getSessionToken();
+  if (token) {
+    const res = await fetch('/api/feed/news', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ limit: String(limit) }),
+    });
+    const text = await res.text();
+    let parsed: NewsListResponse;
+    try {
+      parsed = JSON.parse(text) as NewsListResponse;
+    } catch {
+      throw new UpstreamMeError(text || `HTTP ${res.status}`, res.status);
+    }
+    if (!res.ok || parsed.success === false) {
+      throw new UpstreamMeError(parsed.message || `HTTP ${res.status}`, res.status);
+    }
+    return sortNewsItems(parsed.data ?? []);
+  }
+
+  const auth = loadAuth();
+  if (!auth?.access_token) throw new UpstreamMeError('Chưa đăng nhập', 401);
   const res = await newsPost<NewsListResponse>(
     '/news/getAll',
-    accessToken,
-    domain,
+    auth.access_token,
+    auth.domain,
     { limit: String(limit) },
   );
   return sortNewsItems(res.data ?? []);

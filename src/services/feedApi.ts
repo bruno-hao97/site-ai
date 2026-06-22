@@ -1,4 +1,61 @@
-import { GOMMO_AUTH_BASE, UpstreamMeError } from './upstreamMe';
+import { GOMMO_AUTH_BASE, GOMMO_AUTH_PATH, UpstreamMeError } from './upstreamMe';
+import { getSessionToken } from './session';
+import { clearAuth, loadAuth } from './authStore';
+
+/**
+ * Gọi feed/explore qua backend proxy nếu có phiên JWT (backend dùng token chung),
+ * ngược lại gọi thẳng Gommo bằng access token của user (đăng nhập bằng token).
+ */
+async function feedRequest<T extends { success?: boolean; message?: string }>(
+  backendPath: string,
+  gommoUrl: string,
+  fields: Record<string, string>,
+): Promise<T> {
+  const token = getSessionToken();
+  if (token) {
+    const res = await fetch(`/api/feed${backendPath}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(fields),
+    });
+    return parseFeedRes<T>(res);
+  }
+
+  const auth = loadAuth();
+  if (!auth?.access_token) throw new UpstreamMeError('Chưa đăng nhập', 401);
+  const body = new URLSearchParams({
+    access_token: auth.access_token.trim(),
+    domain: auth.domain.trim(),
+    ...fields,
+  }).toString();
+  const res = await fetch(gommoUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+  return parseFeedRes<T>(res);
+}
+
+async function parseFeedRes<T extends { success?: boolean; message?: string }>(
+  res: Response,
+): Promise<T> {
+  // Token (Gommo hoặc JWT backend) hết hạn → đăng xuất, về trang login.
+  if (res.status === 401 || res.status === 403) {
+    clearAuth();
+    if (typeof window !== 'undefined') window.location.href = '/login';
+  }
+  const text = await res.text();
+  let parsed: T;
+  try {
+    parsed = JSON.parse(text) as T;
+  } catch {
+    throw new UpstreamMeError(text || `HTTP ${res.status}`, res.status);
+  }
+  if (!res.ok || parsed.success === false) {
+    throw new UpstreamMeError(parsed.message || `HTTP ${res.status}`, res.status);
+  }
+  return parsed;
+}
 
 export interface FeedResolution {
   type: string;
@@ -69,8 +126,6 @@ interface FeedResponse {
 }
 
 export interface FetchFeedParams {
-  accessToken: string;
-  domain: string;
   limit?: number;
   privacy?: string;
   projectId?: string;
@@ -78,10 +133,8 @@ export interface FetchFeedParams {
   afterImageId?: string;
 }
 
-export async function fetchNewsfeed(params: FetchFeedParams): Promise<FeedPage> {
+export async function fetchNewsfeed(params: FetchFeedParams = {}): Promise<FeedPage> {
   const {
-    accessToken,
-    domain,
     limit = 30,
     privacy = 'PUBLIC',
     projectId = 'default',
@@ -89,33 +142,19 @@ export async function fetchNewsfeed(params: FetchFeedParams): Promise<FeedPage> 
     afterImageId = '',
   } = params;
 
-  const body = new URLSearchParams({
-    access_token: accessToken.trim(),
-    domain: domain.trim(),
+  const fields: Record<string, string> = {
     limit: String(limit),
     project_id: projectId,
     privacy,
-  });
-  if (afterVideoId) body.set('after_video_id', afterVideoId);
-  if (afterImageId) body.set('after_image_id', afterImageId);
+  };
+  if (afterVideoId) fields.after_video_id = afterVideoId;
+  if (afterImageId) fields.after_image_id = afterImageId;
 
-  const res = await fetch(`${GOMMO_AUTH_BASE}/ai/newfeeds`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  });
-
-  const text = await res.text();
-  let parsed: FeedResponse;
-  try {
-    parsed = JSON.parse(text) as FeedResponse;
-  } catch {
-    throw new UpstreamMeError(text || `HTTP ${res.status}`, res.status);
-  }
-
-  if (!res.ok || parsed.success === false) {
-    throw new UpstreamMeError(parsed.message || `HTTP ${res.status}`, res.status);
-  }
+  const parsed = await feedRequest<FeedResponse>(
+    '/newsfeed',
+    `${GOMMO_AUTH_BASE}/ai/newfeeds`,
+    fields,
+  );
 
   return {
     items: parsed.data ?? [],
@@ -138,56 +177,132 @@ export interface PublicVideosPage {
 }
 
 export interface FetchPublicVideosParams {
-  accessToken: string;
-  domain: string;
   type?: string;
   publicPrompt?: boolean;
   limit?: number;
   afterId?: string;
 }
 
-export async function fetchPublicVideos(params: FetchPublicVideosParams): Promise<PublicVideosPage> {
+export async function fetchPublicVideos(params: FetchPublicVideosParams = {}): Promise<PublicVideosPage> {
   const {
-    accessToken,
-    domain,
     type = 'public_home',
     publicPrompt = false,
     limit = 30,
     afterId = '',
   } = params;
 
-  const body = new URLSearchParams({
-    access_token: accessToken.trim(),
-    domain: domain.trim(),
+  const fields: Record<string, string> = {
     type,
     public_prompt: String(publicPrompt),
     limit: String(limit),
-  });
-  if (afterId) body.set('after_id', afterId);
+  };
+  if (afterId) fields.after_id = afterId;
 
-  const res = await fetch(`${GOMMO_AUTH_BASE}/api/apps/go-mmo/ai/public-videos`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  });
-
-  const text = await res.text();
-  let parsed: PublicVideosResponse;
-  try {
-    parsed = JSON.parse(text) as PublicVideosResponse;
-  } catch {
-    throw new UpstreamMeError(text || `HTTP ${res.status}`, res.status);
-  }
-
-  if (!res.ok || parsed.success === false) {
-    throw new UpstreamMeError(parsed.message || `HTTP ${res.status}`, res.status);
-  }
+  const parsed = await feedRequest<PublicVideosResponse>(
+    '/public-videos',
+    `${GOMMO_AUTH_BASE}${GOMMO_AUTH_PATH}/ai/public-videos`,
+    fields,
+  );
 
   const items = parsed.data ?? [];
   const last = items.length ? items[items.length - 1] : undefined;
   const nextAfterId = parsed.next_after_id ?? parsed.after_id ?? last?.id_base ?? '';
 
   return { items, nextAfterId };
+}
+
+export interface MinePage {
+  items: FeedItem[];
+  nextAfterId: string;
+}
+
+export interface FetchMineParams {
+  limit?: number;
+  afterId?: string;
+}
+
+interface MineVideosResponse {
+  success?: boolean;
+  message?: string;
+  data?: FeedItem[];
+  next_after_id?: string;
+}
+
+interface MyImageItem {
+  id_base: string;
+  url?: string;
+  url_preview?: string;
+  prompt?: string;
+  model?: string;
+  ratio?: string;
+  resolution?: string;
+  status?: string;
+  created_at?: number | string;
+  isMe?: boolean;
+}
+
+interface MineImagesResponse {
+  success?: boolean;
+  message?: string;
+  data?: MyImageItem[];
+  next_after_id?: string;
+}
+
+function mapImageToFeedItem(img: MyImageItem): FeedItem {
+  return {
+    id_base: img.id_base,
+    type: 'image',
+    status: img.status || 'SUCCESS',
+    prompt: img.prompt,
+    model: img.model,
+    ratio: img.ratio,
+    resolution: img.resolution,
+    thumbnail_url: img.url_preview || img.url,
+    download_url: img.url,
+    created_time: img.created_at,
+    isMe: img.isMe,
+  };
+}
+
+export async function fetchMyVideos(params: FetchMineParams = {}): Promise<MinePage> {
+  const { limit = 30, afterId = '' } = params;
+  const fields: Record<string, string> = {
+    limit: String(limit),
+    order_by: 'index',
+    sort_by: 'desc',
+  };
+  if (afterId) fields.after_id = afterId;
+
+  const parsed = await feedRequest<MineVideosResponse>(
+    '/my-videos',
+    `${GOMMO_AUTH_BASE}/ai/videos`,
+    fields,
+  );
+
+  const items = (parsed.data ?? []).map((it) => ({ ...it, type: 'video' as const }));
+  const last = items.length ? items[items.length - 1] : undefined;
+  return { items, nextAfterId: parsed.next_after_id ?? last?.id_base ?? '' };
+}
+
+export async function fetchMyImages(params: FetchMineParams = {}): Promise<MinePage> {
+  const { limit = 30, afterId = '' } = params;
+  const fields: Record<string, string> = {
+    limit: String(limit),
+    order_by: 'index',
+    sort_by: 'desc',
+  };
+  if (afterId) fields.after_id = afterId;
+
+  const parsed = await feedRequest<MineImagesResponse>(
+    '/my-images',
+    `${GOMMO_AUTH_BASE}/ai/images`,
+    fields,
+  );
+
+  const raw = parsed.data ?? [];
+  const items = raw.map(mapImageToFeedItem);
+  const last = raw.length ? raw[raw.length - 1] : undefined;
+  return { items, nextAfterId: parsed.next_after_id ?? last?.id_base ?? '' };
 }
 
 export function feedModelLabel(item: FeedItem): string {
