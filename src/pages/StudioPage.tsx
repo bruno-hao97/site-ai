@@ -35,6 +35,7 @@ import {
   type JobType,
 } from '../services/api';
 import StudioGallery, { type SessionItem } from '../components/StudioGallery';
+import ComposerHistory from '../components/ComposerHistory';
 import UrlField from '../components/UrlField';
 import {
   defaultSelectionsForType,
@@ -1200,7 +1201,9 @@ export default function StudioPage({
             </div>
           )}
 
-          {displayedResults.length === 0 ? (
+          {mainTab === 'history' ? (
+            <ComposerHistory jobType={jobType} zoom={zoom} />
+          ) : displayedResults.length === 0 ? (
             <p className="muted composer-empty">
               {mainTab === 'folder'
                 ? 'Chưa có tệp nào được lưu vào thư viện.'

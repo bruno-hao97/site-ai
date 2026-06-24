@@ -57,7 +57,7 @@ export default function LoginPage() {
     <div className="page auth-page">
       <div className="auth-card panel">
         <h1>Đăng nhập</h1>
-        <p className="lead">Đăng nhập để tiếp tục với LN AI.</p>
+        <p className="lead">Đăng nhập để tiếp tục với AI Center.</p>
 
         <GoogleSignInButton onSuccess={() => navigate('/home')} onError={setError} />
 

@@ -18,7 +18,8 @@ import UserMenuDropdown from './components/user/UserMenuDropdown';
 import LandingPage from './pages/LandingPage';
 import HomePage from './pages/HomePage';
 import ExplorePage from './pages/ExplorePage';
-import ComingSoonPage from './pages/ComingSoonPage';
+import ProjectsPage from './pages/ProjectsPage';
+import WorkflowPage from './pages/WorkflowPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
@@ -43,18 +44,12 @@ import AccountTransactionsPage from './pages/account/AccountTransactionsPage';
 const MAIN_NAV = [
   { to: '/home', label: 'Home' },
   { to: '/explore', label: 'Explore' },
-  { to: '/chat', label: 'Chat' },
+  { to: '/projects', label: 'Dự án' },
   { to: '/image', label: 'Image' },
   { to: '/video', label: 'Video' },
   { to: '/audio', label: 'Audio' },
   { to: '/music', label: 'Music' },
-  { to: '/workflow', label: 'Auto Workflow' },
-  { to: '/moon-core', label: 'Moon Core' },
-  { to: '/mega-studio', label: 'Mega Studio' },
-  { to: '/apps', label: 'Apps' },
-  { to: '/markets', label: 'Markets' },
-  { to: '/news', label: 'News' },
-  { to: '/notes', label: 'Notes' },
+  { to: '/workflow', label: 'Workflow' },
 ] as const;
 
 const STUDIO_NAV: Record<string, JobType> = {
@@ -122,7 +117,9 @@ function AppHeader() {
             {mobileNavOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         )}
-        <Link to="/" className="brand">LN AI</Link>
+        <Link to="/" className="brand">
+          <img src="/logo.png" alt="AI Center" className="brand-logo" />
+        </Link>
         {loggedIn ? (
           <>
             <nav className={`nav-main ${mobileNavOpen ? 'open' : ''}`}>
@@ -176,7 +173,7 @@ function AppShell() {
   const location = useLocation();
   const BARE_PAGES = ['/', '/login', '/register', '/forgot-password', '/reset-password'];
   const isBarePage = BARE_PAGES.includes(location.pathname);
-  const isFullBleed = location.pathname in STUDIO_NAV;
+  const isFullBleed = location.pathname in STUDIO_NAV || location.pathname === '/workflow';
 
   return (
     <div className={isBarePage ? '' : 'app'}>
@@ -191,6 +188,8 @@ function AppShell() {
           <Route element={<ProtectedRoute />}>
             <Route path="/home" element={<HomePage />} />
             <Route path="/explore" element={<ExplorePage />} />
+            <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/workflow" element={<WorkflowPage />} />
             {Object.entries(STUDIO_NAV).map(([path, type]) => (
               <Route
                 key={path}
@@ -200,20 +199,6 @@ function AppShell() {
                 }
               />
             ))}
-            {MAIN_NAV
-              .filter(
-                (item) =>
-                  item.to !== '/home' &&
-                  item.to !== '/explore' &&
-                  !(item.to in STUDIO_NAV),
-              )
-              .map((item) => (
-                <Route
-                  key={item.to}
-                  path={item.to}
-                  element={<ComingSoonPage title={item.label} />}
-                />
-              ))}
             <Route path="/app" element={<StudioPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/playground" element={<ApiPlaygroundPage />} />

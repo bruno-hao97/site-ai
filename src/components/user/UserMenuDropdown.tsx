@@ -6,7 +6,16 @@ import {
   loadAuth,
 } from '../../services/authStore';
 import { loadTheme, saveTheme, type ThemeMode } from '../../services/themeStore';
-import { loadSettings, saveSettings } from '../../services/settingsStore';
+import { Check, Pencil, Trash2 } from 'lucide-react';
+import {
+  countByProject,
+  createProject,
+  deleteProject,
+  loadProjects,
+  onProjectsUpdated,
+  updateProject,
+  type Project,
+} from '../../services/projectStore';
 
 const EXTERNAL = {
   community: 'https://discord.gg/',
@@ -25,7 +34,12 @@ export default function UserMenuDropdown({ credits, onCreditsRefresh }: Props) {
   const user = getDisplayUser();
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>(loadTheme());
-  const [projectId, setProjectId] = useState(loadSettings().projectId);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -43,6 +57,15 @@ export default function UserMenuDropdown({ credits, onCreditsRefresh }: Props) {
     };
   }, []);
 
+  useEffect(() => {
+    const refresh = () => {
+      setProjects(loadProjects());
+      setCounts(countByProject());
+    };
+    refresh();
+    return onProjectsUpdated(refresh);
+  }, []);
+
   function logout() {
     clearAuth();
     navigate('/login');
@@ -54,10 +77,29 @@ export default function UserMenuDropdown({ credits, onCreditsRefresh }: Props) {
     setTheme(next);
   }
 
-  function handleProjectChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const v = e.target.value;
-    setProjectId(v);
-    saveSettings({ projectId: v });
+  function handleCreateProject() {
+    const name = newName.trim();
+    if (!name) return;
+    createProject(name);
+    setNewName('');
+    setCreating(false);
+  }
+
+  function openProject(id: string) {
+    navigate(`/projects?p=${encodeURIComponent(id)}`);
+    setOpen(false);
+  }
+
+  function saveProjectEdit(id: string) {
+    updateProject(id, { name: editName });
+    setEditing(null);
+  }
+
+  function handleDeleteProject(p: Project) {
+    if (!window.confirm(`Xóa dự án “${p.name}”? Item sẽ được gỡ khỏi dự án (không xóa khỏi Gommo).`)) {
+      return;
+    }
+    deleteProject(p.id);
   }
 
   const handle = user.username ? `@${user.username}` : user.email;
@@ -107,18 +149,89 @@ export default function UserMenuDropdown({ credits, onCreditsRefresh }: Props) {
           <div className="user-menu-section">
             <div className="user-menu-section-head">
               <span>DỰ ÁN</span>
-              <button type="button" className="user-menu-link-btn" disabled title="Sắp có">
+              <button
+                type="button"
+                className="user-menu-link-btn"
+                onClick={() => setCreating((v) => !v)}
+              >
                 + Mới
               </button>
             </div>
-            <select
-              className="user-menu-select"
-              value={projectId}
-              onChange={handleProjectChange}
-            >
-              <option value={projectId}>{projectId}</option>
-              {projectId !== 'default' && <option value="default">default</option>}
-            </select>
+
+            {creating && (
+              <div className="user-menu-proj-create">
+                <input
+                  autoFocus
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="Tên dự án…"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleCreateProject();
+                    if (e.key === 'Escape') setCreating(false);
+                  }}
+                />
+                <button type="button" onClick={handleCreateProject} aria-label="Tạo dự án">
+                  <Check size={15} />
+                </button>
+              </div>
+            )}
+
+            <div className="user-menu-proj-list">
+              {projects.length === 0 && !creating && (
+                <p className="user-menu-proj-empty">Chưa có dự án. Bấm “+ Mới”.</p>
+              )}
+              {projects.map((p) => (
+                <div key={p.id} className="user-menu-proj-item">
+                  {editing === p.id ? (
+                    <input
+                      className="user-menu-proj-edit"
+                      autoFocus
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') saveProjectEdit(p.id);
+                        if (e.key === 'Escape') setEditing(null);
+                      }}
+                      onBlur={() => saveProjectEdit(p.id)}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className="user-menu-proj-open"
+                      onClick={() => openProject(p.id)}
+                    >
+                      <span className="project-pick-dot" style={{ background: p.color }} />
+                      <span className="user-menu-proj-name">{p.name}</span>
+                      <span className="user-menu-proj-count">{counts[p.id] ?? 0}</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="user-menu-proj-act"
+                    aria-label="Đổi tên"
+                    onClick={() => {
+                      setEditing(p.id);
+                      setEditName(p.name);
+                    }}
+                  >
+                    <Pencil size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    className="user-menu-proj-act danger"
+                    aria-label="Xóa dự án"
+                    onClick={() => handleDeleteProject(p)}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <Link to="/projects" className="user-menu-proj-manage" onClick={() => setOpen(false)}>
+              Quản lý dự án →
+            </Link>
           </div>
 
           <div className="user-menu-section user-menu-theme-row">

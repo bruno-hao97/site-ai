@@ -13,6 +13,7 @@ import {
   type MinePage,
 } from '../services/feedApi';
 import { UpstreamMeError } from '../services/upstreamMe';
+import ProjectPicker from './ProjectPicker';
 
 export type MineFilter = 'all' | 'video' | 'image';
 
@@ -31,6 +32,18 @@ function MineCard({ item }: { item: FeedItem }) {
 
   return (
     <article className="feed-card">
+      <div className="feed-card-actions">
+        <ProjectPicker
+          snapshot={{
+            itemId: item.id_base,
+            type: item.type,
+            prompt: item.prompt || item.title,
+            thumbnailUrl: thumb || undefined,
+            downloadUrl: media || undefined,
+            createdTime: item.created_time,
+          }}
+        />
+      </div>
       <header className="feed-card-head">
         {item.author?.avatar ? (
           <img className="feed-avatar" src={item.author.avatar} alt="" loading="lazy" />

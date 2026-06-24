@@ -13,8 +13,7 @@ export default function LandingNavbar() {
     <nav className="landing-nav">
       <div className="container">
         <Link to="/" className="logo-row">
-          <span className="logo-icon">LN</span>
-          <span className="logo-text">LN AI</span>
+          <img src="/logo.png" alt="AI Center" className="logo-img" />
         </Link>
 
         <div className="nav-links">
