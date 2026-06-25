@@ -12,8 +12,10 @@ import {
 } from 'react';
 import {
   addEdge,
+  BaseEdge,
   Background,
-  Controls,
+  EdgeLabelRenderer,
+  getBezierPath,
   Handle,
   MiniMap,
   Panel,
@@ -26,21 +28,25 @@ import {
   useStore,
   type Connection,
   type Edge,
+  type EdgeProps,
   type Node,
   type NodeProps,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import {
   ArrowUpCircle,
+  Bell,
   Bot,
   Captions,
   ChevronDown,
   Combine,
+  Copy,
   Database,
   Download,
   Eraser,
   Film,
-  FolderOpen,
+  Flag,
+  GitBranch,
   Globe,
   Image,
   LayoutGrid,
@@ -48,19 +54,23 @@ import {
   Maximize,
   Music,
   Package,
+  PanelLeftClose,
+  PanelLeftOpen,
   Play,
-  Save,
+  Repeat,
   Scissors,
   Search,
   Sparkles,
   Square,
   StickyNote,
+  Timer,
   Trash2,
   Type,
   Users,
   Video,
   Volume2,
   Wand2,
+  Workflow,
   X,
   ZoomIn,
   ZoomOut,
@@ -69,9 +79,21 @@ import type { GommoModel, JobType } from '../services/api';
 import { fetchModelsForType, pickDefaultModel, runNodeJob } from '../services/workflowEngine';
 import { modelSlug } from '../services/modelSchema';
 import type { JobSelections } from '../services/modelSchema';
-import { clearWorkflow, loadWorkflow, saveWorkflow } from '../services/workflowStore';
+import { clearWorkflow, saveWorkflow } from '../services/workflowStore';
 import WorkflowLibrary from '../components/WorkflowLibrary';
-import type { SavedTemplate } from '../services/workflowLibraryStore';
+import WorkflowTopBar from '../components/WorkflowTopBar';
+import {
+  loadTemplates,
+  onLibraryUpdated,
+  saveTemplate,
+  type SavedTemplate,
+} from '../services/workflowLibraryStore';
+import {
+  loadTabsState,
+  makeTab,
+  saveTabsState,
+  type WorkflowTab,
+} from '../services/workflowTabsStore';
 import ProjectPicker from '../components/ProjectPicker';
 import type { ProjectItemType } from '../services/projectStore';
 
@@ -81,6 +103,12 @@ interface NodeData {
   modelId?: string;
   prompt?: string;
   text?: string;
+  url?: string;
+  method?: string;
+  seconds?: number;
+  count?: number;
+  op?: string;
+  compare?: string;
   status?: WFStatus;
   statusText?: string;
   resultUrl?: string;
@@ -144,6 +172,31 @@ function NodeHead({
           <X size={13} />
         </button>
       </span>
+    </div>
+  );
+}
+
+function Port({
+  side,
+  label,
+  color,
+  handleId,
+}: {
+  side: 'in' | 'out';
+  label: string;
+  color?: string;
+  handleId?: string;
+}) {
+  return (
+    <div className={`wf-port wf-port--${side}`}>
+      <Handle
+        type={side === 'in' ? 'target' : 'source'}
+        position={side === 'in' ? Position.Left : Position.Right}
+        id={handleId}
+        className="wf-handle"
+        style={color ? { background: color, borderColor: color } : undefined}
+      />
+      <span className="wf-port-label">{label}</span>
     </div>
   );
 }
@@ -221,7 +274,7 @@ function TextNode({ id, data }: NodeProps<WFNode>) {
         placeholder="Nhập mô tả / prompt…"
         onChange={(e) => update({ prompt: e.target.value })}
       />
-      <Handle type="source" position={Position.Right} />
+      <Port side="out" label="Văn bản" />
     </div>
   );
 }
@@ -230,8 +283,8 @@ function ImageNode({ id, data }: NodeProps<WFNode>) {
   const update = useUpdateNode(id);
   return (
     <div className={`wf-node status-${data.status || 'idle'}`}>
-      <Handle type="target" position={Position.Left} />
       <NodeHead id={id} icon={<Image size={14} />} title="Tạo ảnh" status={data.status} />
+      <Port side="in" label="Văn bản" />
       <ModelSelect type="image" value={data.modelId} onChange={(v) => update({ modelId: v })} />
       <textarea
         className="wf-node-input nodrag"
@@ -242,7 +295,7 @@ function ImageNode({ id, data }: NodeProps<WFNode>) {
       {data.resultUrl && <Preview url={data.resultUrl} />}
       {data.statusText && <p className="wf-node-status">{data.statusText}</p>}
       {data.error && <p className="wf-node-error">{data.error}</p>}
-      <Handle type="source" position={Position.Right} />
+      <Port side="out" label="URL Ảnh" />
     </div>
   );
 }
@@ -251,8 +304,8 @@ function VideoNode({ id, data }: NodeProps<WFNode>) {
   const update = useUpdateNode(id);
   return (
     <div className={`wf-node status-${data.status || 'idle'}`}>
-      <Handle type="target" position={Position.Left} />
       <NodeHead id={id} icon={<Video size={14} />} title="Tạo video" status={data.status} />
+      <Port side="in" label="Văn bản / Ảnh" />
       <ModelSelect type="video" value={data.modelId} onChange={(v) => update({ modelId: v })} />
       <textarea
         className="wf-node-input nodrag"
@@ -263,7 +316,7 @@ function VideoNode({ id, data }: NodeProps<WFNode>) {
       {data.resultUrl && <Preview url={data.resultUrl} />}
       {data.statusText && <p className="wf-node-status">{data.statusText}</p>}
       {data.error && <p className="wf-node-error">{data.error}</p>}
-      <Handle type="source" position={Position.Right} />
+      <Port side="out" label="URL Video" />
     </div>
   );
 }
@@ -272,8 +325,8 @@ function TtsNode({ id, data }: NodeProps<WFNode>) {
   const update = useUpdateNode(id);
   return (
     <div className={`wf-node status-${data.status || 'idle'}`}>
-      <Handle type="target" position={Position.Left} />
       <NodeHead id={id} icon={<Volume2 size={14} />} title="Đọc giọng" status={data.status} />
+      <Port side="in" label="Văn bản" />
       <ModelSelect type="tts" value={data.modelId} onChange={(v) => update({ modelId: v })} />
       <textarea
         className="wf-node-input nodrag"
@@ -284,7 +337,7 @@ function TtsNode({ id, data }: NodeProps<WFNode>) {
       {data.resultUrl && <Preview url={data.resultUrl} />}
       {data.statusText && <p className="wf-node-status">{data.statusText}</p>}
       {data.error && <p className="wf-node-error">{data.error}</p>}
-      <Handle type="source" position={Position.Right} />
+      <Port side="out" label="URL Âm thanh" />
     </div>
   );
 }
@@ -293,8 +346,8 @@ function MusicNode({ id, data }: NodeProps<WFNode>) {
   const update = useUpdateNode(id);
   return (
     <div className={`wf-node status-${data.status || 'idle'}`}>
-      <Handle type="target" position={Position.Left} />
       <NodeHead id={id} icon={<Music size={14} />} title="Tạo nhạc AI" status={data.status} />
+      <Port side="in" label="Văn bản" />
       <ModelSelect type="music" value={data.modelId} onChange={(v) => update({ modelId: v })} />
       <textarea
         className="wf-node-input nodrag"
@@ -305,7 +358,7 @@ function MusicNode({ id, data }: NodeProps<WFNode>) {
       {data.resultUrl && <Preview url={data.resultUrl} />}
       {data.statusText && <p className="wf-node-status">{data.statusText}</p>}
       {data.error && <p className="wf-node-error">{data.error}</p>}
-      <Handle type="source" position={Position.Right} />
+      <Port side="out" label="URL Nhạc" />
     </div>
   );
 }
@@ -328,8 +381,8 @@ function NoteNode({ id, data }: NodeProps<WFNode>) {
 function OutputNode({ id, data }: NodeProps<WFNode>) {
   return (
     <div className={`wf-node wf-node-output status-${data.status || 'idle'}`}>
-      <Handle type="target" position={Position.Left} />
       <NodeHead id={id} icon={<Package size={14} />} title="Kết quả" status={data.status} />
+      <Port side="in" label="Kết quả" />
       {data.resultUrl ? (
         <>
           <Preview url={data.resultUrl} />
@@ -352,19 +405,260 @@ function OutputNode({ id, data }: NodeProps<WFNode>) {
         <p className="wf-node-empty">Chạy quy trình để nhận kết quả.</p>
       )}
       {data.error && <p className="wf-node-error">{data.error}</p>}
+      <Port side="out" label="Đầu ra" />
+    </div>
+  );
+}
+
+function StartNode({ id, data }: NodeProps<WFNode>) {
+  return (
+    <div className={`wf-node wf-node-start status-${data.status || 'idle'}`}>
+      <NodeHead id={id} icon={<Play size={14} />} title="Bắt đầu" status={data.status} />
+      <p className="wf-node-empty">Điểm khởi động quy trình.</p>
+      <Port side="out" label="Bắt đầu" color="#fbbf24" />
+    </div>
+  );
+}
+
+function EndNode({ id, data }: NodeProps<WFNode>) {
+  return (
+    <div className={`wf-node wf-node-end status-${data.status || 'idle'}`}>
+      <NodeHead id={id} icon={<Flag size={14} />} title="Kết thúc" status={data.status} />
+      <Port side="in" label="Kết thúc" color="#fbbf24" />
+      <p className="wf-node-empty">
+        {data.status === 'done' ? 'Quy trình hoàn tất.' : 'Điểm kết thúc quy trình.'}
+      </p>
+    </div>
+  );
+}
+
+function ApiNode({ id, data }: NodeProps<WFNode>) {
+  const update = useUpdateNode(id);
+  return (
+    <div className={`wf-node status-${data.status || 'idle'}`}>
+      <NodeHead id={id} icon={<Globe size={14} />} title="Gọi API" status={data.status} />
+      <Port side="in" label="Payload" />
+      <div className="wf-node-row">
+        <select
+          className="wf-node-select wf-node-method nodrag"
+          value={data.method || 'GET'}
+          onChange={(e) => update({ method: e.target.value })}
+        >
+          <option value="GET">GET</option>
+          <option value="POST">POST</option>
+          <option value="PUT">PUT</option>
+          <option value="PATCH">PATCH</option>
+          <option value="DELETE">DELETE</option>
+        </select>
+      </div>
+      <input
+        className="wf-node-input wf-node-url nodrag"
+        type="text"
+        value={data.url || ''}
+        placeholder="https://api.example.com/…"
+        onChange={(e) => update({ url: e.target.value })}
+      />
+      <textarea
+        className="wf-node-input nodrag"
+        value={data.prompt || ''}
+        placeholder="Body JSON (bỏ trống nếu nối từ node text)"
+        onChange={(e) => update({ prompt: e.target.value })}
+      />
+      {data.statusText && <p className="wf-node-status">{data.statusText}</p>}
+      {data.error && <p className="wf-node-error">{data.error}</p>}
+      <Port side="out" label="Phản hồi" />
+    </div>
+  );
+}
+
+function ConditionNode({ id, data }: NodeProps<WFNode>) {
+  const update = useUpdateNode(id);
+  const op = data.op || 'not_empty';
+  const needsCompare = op !== 'not_empty' && op !== 'empty';
+  return (
+    <div className={`wf-node wf-node-control status-${data.status || 'idle'}`}>
+      <NodeHead id={id} icon={<GitBranch size={14} />} title="Điều kiện" status={data.status} />
+      <Port side="in" label="Giá trị" />
+      <div className="wf-node-row">
+        <select
+          className="wf-node-select nodrag"
+          value={op}
+          onChange={(e) => update({ op: e.target.value })}
+        >
+          <option value="not_empty">Không rỗng</option>
+          <option value="empty">Rỗng</option>
+          <option value="contains">Chứa</option>
+          <option value="equals">Bằng</option>
+          <option value="gt">Lớn hơn (số)</option>
+          <option value="lt">Nhỏ hơn (số)</option>
+        </select>
+      </div>
+      {needsCompare && (
+        <input
+          className="wf-node-input wf-node-url nodrag"
+          type="text"
+          value={data.compare || ''}
+          placeholder="Giá trị so sánh"
+          onChange={(e) => update({ compare: e.target.value })}
+        />
+      )}
+      {data.statusText && <p className="wf-node-status">{data.statusText}</p>}
+      <Port side="out" label="Đúng" color="#34d399" handleId="true" />
+      <Port side="out" label="Sai" color="#f87171" handleId="false" />
+    </div>
+  );
+}
+
+function DelayNode({ id, data }: NodeProps<WFNode>) {
+  const update = useUpdateNode(id);
+  return (
+    <div className={`wf-node wf-node-control status-${data.status || 'idle'}`}>
+      <NodeHead id={id} icon={<Timer size={14} />} title="Trì hoãn" status={data.status} />
+      <Port side="in" label="Kích hoạt" />
+      <div className="wf-node-row wf-node-inline">
+        <input
+          className="wf-node-input wf-node-url nodrag"
+          type="number"
+          min={0}
+          step={0.5}
+          value={data.seconds ?? 1}
+          onChange={(e) => update({ seconds: Number(e.target.value) })}
+        />
+        <span className="wf-node-suffix">giây</span>
+      </div>
+      {data.statusText && <p className="wf-node-status">{data.statusText}</p>}
+      <Port side="out" label="Xong" />
+    </div>
+  );
+}
+
+function LoopNode({ id, data }: NodeProps<WFNode>) {
+  const update = useUpdateNode(id);
+  return (
+    <div className={`wf-node wf-node-control status-${data.status || 'idle'}`}>
+      <NodeHead id={id} icon={<Repeat size={14} />} title="Vòng lặp" status={data.status} />
+      <Port side="in" label="Kích hoạt" />
+      <div className="wf-node-row wf-node-inline">
+        <span className="wf-node-suffix">Lặp</span>
+        <input
+          className="wf-node-input wf-node-url nodrag"
+          type="number"
+          min={1}
+          step={1}
+          value={data.count ?? 3}
+          onChange={(e) => update({ count: Number(e.target.value) })}
+        />
+        <span className="wf-node-suffix">lần</span>
+      </div>
+      {data.statusText && <p className="wf-node-status">{data.statusText}</p>}
+      <Port side="out" label="Mỗi vòng" color="#fbbf24" handleId="each" />
+      <Port side="out" label="Hoàn tất" handleId="done" />
+    </div>
+  );
+}
+
+function CloneNode({ id, data }: NodeProps<WFNode>) {
+  return (
+    <div className={`wf-node wf-node-control status-${data.status || 'idle'}`}>
+      <NodeHead id={id} icon={<Copy size={14} />} title="Nhân Bản" status={data.status} />
+      <Port side="in" label="Đầu vào" />
+      <p className="wf-node-empty">Sao chép dữ liệu sang nhiều nhánh.</p>
+      <Port side="out" label="Bản sao" />
+    </div>
+  );
+}
+
+function NotifyNode({ id, data }: NodeProps<WFNode>) {
+  const update = useUpdateNode(id);
+  return (
+    <div className={`wf-node wf-node-control status-${data.status || 'idle'}`}>
+      <NodeHead id={id} icon={<Bell size={14} />} title="Gửi thông báo" status={data.status} />
+      <Port side="in" label="Kích hoạt" />
+      <textarea
+        className="wf-node-input nodrag"
+        value={data.prompt || ''}
+        placeholder="Nội dung (bỏ trống để dùng dữ liệu nối vào)"
+        onChange={(e) => update({ prompt: e.target.value })}
+      />
+      {data.statusText && <p className="wf-node-status">{data.statusText}</p>}
+      <Port side="out" label="Xong" />
     </div>
   );
 }
 
 const nodeTypes = {
+  start: StartNode,
   text: TextNode,
   image: ImageNode,
   video: VideoNode,
   tts: TtsNode,
   music: MusicNode,
+  api: ApiNode,
+  condition: ConditionNode,
+  delay: DelayNode,
+  loop: LoopNode,
+  clone: CloneNode,
+  notify: NotifyNode,
   note: NoteNode,
   output: OutputNode,
+  end: EndNode,
 };
+
+function WfEdge({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  markerEnd,
+  style,
+  selected,
+}: EdgeProps) {
+  const { deleteElements } = useReactFlow();
+  const [hovered, setHovered] = useState(false);
+  const [path, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
+  const active = hovered || selected;
+  return (
+    <g onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+      <BaseEdge
+        id={id}
+        path={path}
+        markerEnd={markerEnd}
+        interactionWidth={26}
+        style={{
+          ...style,
+          stroke: active ? 'var(--brand, #2dd4bf)' : (style?.stroke as string | undefined),
+          strokeWidth: active ? 2.5 : (style?.strokeWidth as number | undefined),
+        }}
+      />
+      <EdgeLabelRenderer>
+        <button
+          type="button"
+          className="wf-edge-del nodrag nopan"
+          style={{
+            transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+            opacity: active ? 1 : 0,
+          }}
+          title="Hủy nối"
+          onClick={() => deleteElements({ edges: [{ id }] })}
+        >
+          <X size={11} />
+        </button>
+      </EdgeLabelRenderer>
+    </g>
+  );
+}
+
+const edgeTypes = { wf: WfEdge };
 
 type IconType = ComponentType<{ size?: number }>;
 
@@ -399,9 +693,27 @@ const NODE_GROUPS: NodeGroup[] = [
     icon: Sparkles,
     defaultOpen: true,
     nodes: [
-      { key: 'text', label: 'Nhập text', icon: Type, implemented: true },
+      { key: 'start', label: 'Bắt đầu', icon: Play, implemented: true },
+      { key: 'api', label: 'Gọi API', icon: Globe, implemented: true },
+      { key: 'end', label: 'Kết thúc', icon: Flag, implemented: true },
       { key: 'image', label: 'Tạo ảnh AI', icon: Image, implemented: true },
-      { key: 'output', label: 'Đầu ra', icon: Package, implemented: true },
+      soon('agent', 'Tác Nhân AI', Bot),
+      { key: 'text', label: 'Nhập văn bản', icon: Type, implemented: true },
+    ],
+  },
+  {
+    id: 'control',
+    label: 'Luồng điều khiển',
+    color: '#a78bfa',
+    icon: GitBranch,
+    nodes: [
+      { key: 'start', label: 'Bắt đầu', icon: Play, implemented: true },
+      { key: 'end', label: 'Kết thúc', icon: Flag, implemented: true },
+      { key: 'condition', label: 'Điều kiện', icon: GitBranch, implemented: true },
+      { key: 'delay', label: 'Trì hoãn', icon: Timer, implemented: true },
+      { key: 'loop', label: 'Vòng lặp', icon: Repeat, implemented: true },
+      { key: 'clone', label: 'Nhân Bản', icon: Copy, implemented: true },
+      { key: 'notify', label: 'Gửi thông báo', icon: Bell, implemented: true },
     ],
   },
   {
@@ -425,7 +737,7 @@ const NODE_GROUPS: NodeGroup[] = [
     color: '#a78bfa',
     icon: Wand2,
     nodes: [
-      soon('api', 'Gọi API', Globe),
+      { key: 'api', label: 'Gọi API', icon: Globe, implemented: true },
       soon('upscale-image', 'Nâng cấp ảnh', ArrowUpCircle),
       soon('upscale-video', 'Nâng cấp video', ArrowUpCircle),
       soon('remove-bg', 'Xóa nền ảnh', Eraser),
@@ -456,7 +768,15 @@ const NODE_GROUPS: NodeGroup[] = [
   },
 ];
 
-function Palette({ onAdd }: { onAdd: (type: string) => void }) {
+function Palette({
+  onAdd,
+  open,
+  onToggle,
+}: {
+  onAdd: (type: string) => void;
+  open: boolean;
+  onToggle: () => void;
+}) {
   const [query, setQuery] = useState('');
   const [openMap, setOpenMap] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(NODE_GROUPS.map((g) => [g.id, Boolean(g.defaultOpen)])),
@@ -469,8 +789,18 @@ function Palette({ onAdd }: { onAdd: (type: string) => void }) {
   };
 
   return (
-    <aside className="wf-palette">
-      <div className="wf-palette-head">CÁC NODE</div>
+    <aside className={`wf-palette${open ? '' : ' collapsed'}`}>
+      <div className="wf-palette-head">
+        <span>CÁC NODE</span>
+        <button
+          type="button"
+          className="wf-palette-toggle"
+          onClick={onToggle}
+          title="Thu gọn sidebar"
+        >
+          <PanelLeftClose size={16} />
+        </button>
+      </div>
       <div className="wf-palette-search">
         <Search size={14} />
         <input
@@ -536,15 +866,51 @@ function Palette({ onAdd }: { onAdd: (type: string) => void }) {
 function defaultGraph(): { nodes: WFNode[]; edges: Edge[] } {
   return {
     nodes: [
-      { id: 'text-1', type: 'text', position: { x: 40, y: 120 }, data: { prompt: '' } },
-      { id: 'image-1', type: 'image', position: { x: 340, y: 80 }, data: {} },
-      { id: 'output-1', type: 'output', position: { x: 660, y: 100 }, data: {} },
+      { id: 'start-1', type: 'start', position: { x: 20, y: 140 }, data: {} },
+      { id: 'text-1', type: 'text', position: { x: 250, y: 100 }, data: { prompt: '' } },
+      { id: 'image-1', type: 'image', position: { x: 540, y: 80 }, data: {} },
+      { id: 'output-1', type: 'output', position: { x: 850, y: 100 }, data: {} },
+      { id: 'end-1', type: 'end', position: { x: 1140, y: 150 }, data: {} },
     ],
     edges: [
-      { id: 'e1', source: 'text-1', target: 'image-1' },
-      { id: 'e2', source: 'image-1', target: 'output-1' },
+      { id: 'e0', source: 'start-1', target: 'text-1', type: 'wf' },
+      { id: 'e1', source: 'text-1', target: 'image-1', type: 'wf' },
+      { id: 'e2', source: 'image-1', target: 'output-1', type: 'wf' },
+      { id: 'e3', source: 'output-1', target: 'end-1', type: 'wf' },
     ],
   };
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new DOMException('Aborted', 'AbortError'));
+    const t = setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => {
+      clearTimeout(t);
+      reject(new DOMException('Aborted', 'AbortError'));
+    });
+  });
+}
+
+/** Đánh giá điều kiện cho node Điều kiện. */
+function evalCondition(value: string, op: string, compare?: string): boolean {
+  const v = (value ?? '').trim();
+  const c = (compare ?? '').trim();
+  switch (op) {
+    case 'empty':
+      return v.length === 0;
+    case 'contains':
+      return v.toLowerCase().includes(c.toLowerCase());
+    case 'equals':
+      return v === c;
+    case 'gt':
+      return Number(v) > Number(c);
+    case 'lt':
+      return Number(v) < Number(c);
+    case 'not_empty':
+    default:
+      return v.length > 0;
+  }
 }
 
 /** Sắp xếp topo; trả null nếu có chu trình. */
@@ -577,7 +943,69 @@ function topoSort(nodes: WFNode[], edges: Edge[]): WFNode[] | null {
 
 let nodeCounter = 100;
 
-function BottomBar() {
+/** Tự dàn các node theo lớp (longest-path) — không cần thư viện ngoài. */
+function autoLayout(nodes: WFNode[], edges: Edge[]): Record<string, { x: number; y: number }> {
+  const adj = new Map<string, string[]>();
+  const indeg = new Map<string, number>();
+  nodes.forEach((n) => {
+    adj.set(n.id, []);
+    indeg.set(n.id, 0);
+  });
+  edges.forEach((e) => {
+    if (!adj.has(e.source) || !indeg.has(e.target)) return;
+    adj.get(e.source)!.push(e.target);
+    indeg.set(e.target, (indeg.get(e.target) || 0) + 1);
+  });
+
+  // Layer bằng longest-path qua thứ tự Kahn (an toàn cả khi có chu trình).
+  const layer = new Map<string, number>();
+  nodes.forEach((n) => layer.set(n.id, 0));
+  const queue = nodes.filter((n) => (indeg.get(n.id) || 0) === 0).map((n) => n.id);
+  const localIndeg = new Map(indeg);
+  let processed = 0;
+  while (queue.length) {
+    const id = queue.shift()!;
+    processed++;
+    for (const next of adj.get(id) || []) {
+      layer.set(next, Math.max(layer.get(next) || 0, (layer.get(id) || 0) + 1));
+      localIndeg.set(next, (localIndeg.get(next) || 0) - 1);
+      if ((localIndeg.get(next) || 0) === 0) queue.push(next);
+    }
+  }
+  if (processed < nodes.length) {
+    // Có chu trình: xếp node còn lại vào lớp cuối.
+    const maxLayer = Math.max(0, ...Array.from(layer.values()));
+    nodes.forEach((n) => {
+      if ((localIndeg.get(n.id) || 0) > 0) layer.set(n.id, maxLayer + 1);
+    });
+  }
+
+  const COL_W = 300;
+  const ROW_H = 170;
+  const X0 = 60;
+  const Y0 = 60;
+  const perLayer = new Map<number, number>();
+  const pos: Record<string, { x: number; y: number }> = {};
+  // Giữ thứ tự ổn định theo vị trí hiện tại.
+  const ordered = [...nodes].sort((a, b) => a.position.y - b.position.y);
+  for (const n of ordered) {
+    const l = layer.get(n.id) || 0;
+    const row = perLayer.get(l) || 0;
+    perLayer.set(l, row + 1);
+    pos[n.id] = { x: X0 + l * COL_W, y: Y0 + row * ROW_H };
+  }
+  return pos;
+}
+
+interface BottomBarProps {
+  running: boolean;
+  error: string;
+  onRun: () => void;
+  onStop: () => void;
+  onAutoLayout: () => void;
+}
+
+function BottomBar({ running, error, onRun, onStop, onAutoLayout }: BottomBarProps) {
   const { zoomIn, zoomOut, fitView, deleteElements, getNodes } = useReactFlow();
   const zoom = useStore((s) => s.transform[2]);
 
@@ -604,7 +1032,14 @@ function BottomBar() {
       >
         <Maximize size={16} />
       </button>
-      <span className="wf-bb-sep" />
+      <button
+        type="button"
+        className="wf-bb-btn"
+        onClick={onAutoLayout}
+        title="Sắp xếp tự động"
+      >
+        <Workflow size={16} />
+      </button>
       <button
         type="button"
         className="wf-bb-btn wf-bb-danger"
@@ -613,27 +1048,158 @@ function BottomBar() {
       >
         <Trash2 size={16} />
       </button>
+      <span className="wf-bb-sep" />
+      {error && <span className="wf-bb-error" title={error}>{error}</span>}
+      {running ? (
+        <button type="button" className="wf-bb-run wf-bb-stop" onClick={onStop}>
+          <Square size={15} /> Dừng
+        </button>
+      ) : (
+        <button type="button" className="wf-bb-run" onClick={onRun}>
+          <Play size={15} /> Chạy quy trình
+        </button>
+      )}
     </Panel>
   );
 }
 
-function Flow() {
-  const initial = useMemo(() => {
-    const saved = loadWorkflow();
-    if (saved && saved.nodes.length) {
-      return { nodes: saved.nodes as WFNode[], edges: saved.edges };
-    }
-    return defaultGraph();
-  }, []);
+interface NewWorkflowModalProps {
+  open: boolean;
+  onCreate: (name: string) => void;
+  onClose: () => void;
+}
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<WFNode>(initial.nodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initial.edges);
+function NewWorkflowModal({ open, onCreate, onClose }: NewWorkflowModalProps) {
+  const [name, setName] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      setName('');
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [open]);
+
+  if (!open) return null;
+
+  const canCreate = name.trim().length > 0;
+  const submit = () => {
+    if (canCreate) onCreate(name);
+  };
+
+  return (
+    <div className="wf-new-overlay" onClick={onClose}>
+      <div className="wf-new-modal" onClick={(e) => e.stopPropagation()}>
+        <h3 className="wf-new-title">Quy trình mới</h3>
+        <input
+          ref={inputRef}
+          className="wf-new-input"
+          placeholder="Tên quy trình..."
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') submit();
+            if (e.key === 'Escape') onClose();
+          }}
+        />
+        <div className="wf-new-actions">
+          <button type="button" className="wf-new-cancel" onClick={onClose}>
+            Quay lại
+          </button>
+          <button type="button" className="wf-new-create" onClick={submit} disabled={!canCreate}>
+            Tạo
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Flow() {
+  const initialState = useMemo(() => loadTabsState(defaultGraph()), []);
+  const initialTab =
+    initialState.tabs.find((t) => t.id === initialState.activeId) ?? initialState.tabs[0];
+
+  const [tabs, setTabs] = useState<WorkflowTab[]>(initialState.tabs);
+  const [activeId, setActiveId] = useState(initialState.activeId);
+  const [nodes, setNodes, onNodesChange] = useNodesState<WFNode>(initialTab.nodes as WFNode[]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialTab.edges);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [libOpen, setLibOpen] = useState(false);
+  const [libCount, setLibCount] = useState(() => loadTemplates().length);
+  const [paletteOpen, setPaletteOpen] = useState(true);
+  const [newOpen, setNewOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, fitView } = useReactFlow();
+
+  useEffect(() => onLibraryUpdated(() => setLibCount(loadTemplates().length)), []);
+
+  const handleAutoLayout = () => {
+    const pos = autoLayout(nodes, edges);
+    setNodes((nds) => nds.map((n) => (pos[n.id] ? { ...n, position: pos[n.id] } : n)));
+    setTimeout(() => fitView({ duration: 300 }), 60);
+  };
+
+  /** Ghi graph hiện tại vào tab đang mở. */
+  const commitActive = useCallback((): WorkflowTab[] => {
+    const now = new Date().toISOString();
+    return tabs.map((t) =>
+      t.id === activeId ? { ...t, nodes, edges, updatedAt: now } : t,
+    );
+  }, [tabs, activeId, nodes, edges]);
+
+  const selectTab = (id: string) => {
+    if (id === activeId) return;
+    const updated = commitActive();
+    const target = updated.find((t) => t.id === id);
+    if (!target) return;
+    setTabs(updated);
+    setActiveId(id);
+    setNodes(target.nodes as WFNode[]);
+    setEdges(target.edges);
+    saveTabsState({ tabs: updated, activeId: id });
+  };
+
+  const newTab = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const updated = commitActive();
+    const g = defaultGraph();
+    const tpl = saveTemplate(trimmed, g);
+    const tab = makeTab(tpl.name, g, tpl.id);
+    const next = [...updated, tab];
+    setTabs(next);
+    setActiveId(tab.id);
+    setNodes(g.nodes);
+    setEdges(g.edges);
+    saveTabsState({ tabs: next, activeId: tab.id });
+    setNewOpen(false);
+  };
+
+  const closeTab = (id: string) => {
+    if (tabs.length <= 1) return;
+    const idx = tabs.findIndex((t) => t.id === id);
+    const updated = commitActive().filter((t) => t.id !== id);
+    let nextActive = activeId;
+    if (id === activeId) {
+      const neighbor = updated[Math.max(0, idx - 1)] ?? updated[0];
+      nextActive = neighbor.id;
+      setActiveId(nextActive);
+      setNodes(neighbor.nodes as WFNode[]);
+      setEdges(neighbor.edges);
+    }
+    setTabs(updated);
+    saveTabsState({ tabs: updated, activeId: nextActive });
+  };
+
+  const togglePin = (id: string) => {
+    const base = id === activeId ? commitActive() : tabs;
+    const updated = base.map((t) => (t.id === id ? { ...t, pinned: !t.pinned } : t));
+    setTabs(updated);
+    saveTabsState({ tabs: updated, activeId });
+  };
 
   const updateNode = useCallback(
     (id: string, patch: Partial<NodeData>) => {
@@ -647,7 +1213,7 @@ function Flow() {
   const ctx = useMemo<WorkflowCtxValue>(() => ({ updateNode }), [updateNode]);
 
   const onConnect = useCallback(
-    (c: Connection) => setEdges((eds) => addEdge(c, eds)),
+    (c: Connection) => setEdges((eds) => addEdge({ ...c, type: 'wf' }, eds)),
     [setEdges],
   );
 
@@ -685,25 +1251,37 @@ function Flow() {
 
   const handleSave = () => {
     saveWorkflow(nodes, edges);
+    const updated = commitActive();
+    setTabs(updated);
+    saveTabsState({ tabs: updated, activeId });
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
   };
 
-  const openTemplate = useCallback(
-    (t: SavedTemplate) => {
-      setNodes(t.nodes as WFNode[]);
-      setEdges(t.edges);
-      saveWorkflow(t.nodes as WFNode[], t.edges);
-    },
-    [setNodes, setEdges],
-  );
+  const openTemplate = (t: SavedTemplate) => {
+    const updated = commitActive();
+    const tab = makeTab(t.name, { nodes: t.nodes, edges: t.edges }, t.id);
+    const next = [...updated, tab];
+    setTabs(next);
+    setActiveId(tab.id);
+    setNodes(t.nodes as WFNode[]);
+    setEdges(t.edges);
+    saveWorkflow(t.nodes as WFNode[], t.edges);
+    saveTabsState({ tabs: next, activeId: tab.id });
+  };
 
   const handleClear = () => {
-    if (!window.confirm('Xóa toàn bộ sơ đồ hiện tại?')) return;
+    if (!window.confirm('Xóa toàn bộ sơ đồ trong tab này?')) return;
     clearWorkflow();
     const g = defaultGraph();
     setNodes(g.nodes);
     setEdges(g.edges);
+    const now = new Date().toISOString();
+    const updated = tabs.map((t) =>
+      t.id === activeId ? { ...t, nodes: g.nodes, edges: g.edges, updatedAt: now } : t,
+    );
+    setTabs(updated);
+    saveTabsState({ tabs: updated, activeId });
   };
 
   const stop = () => {
@@ -713,13 +1291,20 @@ function Flow() {
 
   async function runWorkflow() {
     setError('');
-    const order = topoSort(nodes, edges);
-    if (!order) {
-      setError('Sơ đồ có vòng lặp — không chạy được.');
-      return;
+
+    const hasControl = nodes.some((n) => n.type === 'condition' || n.type === 'loop');
+    let order: WFNode[] | null = null;
+    if (!hasControl) {
+      order = topoSort(nodes, edges);
+      if (!order) {
+        setError('Sơ đồ có vòng lặp — thêm node Vòng lặp để lặp lại.');
+        return;
+      }
     }
 
-    abortRef.current = new AbortController();
+    const ac = new AbortController();
+    abortRef.current = ac;
+    const signal = ac.signal;
     setRunning(true);
 
     setNodes((nds) =>
@@ -731,68 +1316,211 @@ function Flow() {
 
     const outputs: Record<string, string> = {};
     const incoming = (id: string) => edges.filter((e) => e.target === id).map((e) => e.source);
+    const getInputs = (id: string) => {
+      const ups = incoming(id)
+        .map((sid) => outputs[sid])
+        .filter(Boolean);
+      return {
+        upText: ups.find((u) => !/^https?:\/\//i.test(u)),
+        upUrl: ups.find((u) => /^https?:\/\//i.test(u)),
+      };
+    };
 
-    try {
-      for (const node of order) {
-        const ups = incoming(node.id)
-          .map((sid) => outputs[sid])
-          .filter(Boolean);
-        const upText = ups.find((u) => !/^https?:\/\//i.test(u));
-        const upUrl = ups.find((u) => /^https?:\/\//i.test(u));
-
-        if (node.type === 'note') {
-          continue;
-        }
-
-        if (node.type === 'text') {
-          outputs[node.id] = String(node.data.prompt || '');
+    /** Chạy một node; trả về output (chuỗi) và/hoặc nhánh rẽ cho node Điều kiện. */
+    async function processNode(
+      node: WFNode,
+      upText?: string,
+      upUrl?: string,
+    ): Promise<{ output?: string; branch?: 'true' | 'false' }> {
+      switch (node.type) {
+        case 'note':
+          return {};
+        case 'start':
           updateNode(node.id, { status: 'done' });
-          continue;
+          return {};
+        case 'end':
+          updateNode(node.id, { status: 'done', statusText: 'Hoàn tất' });
+          return {};
+        case 'delay': {
+          const secs = Math.max(0, Number(node.data.seconds ?? 1));
+          updateNode(node.id, { status: 'running', statusText: `Chờ ${secs}s…` });
+          await sleep(secs * 1000, signal);
+          updateNode(node.id, { status: 'done', statusText: undefined });
+          return { output: upUrl || upText || '' };
         }
-
-        if (node.type === 'output') {
+        case 'clone':
+          updateNode(node.id, { status: 'done' });
+          return { output: upUrl || upText || '' };
+        case 'notify': {
+          const msg = String(node.data.prompt || upText || upUrl || '(trống)');
+          updateNode(node.id, { status: 'done', statusText: `Đã gửi: ${msg.slice(0, 40)}` });
+          return { output: upUrl || upText || '' };
+        }
+        case 'condition': {
+          const value = upText || upUrl || '';
+          const ok = evalCondition(value, String(node.data.op || 'not_empty'), node.data.compare);
+          updateNode(node.id, { status: 'done', statusText: ok ? 'Đúng ✓' : 'Sai ✗' });
+          return { output: value, branch: ok ? 'true' : 'false' };
+        }
+        case 'loop':
+          // Vòng lặp được xử lý ở activate(); ở đây chỉ truyền dữ liệu qua.
+          return { output: upUrl || upText || '' };
+        case 'text':
+          updateNode(node.id, { status: 'done' });
+          return { output: String(node.data.prompt || '') };
+        case 'api': {
+          const url = String(node.data.url || '').trim();
+          if (!url) {
+            updateNode(node.id, { status: 'error', error: 'Chưa nhập URL' });
+            throw new Error('Gọi API: chưa nhập URL');
+          }
+          const method = String(node.data.method || 'GET').toUpperCase();
+          const body = String(node.data.prompt || upText || '').trim();
+          updateNode(node.id, { status: 'running', statusText: `${method}…` });
+          try {
+            const hasBody = method !== 'GET' && method !== 'HEAD' && body.length > 0;
+            const res = await fetch(url, {
+              method,
+              headers: hasBody ? { 'Content-Type': 'application/json' } : undefined,
+              body: hasBody ? body : undefined,
+              signal,
+            });
+            const text = await res.text();
+            updateNode(node.id, {
+              status: res.ok ? 'done' : 'error',
+              statusText: `HTTP ${res.status}`,
+              error: res.ok ? undefined : `HTTP ${res.status}`,
+            });
+            if (!res.ok) throw new Error(`Gọi API lỗi HTTP ${res.status}`);
+            return { output: text };
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            updateNode(node.id, { status: 'error', statusText: undefined, error: msg });
+            throw err;
+          }
+        }
+        case 'output': {
           updateNode(node.id, {
             resultUrl: upUrl,
             status: upUrl ? 'done' : 'error',
             error: upUrl ? undefined : 'Không có đầu vào',
           });
-          continue;
+          return { output: upUrl };
         }
+        default: {
+          const type = node.type as JobType;
+          const selections: JobSelections = {};
+          if (type === 'tts') {
+            selections.text = node.data.text || upText || node.data.prompt || '';
+          } else {
+            selections.prompt = node.data.prompt || upText || '';
+          }
+          if (type === 'video' && upUrl) selections.images = [upUrl];
 
-        const type = node.type as JobType;
-        const selections: JobSelections = {};
-        if (type === 'tts') {
-          selections.text = node.data.text || upText || node.data.prompt || '';
-        } else {
-          selections.prompt = node.data.prompt || upText || '';
-        }
-        if (type === 'video' && upUrl) selections.images = [upUrl];
+          const modelId = String(node.data.modelId || '');
+          if (!modelId) {
+            updateNode(node.id, { status: 'error', error: 'Chưa chọn model' });
+            throw new Error('Chưa chọn model');
+          }
 
-        const modelId = String(node.data.modelId || '');
-        if (!modelId) {
-          updateNode(node.id, { status: 'error', error: 'Chưa chọn model' });
-          throw new Error('Chưa chọn model');
-        }
-
-        updateNode(node.id, { status: 'running', statusText: 'Bắt đầu…' });
-        try {
-          const url = await runNodeJob({
-            type,
-            modelId,
-            selections,
-            onStatus: (s) => updateNode(node.id, { statusText: s }),
-            signal: abortRef.current.signal,
-          });
-          outputs[node.id] = url;
-          updateNode(node.id, { status: 'done', resultUrl: url, statusText: undefined });
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          updateNode(node.id, { status: 'error', statusText: undefined, error: msg });
-          throw err;
+          updateNode(node.id, { status: 'running', statusText: 'Bắt đầu…' });
+          try {
+            const url = await runNodeJob({
+              type,
+              modelId,
+              selections,
+              onStatus: (s) => updateNode(node.id, { statusText: s }),
+              signal,
+            });
+            updateNode(node.id, { status: 'done', resultUrl: url, statusText: undefined });
+            return { output: url };
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            updateNode(node.id, { status: 'error', statusText: undefined, error: msg });
+            throw err;
+          }
         }
       }
+    }
+
+    try {
+      if (!hasControl && order) {
+        // Đồ thị tuyến tính: chạy 1 lượt theo topo (xử lý join chính xác).
+        for (const node of order) {
+          const { upText, upUrl } = getInputs(node.id);
+          const res = await processNode(node, upText, upUrl);
+          if (res.output !== undefined) outputs[node.id] = res.output;
+        }
+      } else {
+        // Có node điều khiển: chạy theo activation, hỗ trợ rẽ nhánh + lặp.
+        const byId = new Map(nodes.map((n) => [n.id, n]));
+        const targetsOf = (id: string, handle?: string) =>
+          edges
+            .filter(
+              (e) => e.source === id && (handle == null || (e.sourceHandle ?? null) === handle),
+            )
+            .map((e) => e.target);
+        const reachable = (starts: string[], stopId: string) => {
+          const seen = new Set<string>();
+          const stack = [...starts];
+          while (stack.length) {
+            const cur = stack.pop()!;
+            if (cur === stopId || seen.has(cur)) continue;
+            seen.add(cur);
+            for (const t of edges.filter((e) => e.source === cur).map((e) => e.target)) {
+              stack.push(t);
+            }
+          }
+          return seen;
+        };
+
+        const done = new Set<string>();
+        let steps = 0;
+
+        const activate = async (id: string): Promise<void> => {
+          if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+          if (++steps > 2000) throw new Error('Quá nhiều bước — kiểm tra vòng lặp.');
+          const node = byId.get(id);
+          if (!node || done.has(id)) return;
+
+          const { upText, upUrl } = getInputs(id);
+          const res = await processNode(node, upText, upUrl);
+          if (res.output !== undefined) outputs[id] = res.output;
+          done.add(id);
+
+          if (node.type === 'condition') {
+            for (const t of targetsOf(id, res.branch === 'true' ? 'true' : 'false')) {
+              await activate(t);
+            }
+            return;
+          }
+
+          if (node.type === 'loop') {
+            const eachTargets = targetsOf(id, 'each');
+            const body = reachable(eachTargets, id);
+            const count = Math.max(1, Math.floor(Number(node.data.count ?? 3)));
+            for (let i = 0; i < count; i++) {
+              if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+              updateNode(id, { status: 'running', statusText: `Vòng ${i + 1}/${count}` });
+              for (const b of body) done.delete(b);
+              for (const t of eachTargets) await activate(t);
+            }
+            updateNode(id, { status: 'done', statusText: `Xong ${count} vòng` });
+            for (const t of targetsOf(id, 'done')) await activate(t);
+            return;
+          }
+
+          for (const t of targetsOf(id)) await activate(t);
+        };
+
+        const roots = nodes.filter((n) => incoming(n.id).length === 0);
+        if (roots.length === 0) throw new Error('Không tìm thấy node bắt đầu (không có đầu vào).');
+        for (const r of roots) await activate(r.id);
+      }
     } catch (err) {
-      if (!error) setError(err instanceof Error ? err.message : String(err));
+      if ((err as { name?: string })?.name !== 'AbortError') {
+        setError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setRunning(false);
     }
@@ -800,32 +1528,34 @@ function Flow() {
 
   return (
     <WorkflowCtx.Provider value={ctx}>
-      <div className="wf-shell">
-        <Palette onAdd={addNode} />
+      <div className="wf-page">
+        <WorkflowTopBar
+          tabs={tabs}
+          activeId={activeId}
+          libraryCount={libCount}
+          onSelect={selectTab}
+          onClose={closeTab}
+          onNew={() => setNewOpen(true)}
+          onTogglePin={togglePin}
+          onOpenLibrary={() => setLibOpen(true)}
+          saved={saved}
+          onSave={handleSave}
+          onClear={handleClear}
+        />
+        <div className="wf-shell">
+        <Palette onAdd={addNode} open={paletteOpen} onToggle={() => setPaletteOpen(false)} />
 
         <div className="wf-canvas" onDragOver={onDragOver} onDrop={onDrop}>
-          <div className="wf-toolbar">
-            {running ? (
-              <button type="button" className="wf-btn wf-btn-stop" onClick={stop}>
-                <Square size={15} /> Dừng
-              </button>
-            ) : (
-              <button type="button" className="wf-btn wf-btn-run" onClick={runWorkflow}>
-                <Play size={15} /> Chạy quy trình
-              </button>
-            )}
-            <button type="button" className="wf-btn" onClick={handleSave}>
-              <Save size={15} /> {saved ? 'Đã lưu' : 'Lưu'}
+          {!paletteOpen && (
+            <button
+              type="button"
+              className="wf-palette-reopen"
+              onClick={() => setPaletteOpen(true)}
+              title="Mở sidebar node"
+            >
+              <PanelLeftOpen size={16} />
             </button>
-            <button type="button" className="wf-btn" onClick={() => setLibOpen(true)}>
-              <FolderOpen size={15} /> Thư viện
-            </button>
-            <button type="button" className="wf-btn wf-btn-danger" onClick={handleClear}>
-              <Trash2 size={15} /> Xóa sơ đồ
-            </button>
-            {error && <span className="wf-toolbar-error">{error}</span>}
-          </div>
-
+          )}
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -833,12 +1563,13 @@ function Flow() {
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            defaultEdgeOptions={{ type: 'wf' }}
             fitView
             deleteKeyCode={['Backspace', 'Delete']}
             proOptions={{ hideAttribution: true }}
           >
             <Background gap={18} />
-            <Controls />
             <MiniMap
               pannable
               zoomable
@@ -848,8 +1579,15 @@ function Flow() {
               nodeStrokeColor="#3a4150"
               nodeBorderRadius={4}
             />
-            <BottomBar />
+            <BottomBar
+              running={running}
+              error={error}
+              onRun={runWorkflow}
+              onStop={stop}
+              onAutoLayout={handleAutoLayout}
+            />
           </ReactFlow>
+        </div>
         </div>
       </div>
 
@@ -859,6 +1597,8 @@ function Flow() {
         onOpenTemplate={openTemplate}
         onClose={() => setLibOpen(false)}
       />
+
+      <NewWorkflowModal open={newOpen} onCreate={newTab} onClose={() => setNewOpen(false)} />
     </WorkflowCtx.Provider>
   );
 }

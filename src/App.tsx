@@ -173,12 +173,16 @@ function AppShell() {
   const location = useLocation();
   const BARE_PAGES = ['/', '/login', '/register', '/forgot-password', '/reset-password'];
   const isBarePage = BARE_PAGES.includes(location.pathname);
-  const isFullBleed = location.pathname in STUDIO_NAV || location.pathname === '/workflow';
+  const isWorkflow = location.pathname === '/workflow';
+  const isFullBleed = location.pathname in STUDIO_NAV || isWorkflow;
+  const hideHeader = isBarePage || isWorkflow;
 
   return (
     <div className={isBarePage ? '' : 'app'}>
-      {!isBarePage && <AppHeader />}
-      <main className={isBarePage ? '' : `app-main ${isFullBleed ? 'app-main-full' : ''}`}>
+      {!hideHeader && <AppHeader />}
+      <main
+        className={isBarePage ? '' : `app-main ${isFullBleed ? 'app-main-full' : ''} ${isWorkflow ? 'app-main-workflow' : ''}`}
+      >
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={isLoggedIn() ? <Navigate to="/home" /> : <LoginPage />} />
