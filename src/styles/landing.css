@@ -68,38 +68,10 @@
 .landing-page .logo-row {
   display: flex;
   align-items: center;
-}
-
-.landing-page .logo-icon {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  background: linear-gradient(135deg, #53eb67, #22d3ee);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 700;
-  color: white;
   flex-shrink: 0;
 }
 
-.landing-page .logo-text {
-  font-size: 15px;
-  font-weight: 600;
-  color: #53eb67;
-  margin-left: 8px;
-}
-
-.landing-page .logo-img {
-  height: 34px;
-  width: auto;
-  display: block;
-}
-
-.landing-page .footer-logo-col .logo-img {
-  height: 40px;
-}
+/* Kích thước logo: dùng --logo-height / --logo-height-sm trong app.css (.brand-logo, .logo-img) */
 
 .landing-page .nav-links {
   display: none;

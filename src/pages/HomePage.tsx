@@ -2,6 +2,7 @@ import { useState } from 'react';
 import HomeNewsCarousel from '../components/HomeNewsCarousel';
 import HomeFeed from '../components/HomeFeed';
 import HomeMyContent, { type MineFilter } from '../components/HomeMyContent';
+import HomeQuickCreateBar from '../components/HomeQuickCreateBar';
 
 const HOME_TABS = [
   'Bảng tin',
@@ -28,7 +29,7 @@ export default function HomePage() {
   const mineFilter = MINE_TABS[tab];
 
   return (
-    <div className="home-explore">
+    <div className="home-explore home-explore--has-qc">
       <div className="home-tabs">
         {HOME_TABS.map((t) => (
           <button
@@ -49,6 +50,10 @@ export default function HomePage() {
       ) : (
         <HomeFeed />
       )}
+
+      <div className="home-quick-create-dock">
+        <HomeQuickCreateBar />
+      </div>
     </div>
   );
 }

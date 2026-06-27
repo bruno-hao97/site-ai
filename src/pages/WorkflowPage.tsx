@@ -82,6 +82,7 @@ import type { JobSelections } from '../services/modelSchema';
 import { clearWorkflow, saveWorkflow } from '../services/workflowStore';
 import WorkflowLibrary from '../components/WorkflowLibrary';
 import WorkflowTopBar from '../components/WorkflowTopBar';
+import WorkflowAgentPanel from '../components/workflow/WorkflowAgentPanel';
 import {
   loadTemplates,
   onLibraryUpdated,
@@ -1131,6 +1132,7 @@ function Flow() {
   const [libCount, setLibCount] = useState(() => loadTemplates().length);
   const [paletteOpen, setPaletteOpen] = useState(true);
   const [newOpen, setNewOpen] = useState(false);
+  const [agentOpen, setAgentOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const { screenToFlowPosition, fitView } = useReactFlow();
 
@@ -1141,6 +1143,26 @@ function Flow() {
     setNodes((nds) => nds.map((n) => (pos[n.id] ? { ...n, position: pos[n.id] } : n)));
     setTimeout(() => fitView({ duration: 300 }), 60);
   };
+
+  /** Agent apply graph lên canvas + lưu tab. */
+  const applyAgentGraph = useCallback(
+    (nextNodes: Node[], nextEdges: Edge[], opts?: { focusView?: boolean }) => {
+      setNodes(nextNodes as WFNode[]);
+      setEdges(nextEdges);
+      const now = new Date().toISOString();
+      const updated = tabs.map((t) =>
+        t.id === activeId
+          ? { ...t, nodes: nextNodes as WFNode[], edges: nextEdges, updatedAt: now }
+          : t,
+      );
+      setTabs(updated);
+      saveTabsState({ tabs: updated, activeId });
+      if (opts?.focusView) {
+        setTimeout(() => fitView({ duration: 300 }), 60);
+      }
+    },
+    [tabs, activeId, setNodes, setEdges, fitView],
+  );
 
   /** Ghi graph hiện tại vào tab đang mở. */
   const commitActive = useCallback((): WorkflowTab[] => {
@@ -1542,7 +1564,7 @@ function Flow() {
           onSave={handleSave}
           onClear={handleClear}
         />
-        <div className="wf-shell">
+        <div className={`wf-shell${agentOpen ? ' agent-open' : ''}`}>
         <Palette onAdd={addNode} open={paletteOpen} onToggle={() => setPaletteOpen(false)} />
 
         <div className="wf-canvas" onDragOver={onDragOver} onDrop={onDrop}>
@@ -1588,6 +1610,15 @@ function Flow() {
             />
           </ReactFlow>
         </div>
+
+        <WorkflowAgentPanel
+          open={agentOpen}
+          onOpenChange={setAgentOpen}
+          tabName={tabs.find((t) => t.id === activeId)?.name ?? 'Workflow'}
+          nodes={nodes}
+          edges={edges}
+          onApplyGraph={applyAgentGraph}
+        />
         </div>
       </div>
 

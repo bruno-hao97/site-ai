@@ -92,6 +92,12 @@ import {
 import { useHistoryUpdated } from '../hooks/useHistoryUpdated';
 import { extractPollSnapshot } from '../services/mediaGenerationStatus';
 
+interface PendingJob {
+  id: string;
+  prompt: string;
+  status: 'processing' | 'failed';
+}
+
 function dateGroupLabel(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
@@ -102,9 +108,50 @@ function dateGroupLabel(iso: string): string {
   return `Tháng ${d.getMonth() + 1} năm ${d.getFullYear()}`;
 }
 
-// Nhóm model theo nhà cung cấp. Ưu tiên field upstream (group/company/provider/brand);
-// nếu không có thì đoán theo tên model.
+// Map server (field upstream) -> tên nhà cung cấp + phụ đề hiển thị, giống 79AI.
+const SERVER_LABELS: Record<string, string> = {
+  openai: 'OpenAI',
+  grokai: 'Grok AI',
+  google_veo: 'Google',
+  midjourneyai: 'Midjourney AI',
+  seedream_ai: 'Seedream',
+  klingai: 'Kling AI',
+  autoai: 'Auto AI',
+  alibabaai: 'Alibaba AI',
+  dreamina_ai: 'Dreamina',
+};
+
+const SERVER_SUBTITLES: Record<string, string> = {
+  OpenAI: 'Image generation',
+  'Grok AI': 'Professional AI generation',
+  Google: 'Precision Visuals with AI',
+  'Midjourney AI': 'Professional AI generation',
+  Seedream: 'Professional AI generation',
+  'Kling AI': 'Professional AI generation',
+  'Auto AI': 'Professional AI generation',
+  'Alibaba AI': 'Professional AI generation',
+  Dreamina: 'Professional AI generation',
+};
+
+// Thứ tự hiển thị nhà cung cấp (giống 79AI). Provider ngoài danh sách xếp cuối.
+const PROVIDER_ORDER = [
+  'OpenAI',
+  'Grok AI',
+  'Google',
+  'Midjourney AI',
+  'Seedream',
+  'Kling AI',
+  'Auto AI',
+  'Alibaba AI',
+  'Dreamina',
+];
+
+// Nhóm model theo nhà cung cấp. Ưu tiên field `server` từ API; nếu không có thì
+// fallback các field group/company/... rồi mới đoán theo tên model.
 function modelProvider(m: GommoModel): string {
+  const server = (m.server || '').trim().toLowerCase();
+  if (server && SERVER_LABELS[server]) return SERVER_LABELS[server];
+
   const raw = m as unknown as Record<string, unknown>;
   for (const key of ['group', 'company', 'provider', 'brand', 'vendor']) {
     const v = raw[key];
@@ -113,26 +160,115 @@ function modelProvider(m: GommoModel): string {
   const n = (m.name || modelSlug(m)).toLowerCase();
   if (/\bgpt\b|dall-?e|openai|sora/.test(n)) return 'OpenAI';
   if (/gemini|nano\s*banana|imagen|veo|google/.test(n)) return 'Google';
-  if (/grok|xai/.test(n)) return 'xAI';
-  if (/kling/.test(n)) return 'Kling AI';
-  if (/seedream|seedance|dreamina|capcut/.test(n)) return 'Dreamina';
-  if (/qwen|wan|alibaba|tongyi/.test(n)) return 'Alibaba';
-  if (/midjourney|\bmj\b/.test(n)) return 'Midjourney';
+  if (/grok|xai/.test(n)) return 'Grok AI';
+  if (/kling|colors/.test(n)) return 'Kling AI';
+  if (/seedream|seedance/.test(n)) return 'Seedream';
+  if (/dreamina|capcut/.test(n)) return 'Dreamina';
+  if (/qwen|wan|alibaba|tongyi|z-?image/.test(n)) return 'Alibaba AI';
+  if (/midjourney|\bmj\b/.test(n)) return 'Midjourney AI';
+  if (/upscale|auto\s*ai/.test(n)) return 'Auto AI';
   if (/flux|black\s*forest/.test(n)) return 'Black Forest Labs';
   if (/runway|gen-?\d/.test(n)) return 'Runway';
   if (/luma|dream\s*machine/.test(n)) return 'Luma';
   if (/stable|sdxl|stability/.test(n)) return 'Stability AI';
   if (/minimax|hailuo/.test(n)) return 'MiniMax';
-  if (/pika/.test(n)) return 'Pika';
-  if (/recraft/.test(n)) return 'Recraft';
-  if (/ideogram/.test(n)) return 'Ideogram';
   if (/elevenlabs|eleven\s*labs/.test(n)) return 'ElevenLabs';
   if (/suno/.test(n)) return 'Suno';
   return 'Khác';
 }
 
+function providerSubtitle(provider: string): string {
+  return SERVER_SUBTITLES[provider] ?? 'Professional AI generation';
+}
+
 function formatPrice(price: number): string {
   return price.toLocaleString('vi-VN');
+}
+
+// Khoảng giá min–max của model: ưu tiên mảng prices[] (theo mode/resolution),
+// fallback về price gốc. Trả về chuỗi "min-max" hoặc "x" nếu chỉ 1 mức.
+function modelPriceLabel(m: GommoModel): string {
+  const values: number[] = [];
+  if (Array.isArray(m.prices)) {
+    for (const p of m.prices) {
+      if (typeof p?.price === 'number' && p.price > 0) values.push(p.price);
+    }
+  }
+  if (values.length === 0 && typeof m.price === 'number') values.push(m.price);
+  if (values.length === 0) return '';
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  return min === max ? formatPrice(min) : `${formatPrice(min)}-${formatPrice(max)}`;
+}
+
+// Giá thực tế theo tổ hợp mode + resolution đang chọn. Xử lý mọi dạng prices[]:
+// có cả mode+resolution, chỉ resolution (Kling), hoặc chỉ mode (Midjourney 7.0).
+function resolveModelPrice(
+  model: GommoModel | null,
+  mode: string,
+  resolution: string,
+): number {
+  if (!model) return 0;
+  const prices = model.prices;
+  if (!Array.isArray(prices) || prices.length === 0) return model.price ?? 0;
+  const eq = (a?: string, b?: string) => (a ?? '').toLowerCase() === (b ?? '').toLowerCase();
+
+  const hit =
+    prices.find((p) => eq(p.mode, mode) && eq(p.resolution, resolution)) ??
+    prices.find((p) => p.mode == null && eq(p.resolution, resolution)) ??
+    prices.find((p) => p.resolution == null && eq(p.mode, mode)) ??
+    prices.find((p) => eq(p.resolution, resolution)) ??
+    prices.find((p) => eq(p.mode, mode));
+  return hit?.price ?? model.price ?? prices[0]?.price ?? 0;
+}
+
+function isModelMaintenance(m: GommoModel): boolean {
+  const s = String(m.status || 'ON').toUpperCase();
+  return s !== 'ON' && s !== 'ACTIVE';
+}
+
+// NEW = model nằm trong đợt phát hành mới nhất (created_time trong vòng 30 ngày
+// so với model mới nhất của danh sách). Robust với clock tuyệt đối.
+function buildNewModelChecker(models: GommoModel[]): (m: GommoModel) => boolean {
+  let newest = 0;
+  for (const m of models) {
+    if (typeof m.created_time === 'number' && m.created_time > newest) newest = m.created_time;
+  }
+  const threshold = newest - 30 * 24 * 60 * 60;
+  return (m: GommoModel) =>
+    newest > 0 && typeof m.created_time === 'number' && m.created_time >= threshold;
+}
+
+function modelOnSale(m: GommoModel): boolean {
+  const raw = m as unknown as Record<string, unknown>;
+  for (const key of ['sale', 'on_sale', 'discount', 'is_sale']) {
+    const v = raw[key];
+    if (typeof v === 'boolean' && v) return true;
+    if (typeof v === 'number' && v > 0) return true;
+  }
+  return false;
+}
+
+const RECENT_MODELS_KEY = 'studio:recent-models';
+
+function loadRecentModelSlugs(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENT_MODELS_KEY);
+    const arr = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(arr) ? arr.filter((s): s is string => typeof s === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function pushRecentModelSlug(slug: string): void {
+  if (!slug) return;
+  try {
+    const list = [slug, ...loadRecentModelSlugs().filter((s) => s !== slug)].slice(0, 6);
+    localStorage.setItem(RECENT_MODELS_KEY, JSON.stringify(list));
+  } catch {
+    /* ignore */
+  }
 }
 
 interface AnchorPos {
@@ -158,7 +294,7 @@ function useAnchoredDropdown(open: boolean, setOpen: (v: boolean) => void) {
     const spaceBelow = window.innerHeight - r.bottom - 8;
     const spaceAbove = r.top - 8;
     const placeUp = spaceBelow < 240 && spaceAbove > spaceBelow;
-    const maxHeight = Math.max(160, Math.min(380, (placeUp ? spaceAbove : spaceBelow) - gap));
+    const maxHeight = Math.max(200, Math.min(560, (placeUp ? spaceAbove : spaceBelow) - gap));
     setPos({
       left: r.left,
       width: r.width,
@@ -200,9 +336,13 @@ function useAnchoredDropdown(open: boolean, setOpen: (v: boolean) => void) {
 
 function anchoredPanelStyle(pos: AnchorPos | null): CSSProperties | undefined {
   if (!pos) return undefined;
+  // Panel có thể rộng hơn trigger do min-width (option 180 / model 320). Clamp mép
+  // trái để không tràn khỏi viewport bên phải.
+  const effectiveWidth = Math.max(pos.width, 320);
+  const left = Math.max(8, Math.min(pos.left, window.innerWidth - effectiveWidth - 8));
   return {
     position: 'fixed',
-    left: pos.left,
+    left,
     width: pos.width,
     top: pos.top,
     maxHeight: pos.maxHeight,
@@ -223,31 +363,106 @@ function ModelPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [tab, setTab] = useState<'new' | 'sale'>('new');
+  const [recent, setRecent] = useState<string[]>([]);
   const { triggerRef, panelRef, pos } = useAnchoredDropdown(open, setOpen);
 
   const current = models.find((m) => modelSlug(m) === value) ?? null;
 
+  useEffect(() => {
+    if (open) setRecent(loadRecentModelSlugs());
+  }, [open]);
+
+  const isNew = useMemo(() => buildNewModelChecker(models), [models]);
+  const hasSale = useMemo(() => models.some(modelOnSale), [models]);
+
+  const select = (slug: string) => {
+    pushRecentModelSlug(slug);
+    onChange(slug);
+    setOpen(false);
+    setSearch('');
+  };
+
+  const renderItem = (m: GommoModel) => {
+    const slug = modelSlug(m);
+    const active = slug === value;
+    const priceLabel = modelPriceLabel(m);
+    const maint = isModelMaintenance(m);
+    return (
+      <button
+        key={slug}
+        type="button"
+        className={`model-picker-item ${active ? 'active' : ''}`}
+        onClick={() => select(slug)}
+      >
+        <span className="model-picker-item-main">
+          <span className="model-picker-item-head">
+            <span className="model-picker-item-name">{m.name || slug}</span>
+            {isNew(m) && <span className="model-picker-badge new">NEW</span>}
+            {maint && <span className="model-picker-badge maint">MAINT</span>}
+          </span>
+          {m.description && (
+            <span className="model-picker-item-desc">{m.description}</span>
+          )}
+        </span>
+        <span className="model-picker-item-meta">
+          {priceLabel && <span className="model-picker-item-price">{priceLabel}</span>}
+          {active && <Check size={14} className="model-picker-check" />}
+        </span>
+      </button>
+    );
+  };
+
+  // Lọc theo search.
+  const q = search.trim().toLowerCase();
+  const filtered = useMemo(
+    () =>
+      models.filter((m) => {
+        if (!q) return true;
+        return `${m.name ?? ''} ${modelSlug(m)} ${m.description ?? ''}`
+          .toLowerCase()
+          .includes(q);
+      }),
+    [models, q],
+  );
+
+  // Nguồn theo tab (chỉ áp dụng khi không search).
+  const tabModels = useMemo(() => {
+    if (q || tab === 'new') return filtered;
+    return filtered.filter(modelOnSale);
+  }, [filtered, tab, q]);
+
+  // Nhóm theo nhà cung cấp + sắp xếp theo PROVIDER_ORDER.
   const grouped = useMemo(() => {
-    const q = search.trim().toLowerCase();
     const map = new Map<string, GommoModel[]>();
-    for (const m of models) {
-      const slug = modelSlug(m);
-      if (q && !`${m.name ?? ''} ${slug}`.toLowerCase().includes(q)) continue;
+    for (const m of tabModels) {
       const g = modelProvider(m);
       const list = map.get(g);
       if (list) list.push(m);
       else map.set(g, [m]);
     }
     return [...map.entries()].sort((a, b) => {
-      if (a[0] === 'Khác') return 1;
-      if (b[0] === 'Khác') return -1;
+      const ia = PROVIDER_ORDER.indexOf(a[0]);
+      const ib = PROVIDER_ORDER.indexOf(b[0]);
+      const ra = ia === -1 ? PROVIDER_ORDER.length : ia;
+      const rb = ib === -1 ? PROVIDER_ORDER.length : ib;
+      if (ra !== rb) return ra - rb;
       return a[0].localeCompare(b[0]);
     });
-  }, [models, search]);
+  }, [tabModels]);
 
-  const totalShown = grouped.reduce((n, [, list]) => n + list.length, 0);
+  const recentModels = useMemo(() => {
+    if (q || tab !== 'new') return [];
+    const bySlug = new Map(models.map((m) => [modelSlug(m), m] as const));
+    return recent
+      .map((s) => bySlug.get(s))
+      .filter((m): m is GommoModel => Boolean(m))
+      .slice(0, 4);
+  }, [recent, models, q, tab]);
 
+  const totalShown = tabModels.length;
   const panelStyle = anchoredPanelStyle(pos);
+  const triggerPrice = current ? modelPriceLabel(current) : '';
 
   return (
     <div className="model-picker" ref={triggerRef}>
@@ -264,9 +479,7 @@ function ModelPicker({
               ? current.name || modelSlug(current)
               : '— Chọn model —'}
         </span>
-        {current && typeof current.price === 'number' && (
-          <span className="model-picker-price">{formatPrice(current.price)}</span>
-        )}
+        {triggerPrice && <span className="model-picker-price">{triggerPrice}</span>}
         <ChevronDown size={14} className={`model-picker-caret ${open ? 'open' : ''}`} />
       </button>
 
@@ -279,42 +492,52 @@ function ModelPicker({
               <input
                 autoFocus
                 type="text"
-                placeholder="Tìm model…"
+                placeholder="Tìm kiếm…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
+
+            {!q && hasSale && (
+              <div className="model-picker-tabs">
+                <button
+                  type="button"
+                  className={`model-picker-tab ${tab === 'new' ? 'active' : ''}`}
+                  onClick={() => setTab('new')}
+                >
+                  Mới
+                </button>
+                <button
+                  type="button"
+                  className={`model-picker-tab ${tab === 'sale' ? 'active' : ''}`}
+                  onClick={() => setTab('sale')}
+                >
+                  Sale
+                </button>
+              </div>
+            )}
+
             <div className="model-picker-list">
               {totalShown === 0 && (
                 <div className="model-picker-empty">Không có model phù hợp</div>
               )}
+
+              {recentModels.length > 0 && (
+                <div className="model-picker-group">
+                  <div className="model-picker-group-head">Gần đây</div>
+                  {recentModels.map(renderItem)}
+                </div>
+              )}
+
               {grouped.map(([provider, list]) => (
                 <div key={provider} className="model-picker-group">
-                  <div className="model-picker-group-head">{provider}</div>
-                  {list.map((m) => {
-                    const slug = modelSlug(m);
-                    const active = slug === value;
-                    return (
-                      <button
-                        key={slug}
-                        type="button"
-                        className={`model-picker-item ${active ? 'active' : ''}`}
-                        onClick={() => {
-                          onChange(slug);
-                          setOpen(false);
-                          setSearch('');
-                        }}
-                      >
-                        <span className="model-picker-item-name">{m.name || slug}</span>
-                        <span className="model-picker-item-meta">
-                          {typeof m.price === 'number' && (
-                            <span className="model-picker-item-price">{formatPrice(m.price)}</span>
-                          )}
-                          {active && <Check size={14} className="model-picker-check" />}
-                        </span>
-                      </button>
-                    );
-                  })}
+                  <div className="model-picker-group-head model-picker-provider-head">
+                    <span className="model-picker-provider-name">{provider}</span>
+                    <span className="model-picker-provider-sub">
+                      {providerSubtitle(provider)}
+                    </span>
+                  </div>
+                  {list.map(renderItem)}
                 </div>
               ))}
             </div>
@@ -410,6 +633,13 @@ export default function StudioPage({
   const [qty, setQty] = useState(1);
   const [composerMode, setComposerMode] = useState<'single' | 'auto'>('single');
   const [multiModel, setMultiModel] = useState(false);
+  const [multiPrompt, setMultiPrompt] = useState(false);
+  const [promptSeparator, setPromptSeparator] = useState('=====');
+  const [perPromptRef, setPerPromptRef] = useState(false);
+  const [refSelectMode, setRefSelectMode] = useState<'fixed' | 'sequential' | 'random'>('sequential');
+  const [concurrencyLimit, setConcurrencyLimit] = useState(2);
+  const [multiRefs, setMultiRefs] = useState<string[]>([]);
+  const [pendingJobs, setPendingJobs] = useState<PendingJob[]>([]);
   const [zoom, setZoom] = useState(200);
   const [mainTab, setMainTab] = useState<'current' | 'history' | 'folder'>('current');
   const [uploadedPreview, setUploadedPreview] = useState('');
@@ -429,8 +659,12 @@ export default function StudioPage({
   const modelPrice = currentModel?.price ?? 0;
   // User JWT trừ credit theo cấu hình backend; user Gommo token theo giá model upstream.
   const unitCost = useBackend ? backendCosts?.[jobType] ?? 0 : modelPrice;
-  // Composer hiển thị giá theo model.price (khớp 79AI); fallback về unitCost nếu model chưa có giá.
-  const composerCost = modelPrice || unitCost;
+  // Composer hiển thị giá động theo mode + resolution đang chọn (khớp 79AI);
+  // fallback về unitCost nếu model chưa có bảng giá.
+  const composerCost = useMemo(
+    () => resolveModelPrice(currentModel, selections.mode || '', selections.resolution || '') || unitCost,
+    [currentModel, selections.mode, selections.resolution, unitCost],
+  );
 
   const loadModelsList = useCallback(
     async (type: JobType) => {
@@ -520,6 +754,20 @@ export default function StudioPage({
     }
   }, [models, jobType, location.state]);
 
+  // Luôn chọn sẵn 1 model khi vào trang / đổi loại job (giống 79AI): ưu tiên model
+  // dùng gần đây còn khả dụng, rồi tới model đầu tiên đang ON.
+  useEffect(() => {
+    if (!models.length) return;
+    if (selectedSlug && models.some((m) => modelSlug(m) === selectedSlug)) return;
+    const bySlug = new Map(models.map((m) => [modelSlug(m), m] as const));
+    const recent = loadRecentModelSlugs()
+      .map((s) => bySlug.get(s))
+      .find((m) => m && !isModelMaintenance(m));
+    const fallback = models.find((m) => !isModelMaintenance(m)) ?? models[0];
+    const pick = recent ?? fallback;
+    if (pick) setSelectedSlug(modelSlug(pick));
+  }, [models, selectedSlug]);
+
   useEffect(() => {
     if (!currentModel) {
       setSchema(null);
@@ -576,8 +824,8 @@ export default function StudioPage({
     });
   }
 
-  function recordSuccess(url: string, slug: string) {
-    const prompt = historyPromptFromSelections(jobType, selections);
+  function recordSuccess(url: string, slug: string, promptOverride?: string) {
+    const prompt = promptOverride ?? historyPromptFromSelections(jobType, selections);
     const meta = {
       mode: selections.mode || '',
       resolution: selections.resolution || '',
@@ -609,27 +857,21 @@ export default function StudioPage({
     ]);
   }
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    if ((!client && !useBackend) || !currentModel || !schema) {
-      setError('Chọn model trước.');
-      return;
+  // Chạy 1 job với prompt riêng (dùng cho cả tạo đơn và batch multi-prompt).
+  // refUrl (nếu có) ghi đè ảnh tham chiếu cho riêng prompt này.
+  async function runOneJob(
+    slug: string,
+    prompt: string,
+    pendingId: string,
+    refUrl?: string,
+  ): Promise<boolean> {
+    const runSelections = { ...selections, prompt };
+    if (refUrl) {
+      if (schema?.fields.references) runSelections.references = [refUrl];
+      else if (schema?.fields.subjects) runSelections.subjects = [refUrl];
+      else runSelections.images = [refUrl];
     }
-    if (useBackend && !BACKEND_JOB_TYPES.includes(jobType)) {
-      setError('Loại job này cần đăng nhập bằng Access Token.');
-      return;
-    }
-
-    abortRef.current?.abort();
-    abortRef.current = new AbortController();
-
-    setSubmitting(true);
-    setError('');
-    setProgress('Đang tạo job…');
-    setResultUrl(null);
-
-    const slug = modelSlug(currentModel);
-    const { payload } = buildJobPayload(currentModel, jobType, selections, {
+    const { payload } = buildJobPayload(currentModel!, jobType, runSelections, {
       domain: auth?.domain,
       projectId: auth?.projectId,
     });
@@ -651,24 +893,106 @@ export default function StudioPage({
 
       if (finalUrl) {
         setResultUrl(finalUrl);
-        setProgress('Hoàn tất!');
         updateLocalJob(localId, { status: 'success', result_url: finalUrl });
-        recordSuccess(finalUrl, slug);
-        await refreshCreditsAfterJob();
-      } else {
-        const errMsg = 'Job thất bại';
-        setError(errMsg);
-        updateLocalJob(localId, { status: 'failed', error: errMsg });
-        await refreshCreditsAfterJob();
+        recordSuccess(finalUrl, slug, prompt);
+        setPendingJobs((prev) => prev.filter((p) => p.id !== pendingId));
+        loadRecentJobs();
+        return true;
       }
-
+      const errMsg = 'Job thất bại';
+      setError(errMsg);
+      updateLocalJob(localId, { status: 'failed', error: errMsg });
+      setPendingJobs((prev) =>
+        prev.map((p) => (p.id === pendingId ? { ...p, status: 'failed' } : p)),
+      );
       loadRecentJobs();
+      return false;
     } catch (err) {
       const msg = err instanceof GommoApiError || err instanceof Error ? err.message : String(err);
       setError(msg);
       updateLocalJob(localId, { status: 'failed', error: msg });
-      await refreshCreditsAfterJob();
+      setPendingJobs((prev) =>
+        prev.map((p) => (p.id === pendingId ? { ...p, status: 'failed' } : p)),
+      );
       loadRecentJobs();
+      return false;
+    }
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if ((!client && !useBackend) || !currentModel || !schema) {
+      setError('Chọn model trước.');
+      return;
+    }
+    if (useBackend && !BACKEND_JOB_TYPES.includes(jobType)) {
+      setError('Loại job này cần đăng nhập bằng Access Token.');
+      return;
+    }
+
+    const batchType = jobType === 'image' || jobType === 'video';
+    const useMultiPrompt = composerMode === 'auto' && multiPrompt && batchType;
+    const basePrompt = selections.prompt || '';
+
+    // Danh sách prompt cần tạo: multi-prompt tách theo ký tự phân cách (mỗi prompt 1 ảnh);
+    // ngược lại lặp theo số lượng (qty) cho image/video, các loại khác giữ 1 job.
+    let prompts: string[];
+    if (useMultiPrompt) {
+      const sep = promptSeparator.trim() || '=====';
+      const escaped = sep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      prompts = basePrompt
+        .split(new RegExp(escaped))
+        .map((p) => p.trim())
+        .filter(Boolean);
+      if (prompts.length === 0) {
+        setError(`Nhập ít nhất 1 prompt (mỗi prompt cách nhau bằng ${sep}).`);
+        return;
+      }
+    } else {
+      prompts = batchType ? Array.from({ length: qty }, () => basePrompt) : [basePrompt];
+    }
+
+    // Gán ảnh tham chiếu cho từng prompt theo quy cách chọn (chỉ khi bật multi-prompt
+    // + "mỗi prompt 1 tham chiếu" + có ảnh trong multiRefs).
+    const refForIndex = (i: number): string | undefined => {
+      if (!useMultiPrompt || !perPromptRef || multiRefs.length === 0) return undefined;
+      if (refSelectMode === 'fixed') return multiRefs[0];
+      if (refSelectMode === 'random') {
+        return multiRefs[Math.floor(Math.random() * multiRefs.length)];
+      }
+      return multiRefs[i % multiRefs.length];
+    };
+
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+
+    setSubmitting(true);
+    setError('');
+    setProgress('Đang tạo job…');
+    setResultUrl(null);
+
+    const slug = modelSlug(currentModel);
+    const newPending: PendingJob[] = prompts.map((prompt) => ({
+      id: crypto.randomUUID(),
+      prompt,
+      status: 'processing',
+    }));
+    // Bỏ các thẻ lỗi cũ, thêm thẻ đang tạo của lần này lên đầu.
+    setPendingJobs((prev) => [...newPending, ...prev.filter((p) => p.status === 'processing')]);
+
+    try {
+      // Pool giới hạn luồng: chạy tối đa `limit` job cùng lúc.
+      const limit = Math.max(1, Math.min(concurrencyLimit, prompts.length));
+      let cursor = 0;
+      const worker = async () => {
+        while (cursor < prompts.length) {
+          const i = cursor++;
+          await runOneJob(slug, prompts[i], newPending[i].id, refForIndex(i));
+        }
+      };
+      await Promise.all(Array.from({ length: limit }, () => worker()));
+      setProgress('Hoàn tất!');
+      await refreshCreditsAfterJob();
     } finally {
       setSubmitting(false);
     }
@@ -745,6 +1069,8 @@ export default function StudioPage({
     setSelectedSlug('');
     setSchema(null);
     setResultUrl(null);
+    setPendingJobs([]);
+    setMultiRefs([]);
     setSelections(defaultSelectionsForType(type));
   }
 
@@ -1055,6 +1381,156 @@ export default function StudioPage({
             </div>
           )}
 
+          {composerMode === 'auto' && (jobType === 'image' || jobType === 'video') && (
+            <div className="composer-multiprompt">
+              <label className="composer-switch-row">
+                <span className="composer-switch-text">
+                  <Sparkles size={14} />
+                  <span>
+                    <strong>Multi-Prompt</strong>
+                    <small>Tạo ảnh từ nhiều prompt con trong 1 prompt tổng.</small>
+                  </span>
+                </span>
+                <span className={`composer-switch ${multiPrompt ? 'on' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={multiPrompt}
+                    onChange={(e) => setMultiPrompt(e.target.checked)}
+                  />
+                  <span className="composer-switch-knob" />
+                </span>
+              </label>
+
+              {multiPrompt && (
+                <div className="composer-multiprompt-body">
+                  <div className="composer-mp-field">
+                    <span className="composer-label">Ký tự phân cách Prompt</span>
+                    <div className="composer-segment">
+                      {['=====', '###', '---', '@@@'].map((sep) => (
+                        <button
+                          key={sep}
+                          type="button"
+                          className={promptSeparator === sep ? 'active' : ''}
+                          onClick={() => setPromptSeparator(sep)}
+                        >
+                          {sep}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <p className="composer-mp-hint">
+                    Mỗi prompt con ở dưới 1 dòng, cách nhau bằng{' '}
+                    <code>{promptSeparator}</code>. Mỗi prompt tạo 1{' '}
+                    {jobTypeLabel(jobType).toLowerCase()}.
+                  </p>
+
+                  <label className="composer-switch-row">
+                    <span className="composer-switch-text">
+                      <span>
+                        <strong>Mỗi prompt 1 tham chiếu</strong>
+                        <small>Chỉ dùng 1 ảnh tham chiếu cho mỗi prompt.</small>
+                      </span>
+                    </span>
+                    <span className={`composer-switch ${perPromptRef ? 'on' : ''}`}>
+                      <input
+                        type="checkbox"
+                        checked={perPromptRef}
+                        onChange={(e) => setPerPromptRef(e.target.checked)}
+                      />
+                      <span className="composer-switch-knob" />
+                    </span>
+                  </label>
+
+                  {perPromptRef && (
+                    <>
+                      <div className="composer-mp-field">
+                        <span className="composer-label">Quy cách chọn</span>
+                        <div className="composer-segment">
+                          {([
+                            ['fixed', 'Cố định 1'],
+                            ['sequential', 'Chọn theo thứ tự'],
+                            ['random', 'Chọn ngẫu nhiên'],
+                          ] as const).map(([val, label]) => (
+                            <button
+                              key={val}
+                              type="button"
+                              className={refSelectMode === val ? 'active' : ''}
+                              onClick={() => setRefSelectMode(val)}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="composer-mp-field">
+                        <div className="composer-label-row">
+                          <span className="composer-label">Ảnh tham chiếu: {multiRefs.length}</span>
+                          <label className="composer-mp-addref">
+                            <Plus size={13} /> Thêm ảnh
+                            <input
+                              type="file"
+                              accept="image/*"
+                              hidden
+                              multiple
+                              onChange={async (e) => {
+                                const files = Array.from(e.target.files || []);
+                                e.target.value = '';
+                                for (const f of files) {
+                                  const url = await handleUpload(f, 'image');
+                                  if (url) setMultiRefs((prev) => [...prev, url]);
+                                }
+                              }}
+                            />
+                          </label>
+                        </div>
+                        <div className="composer-mp-refgrid">
+                          {multiRefs.map((url, i) => (
+                            <div key={`${url}-${i}`} className="composer-mp-refthumb">
+                              <img src={url} alt={`ref ${i + 1}`} />
+                              <button
+                                type="button"
+                                aria-label="Xóa ảnh"
+                                onClick={() =>
+                                  setMultiRefs((prev) => prev.filter((_, idx) => idx !== i))
+                                }
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="composer-mp-field">
+                    <div className="composer-label-row">
+                      <span className="composer-label">Giới hạn luồng tạo</span>
+                      <div className="composer-qty">
+                        <button
+                          type="button"
+                          onClick={() => setConcurrencyLimit((n) => Math.max(1, n - 1))}
+                        >
+                          −
+                        </button>
+                        <span>{concurrencyLimit}</span>
+                        <button
+                          type="button"
+                          onClick={() => setConcurrencyLimit((n) => Math.min(8, n + 1))}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    <p className="composer-mp-hint">Số ảnh tạo cùng lúc (giảm nếu mạng yếu).</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {schema?.fields.prompt && (
             <div className="composer-field">
               <div className="composer-label-row">
@@ -1094,9 +1570,13 @@ export default function StudioPage({
               </div>
               <textarea
                 className="composer-textarea"
-                rows={4}
+                rows={multiPrompt && composerMode === 'auto' ? 6 : 4}
                 placeholder={
-                  schema.fields.musicName ? 'Mô tả phong cách nhạc…' : 'Mô tả nội dung của bạn…'
+                  multiPrompt && composerMode === 'auto'
+                    ? 'Prompt 1\n=====\nPrompt 2\n=====\nPrompt 3'
+                    : schema.fields.musicName
+                      ? 'Mô tả phong cách nhạc…'
+                      : 'Mô tả nội dung của bạn…'
                 }
                 value={selections.prompt || ''}
                 onChange={(e) => updateSelection('prompt', e.target.value)}
@@ -1203,7 +1683,7 @@ export default function StudioPage({
 
           {mainTab === 'history' ? (
             <ComposerHistory jobType={jobType} zoom={zoom} />
-          ) : displayedResults.length === 0 ? (
+          ) : displayedResults.length === 0 && !(mainTab === 'current' && pendingJobs.length > 0) ? (
             <p className="muted composer-empty">
               {mainTab === 'folder'
                 ? 'Chưa có tệp nào được lưu vào thư viện.'
@@ -1211,6 +1691,34 @@ export default function StudioPage({
             </p>
           ) : (
             <div className="composer-results">
+              {mainTab === 'current' && pendingJobs.length > 0 && (
+                <div className="composer-day-group">
+                  <h3 className="composer-day">Đang tạo</h3>
+                  <div className="composer-grid" style={{ ['--thumb' as string]: `${zoom}px` }}>
+                    {pendingJobs.map((p) => (
+                      <article key={p.id} className={`hist-card hist-card-pending ${p.status}`}>
+                        <div className="hist-card-thumb-wrap">
+                          <div className="hist-card-thumb pending-thumb">
+                            {p.status === 'processing' ? (
+                              <span className="pending-spinner" aria-label="Đang tạo" />
+                            ) : (
+                              <span className="pending-failed-icon">!</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="hist-card-body">
+                          <p className="hist-card-prompt" title={p.prompt}>
+                            {p.prompt || '—'}
+                          </p>
+                          <p className="hist-card-meta">
+                            {p.status === 'processing' ? 'Đang tạo…' : 'Thất bại'}
+                          </p>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </div>
+              )}
               {groupedResults.map(([day, entries]) => (
                 <div key={day} className="composer-day-group">
                   <h3 className="composer-day">{day}</h3>

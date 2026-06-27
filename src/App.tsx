@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { Coins, Globe, Menu, X } from 'lucide-react';
 import {
   clearAuth,
   getCreditsAi,
@@ -13,7 +13,9 @@ import { isBackendLoggedIn, setSessionUser } from './services/session';
 import { UpstreamMeError } from './services/upstreamMe';
 import { useCreditsUpdated } from './hooks/useCreditsUpdated';
 import type { JobType } from './services/api';
+import BrandLogo from './components/BrandLogo';
 import ProtectedRoute from './components/ProtectedRoute';
+import QuickChatWidget from './components/QuickChatWidget';
 import UserMenuDropdown from './components/user/UserMenuDropdown';
 import LandingPage from './pages/LandingPage';
 import HomePage from './pages/HomePage';
@@ -117,9 +119,7 @@ function AppHeader() {
             {mobileNavOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         )}
-        <Link to="/" className="brand">
-          <img src="/logo.png" alt="AI Center" className="brand-logo" />
-        </Link>
+        <BrandLogo to="/" />
         {loggedIn ? (
           <>
             <nav className={`nav-main ${mobileNavOpen ? 'open' : ''}`}>
@@ -141,18 +141,20 @@ function AppHeader() {
               />
             )}
             <div className="header-meta">
-              <button type="button" className="lang-pill">VI</button>
+              <button type="button" className="lang-pill">
+                <Globe size={14} /> VI
+              </button>
               <a
                 href="https://79ai.net/pricing"
                 target="_blank"
                 rel="noreferrer"
                 className="price-pill"
               >
-                Bảng giá
+                <Coins size={15} /> Bảng giá
               </a>
               <div className="header-balance">
                 <span className="header-balance-label">Số dư</span>
-                <span className="credit-pill header-credit-pill">
+                <span className="header-credit-pill">
                   {credits.toLocaleString('vi-VN')}
                 </span>
               </div>
@@ -176,6 +178,8 @@ function AppShell() {
   const isWorkflow = location.pathname === '/workflow';
   const isFullBleed = location.pathname in STUDIO_NAV || isWorkflow;
   const hideHeader = isBarePage || isWorkflow;
+  // Quick Chat: hiện trên mọi page sau đăng nhập, trừ bare pages và /workflow (đã có Workflow Agent).
+  const showQuickChat = isLoggedIn() && !isBarePage && !isWorkflow;
 
   return (
     <div className={isBarePage ? '' : 'app'}>
@@ -231,6 +235,7 @@ function AppShell() {
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>
+      {showQuickChat && <QuickChatWidget />}
     </div>
   );
 }

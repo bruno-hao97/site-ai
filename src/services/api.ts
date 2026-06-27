@@ -276,6 +276,8 @@ export interface GommoModel {
   status?: string;
   status_message?: string;
   description?: string;
+  server?: string;
+  created_time?: number;
   price?: number;
   ratios?: unknown[];
   modes?: unknown[];

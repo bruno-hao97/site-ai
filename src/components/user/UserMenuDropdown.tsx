@@ -6,7 +6,7 @@ import {
   loadAuth,
 } from '../../services/authStore';
 import { loadTheme, saveTheme, type ThemeMode } from '../../services/themeStore';
-import { Check, Pencil, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, CircleHelp, ClipboardList, Clock, CreditCard, Gift, KeyRound, LayoutDashboard, LogOut, Moon, Pencil, Settings, Shield, Sun, Trash2, User, Users, Wallet } from 'lucide-react';
 import {
   countByProject,
   createProject,
@@ -16,6 +16,8 @@ import {
   updateProject,
   type Project,
 } from '../../services/projectStore';
+
+const ICON = { size: 16, strokeWidth: 1.75, className: 'user-menu-item-icon' } as const;
 
 const EXTERNAL = {
   community: 'https://discord.gg/',
@@ -118,6 +120,7 @@ export default function UserMenuDropdown({ credits, onCreditsRefresh }: Props) {
         ) : (
           <span className="user-menu-avatar user-menu-avatar-fallback" />
         )}
+        <ChevronDown size={14} className={`user-menu-caret ${open ? 'up' : ''}`} />
       </button>
 
       {open && (
@@ -140,7 +143,7 @@ export default function UserMenuDropdown({ credits, onCreditsRefresh }: Props) {
             onClick={() => { onCreditsRefresh?.(); setOpen(false); }}
           >
             <span className="user-menu-balance-left">
-              <span className="user-menu-icon">💰</span>
+              <Wallet {...ICON} />
               Số dư
             </span>
             <strong>{credits.toLocaleString('vi-VN')}</strong>
@@ -237,50 +240,58 @@ export default function UserMenuDropdown({ credits, onCreditsRefresh }: Props) {
           <div className="user-menu-section user-menu-theme-row">
             <span>GIAO DIỆN</span>
             <button type="button" className="user-menu-theme-btn" onClick={toggleTheme}>
-              {theme === 'dark' ? '☀ Sáng' : '🌙 Tối'}
+              {theme === 'dark' ? (
+                <>
+                  <Sun {...ICON} /> Sáng
+                </>
+              ) : (
+                <>
+                  <Moon {...ICON} /> Tối
+                </>
+              )}
             </button>
           </div>
 
           <nav className="user-menu-nav">
             <Link to="/dashboard" className="user-menu-item" onClick={() => setOpen(false)}>
-              <span>📊</span> Dashboard
+              <LayoutDashboard {...ICON} /> Dashboard
             </Link>
             <Link to="/wallet" className="user-menu-item" onClick={() => setOpen(false)}>
-              <span>💳</span> Ví credit
+              <CreditCard {...ICON} /> Ví credit
             </Link>
             <Link to="/profile" className="user-menu-item" onClick={() => setOpen(false)}>
-              <span>👤</span> Xem hồ sơ
+              <User {...ICON} /> Xem hồ sơ
             </Link>
             <Link to="/usage-history" className="user-menu-item" onClick={() => setOpen(false)}>
-              <span>🕐</span> Lịch sử sử dụng
+              <Clock {...ICON} /> Lịch sử sử dụng
             </Link>
             {!loadAuth() && (
               <Link to="/api-keys" className="user-menu-item" onClick={() => setOpen(false)}>
-                <span>🔑</span> Quản lý API Key
+                <KeyRound {...ICON} /> Quản lý API Key
               </Link>
             )}
             <Link to="/account" className="user-menu-item" onClick={() => setOpen(false)}>
-              <span>🛡</span> Quản lý tài khoản
+              <Shield {...ICON} /> Quản lý tài khoản
             </Link>
             <Link to="/settings" className="user-menu-item" onClick={() => setOpen(false)}>
-              <span>⚙</span> Cài đặt
+              <Settings {...ICON} /> Cài đặt
             </Link>
             <a href={EXTERNAL.community} target="_blank" rel="noreferrer" className="user-menu-item">
-              <span>👥</span> Tham gia cộng đồng
+              <Users {...ICON} /> Tham gia cộng đồng
             </a>
             <a href={EXTERNAL.support} target="_blank" rel="noreferrer" className="user-menu-item">
-              <span>❓</span> Trung tâm hỗ trợ
+              <CircleHelp {...ICON} /> Trung tâm hỗ trợ
             </a>
             <a href={EXTERNAL.referral} target="_blank" rel="noreferrer" className="user-menu-item">
-              <span>🎁</span> Giới thiệu bạn bè
+              <Gift {...ICON} /> Giới thiệu bạn bè
             </a>
             <a href={EXTERNAL.changelog} target="_blank" rel="noreferrer" className="user-menu-item">
-              <span>📋</span> Changelog
+              <ClipboardList {...ICON} /> Changelog
             </a>
           </nav>
 
           <button type="button" className="user-menu-logout" onClick={logout}>
-            <span>🚪</span> Đăng xuất
+            <LogOut {...ICON} className="user-menu-item-icon user-menu-item-icon--danger" /> Đăng xuất
           </button>
         </div>
       )}
