@@ -6,6 +6,7 @@ import jobsRoutes from './routes/jobs.js';
 import feedRoutes from './routes/feed.js';
 import dashboardRoutes from './routes/dashboard.js';
 import apiKeysRoutes from './routes/apiKeys.js';
+import composerRoutes from './routes/composer.js';
 import { config } from './config.js';
 import './db.js';
 
@@ -30,6 +31,7 @@ app.use('/api/jobs', jobsRoutes);
 app.use('/api/feed', feedRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/api-keys', apiKeysRoutes);
+app.use('/api/composer', composerRoutes);
 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);

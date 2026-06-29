@@ -1,5 +1,6 @@
 import {
   type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
   FormEvent,
   useCallback,
@@ -9,25 +10,30 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Check,
   ChevronDown,
   ChevronLeft,
   Clapperboard,
+  Film,
   Clipboard,
   Clock,
   Download,
+  Image as ImageIcon,
   Maximize2,
   Monitor,
+  PersonStanding,
   Plus,
   Proportions,
+  Video,
   Search,
   SlidersHorizontal,
   Sparkles,
   Star,
   Trash2,
   Wand2,
+  Bot,
 } from 'lucide-react';
 import {
   GommoApiError,
@@ -91,12 +97,31 @@ import {
 } from '../services/historyStore';
 import { useHistoryUpdated } from '../hooks/useHistoryUpdated';
 import { extractPollSnapshot } from '../services/mediaGenerationStatus';
+import {
+  canUseComposerPromptAi,
+  enhancePromptWithAi,
+  generateShotsWithAi,
+  normalizePromptWithAi,
+} from '../services/composerPromptAi';
+import {
+  getMultiShotConfig,
+  newShot,
+  type ComposerShot,
+} from '../services/composerShots';
+import {
+  getReferenceLimits,
+  getUploadRules,
+  mapUploadTarget,
+  validateMediaFile,
+} from '../services/modelUploadRules';
 
 interface PendingJob {
   id: string;
   prompt: string;
   status: 'processing' | 'failed';
 }
+
+type ComposerMode = 'single' | 'multi' | 'auto' | 'ai';
 
 function dateGroupLabel(iso: string): string {
   const d = new Date(iso);
@@ -227,6 +252,55 @@ function isModelMaintenance(m: GommoModel): boolean {
   return s !== 'ON' && s !== 'ACTIVE';
 }
 
+// Model dạng "Motion" (Kling Motion…): nhận ảnh nhân vật + video tham chiếu.
+function isMotionModel(m: GommoModel): boolean {
+  return Boolean((m as { withMotion?: boolean }).withMotion);
+}
+
+function isEditModel(m: GommoModel): boolean {
+  return Boolean((m as { withEdit?: boolean }).withEdit);
+}
+
+// Chuẩn hóa 1 prompt: bỏ khoảng trắng thừa, gộp nhiều dòng/space thành 1 space.
+function normalizeOnePrompt(s: string): string {
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+// Mở rộng mô tả ngắn thành prompt chi tiết (chế độ AI – placeholder tới khi có API riêng).
+function expandBriefToPrompt(brief: string, type: JobType): string {
+  const b = brief.trim();
+  if (!b) return '';
+  if (type === 'video') {
+    return `${b}. Cinematic shot, smooth camera motion, professional lighting, high detail, film quality.`;
+  }
+  if (type === 'music') return b;
+  return `${b}. Highly detailed, professional quality, sharp focus, vibrant colors, masterpiece.`;
+}
+
+// Đoán loại media từ đuôi URL để render thumbnail tham chiếu cho đúng.
+function urlMediaKind(url: string): 'image' | 'video' | 'audio' {
+  const u = url.toLowerCase();
+  if (/\.(mp4|webm|mov|m4v)(\?|$)/.test(u)) return 'video';
+  if (/\.(mp3|wav|ogg|m4a|aac)(\?|$)/.test(u)) return 'audio';
+  return 'image';
+}
+
+function mediaKindFromFile(file: File): 'image' | 'video' {
+  if (file.type.startsWith('video/')) return 'video';
+  return 'image';
+}
+
+// Lấy mảng cảnh báo (notices.select) để hiển thị ở chế độ Motion.
+function modelSelectNotices(m: GommoModel | null): string[] {
+  if (!m) return [];
+  const n = (m as { notices?: unknown }).notices;
+  if (!n || typeof n !== 'object') return [];
+  const sel = (n as { select?: unknown }).select;
+  if (Array.isArray(sel)) return sel.filter((x): x is string => typeof x === 'string');
+  if (typeof sel === 'string') return [sel];
+  return [];
+}
+
 // NEW = model nằm trong đợt phát hành mới nhất (created_time trong vòng 30 ngày
 // so với model mới nhất của danh sách). Robust với clock tuyệt đối.
 function buildNewModelChecker(models: GommoModel[]): (m: GommoModel) => boolean {
@@ -355,11 +429,17 @@ function ModelPicker({
   value,
   onChange,
   loading,
+  multi = false,
+  multiValues = [],
+  onMultiChange,
 }: {
   models: GommoModel[];
   value: string;
   onChange: (slug: string) => void;
   loading: boolean;
+  multi?: boolean;
+  multiValues?: string[];
+  onMultiChange?: (slugs: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -378,6 +458,12 @@ function ModelPicker({
 
   const select = (slug: string) => {
     pushRecentModelSlug(slug);
+    if (multi && onMultiChange) {
+      const has = multiValues.includes(slug);
+      onMultiChange(has ? multiValues.filter((s) => s !== slug) : [...multiValues, slug]);
+      onChange(slug);
+      return;
+    }
     onChange(slug);
     setOpen(false);
     setSearch('');
@@ -385,7 +471,7 @@ function ModelPicker({
 
   const renderItem = (m: GommoModel) => {
     const slug = modelSlug(m);
-    const active = slug === value;
+    const active = multi ? multiValues.includes(slug) : slug === value;
     const priceLabel = modelPriceLabel(m);
     const maint = isModelMaintenance(m);
     return (
@@ -463,6 +549,14 @@ function ModelPicker({
   const totalShown = tabModels.length;
   const panelStyle = anchoredPanelStyle(pos);
   const triggerPrice = current ? modelPriceLabel(current) : '';
+  const multiLabel = useMemo(() => {
+    if (!multi || multiValues.length === 0) return '';
+    if (multiValues.length === 1) {
+      const m = models.find((x) => modelSlug(x) === multiValues[0]);
+      return m?.name || multiValues[0];
+    }
+    return `${multiValues.length} model đã chọn`;
+  }, [multi, multiValues, models]);
 
   return (
     <div className="model-picker" ref={triggerRef}>
@@ -475,11 +569,16 @@ function ModelPicker({
         <span className="model-picker-current">
           {loading
             ? 'Đang tải…'
-            : current
-              ? current.name || modelSlug(current)
-              : '— Chọn model —'}
+            : multi
+              ? multiLabel || '— Chọn model —'
+              : current
+                ? current.name || modelSlug(current)
+                : '— Chọn model —'}
         </span>
-        {triggerPrice && <span className="model-picker-price">{triggerPrice}</span>}
+        {!multi && triggerPrice && <span className="model-picker-price">{triggerPrice}</span>}
+        {multi && multiValues.length > 1 && (
+          <span className="model-picker-price">{multiValues.length}×</span>
+        )}
         <ChevronDown size={14} className={`model-picker-caret ${open ? 'open' : ''}`} />
       </button>
 
@@ -617,6 +716,7 @@ export default function StudioPage({
   layout?: 'classic' | 'composer';
 }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [jobType, setJobType] = useState<JobType>(initialType);
   const [models, setModels] = useState<GommoModel[]>([]);
   const [selectedSlug, setSelectedSlug] = useState('');
@@ -631,8 +731,27 @@ export default function StudioPage({
   const [sessionItems, setSessionItems] = useState<SessionItem[]>([]);
   const [credits, setCredits] = useState(getCreditsAi());
   const [qty, setQty] = useState(1);
-  const [composerMode, setComposerMode] = useState<'single' | 'auto'>('single');
-  const [multiModel, setMultiModel] = useState(false);
+  const [composerMode, setComposerMode] = useState<ComposerMode>(() => {
+    const saved = localStorage.getItem('studioComposerMode');
+    return saved === 'multi' || saved === 'auto' || saved === 'ai' ? saved : 'single';
+  });
+  const [selectedSlugs, setSelectedSlugs] = useState<string[]>([]);
+  const [aiBrief, setAiBrief] = useState('');
+  // /video có 2 chế độ cấp cao: tạo video thường ('create') và Motion ('motion').
+  const [videoMode, setVideoMode] = useState<'create' | 'motion' | 'edit'>('create');
+  const [motionVideoUrl, setMotionVideoUrl] = useState('');
+  const [editVideoUrl, setEditVideoUrl] = useState('');
+  const [multiShotEnabled, setMultiShotEnabled] = useState(false);
+  // Chế độ nhập liệu: 'frame' (Ảnh đầu/cuối) hoặc 'component' (Thêm media – tham chiếu).
+  const [inputMode, setInputMode] = useState<'frame' | 'component'>(() =>
+    localStorage.getItem('studioInputMode') === 'component' ? 'component' : 'frame',
+  );
+  const [normalizePrompt, setNormalizePrompt] = useState(
+    () => localStorage.getItem('studioNormalize') === '1',
+  );
+  const [enhancingPrompt, setEnhancingPrompt] = useState(false);
+  const [promptModalOpen, setPromptModalOpen] = useState(false);
+  const [componentDragOver, setComponentDragOver] = useState(false);
   const [multiPrompt, setMultiPrompt] = useState(false);
   const [promptSeparator, setPromptSeparator] = useState('=====');
   const [perPromptRef, setPerPromptRef] = useState(false);
@@ -642,20 +761,54 @@ export default function StudioPage({
   const [pendingJobs, setPendingJobs] = useState<PendingJob[]>([]);
   const [zoom, setZoom] = useState(200);
   const [mainTab, setMainTab] = useState<'current' | 'history' | 'folder'>('current');
-  const [uploadedPreview, setUploadedPreview] = useState('');
-  const [dragOver, setDragOver] = useState(false);
   const [historyTick, setHistoryTick] = useState(0);
   useHistoryUpdated(() => setHistoryTick((n) => n + 1));
   const abortRef = useRef<AbortController | null>(null);
   const sessionStartRef = useRef(Date.now());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Bề rộng sidebar (kéo chỉnh được), nhớ qua localStorage.
+  const composerRef = useRef<HTMLDivElement | null>(null);
+  const [sideWidth, setSideWidth] = useState(() => {
+    const saved = Number(localStorage.getItem('studioSideWidth'));
+    return saved >= 320 && saved <= 640 ? saved : 380;
+  });
+  const resizingRef = useRef(false);
+  const sideWidthRef = useRef(sideWidth);
 
   const client = useMemo(() => (loadAuth() ? getGommoClient() : null), []);
   const auth = loadAuth();
   // User JWT (đăng nhập email/Google) không có Gommo client → tạo job qua backend.
   const useBackend = !client && isBackendLoggedIn();
   const [backendCosts, setBackendCosts] = useState<JobCosts | null>(null);
+  // Chỉ /video mới có chế độ Motion; tab chỉ hiện khi list có ít nhất 1 model motion.
+  const hasMotionModels = useMemo(
+    () => jobType === 'video' && models.some(isMotionModel),
+    [jobType, models],
+  );
+  const hasEditModels = useMemo(
+    () => jobType === 'video' && models.some(isEditModel),
+    [jobType, models],
+  );
+  const isMotionView = jobType === 'video' && videoMode === 'motion' && hasMotionModels;
+  const isEditView = jobType === 'video' && videoMode === 'edit' && hasEditModels;
+  // Lọc model cho picker theo chế độ video đang chọn.
+  const pickerModels = useMemo(() => {
+    if (jobType !== 'video') return models;
+    if (videoMode === 'motion' && hasMotionModels) return models.filter(isMotionModel);
+    if (videoMode === 'edit' && hasEditModels) return models.filter(isEditModel);
+    if (hasMotionModels || hasEditModels) {
+      return models.filter((m) => !isMotionModel(m) && !isEditModel(m));
+    }
+    return models;
+  }, [models, jobType, videoMode, hasMotionModels, hasEditModels]);
+
   const currentModel = models.find((m) => modelSlug(m) === selectedSlug) ?? null;
+  const multiShotConfig = useMemo(() => getMultiShotConfig(currentModel), [currentModel]);
+  const activeShots = useMemo(
+    () => (selections.shots || []).filter((s) => s.prompt?.trim()),
+    [selections.shots],
+  );
+  const scriptCount = multiShotEnabled && schema?.fields.multiShots ? activeShots.length : 1;
   const modelPrice = currentModel?.price ?? 0;
   // User JWT trừ credit theo cấu hình backend; user Gommo token theo giá model upstream.
   const unitCost = useBackend ? backendCosts?.[jobType] ?? 0 : modelPrice;
@@ -665,6 +818,56 @@ export default function StudioPage({
     () => resolveModelPrice(currentModel, selections.mode || '', selections.resolution || '') || unitCost,
     [currentModel, selections.mode, selections.resolution, unitCost],
   );
+  const submitQty = composerMode === 'multi' ? 1 : qty;
+  const submitTotalCost = useMemo(() => {
+    if (composerMode === 'multi') {
+      return selectedSlugs.reduce((sum, slug) => {
+        const m = pickerModels.find((x) => modelSlug(x) === slug);
+        if (!m) return sum;
+        return sum + (resolveModelPrice(m, selections.mode || '', selections.resolution || '') || unitCost);
+      }, 0);
+    }
+    return (composerCost || 0) * submitQty;
+  }, [composerMode, selectedSlugs, pickerModels, composerCost, selections.mode, selections.resolution, unitCost, submitQty]);
+
+  function switchComposerMode(mode: ComposerMode) {
+    setComposerMode(mode);
+    localStorage.setItem('studioComposerMode', mode);
+    if (mode === 'multi') {
+      setSelectedSlugs((prev) =>
+        prev.length ? prev : selectedSlug ? [selectedSlug] : [],
+      );
+    } else if (selectedSlug) {
+      setSelectedSlugs([selectedSlug]);
+    }
+  }
+
+  function switchInputMode(mode: 'frame' | 'component') {
+    setInputMode(mode);
+    localStorage.setItem('studioInputMode', mode);
+  }
+
+  function toggleNormalizePrompt(on: boolean) {
+    setNormalizePrompt(on);
+    localStorage.setItem('studioNormalize', on ? '1' : '0');
+  }
+
+  useEffect(() => {
+    if (isMotionView && (composerMode === 'multi' || composerMode === 'ai')) {
+      setComposerMode('single');
+      localStorage.setItem('studioComposerMode', 'single');
+    }
+    if (isEditView && (composerMode === 'multi' || composerMode === 'ai' || composerMode === 'auto')) {
+      setComposerMode('single');
+      localStorage.setItem('studioComposerMode', 'single');
+    }
+  }, [isMotionView, isEditView, composerMode]);
+
+  useEffect(() => {
+    if (!schema?.fields.multiShots) {
+      setMultiShotEnabled(false);
+    }
+  }, [schema?.fields.multiShots, selectedSlug]);
 
   const loadModelsList = useCallback(
     async (type: JobType) => {
@@ -757,16 +960,16 @@ export default function StudioPage({
   // Luôn chọn sẵn 1 model khi vào trang / đổi loại job (giống 79AI): ưu tiên model
   // dùng gần đây còn khả dụng, rồi tới model đầu tiên đang ON.
   useEffect(() => {
-    if (!models.length) return;
-    if (selectedSlug && models.some((m) => modelSlug(m) === selectedSlug)) return;
-    const bySlug = new Map(models.map((m) => [modelSlug(m), m] as const));
+    if (!pickerModels.length) return;
+    if (selectedSlug && pickerModels.some((m) => modelSlug(m) === selectedSlug)) return;
+    const bySlug = new Map(pickerModels.map((m) => [modelSlug(m), m] as const));
     const recent = loadRecentModelSlugs()
       .map((s) => bySlug.get(s))
       .find((m) => m && !isModelMaintenance(m));
-    const fallback = models.find((m) => !isModelMaintenance(m)) ?? models[0];
+    const fallback = pickerModels.find((m) => !isModelMaintenance(m)) ?? pickerModels[0];
     const pick = recent ?? fallback;
     if (pick) setSelectedSlug(modelSlug(pick));
-  }, [models, selectedSlug]);
+  }, [pickerModels, selectedSlug]);
 
   useEffect(() => {
     if (!currentModel) {
@@ -824,8 +1027,14 @@ export default function StudioPage({
     });
   }
 
-  function recordSuccess(url: string, slug: string, promptOverride?: string) {
+  function recordSuccess(
+    url: string,
+    slug: string,
+    promptOverride?: string,
+    modelOverride?: GommoModel,
+  ) {
     const prompt = promptOverride ?? historyPromptFromSelections(jobType, selections);
+    const model = modelOverride ?? currentModel;
     const meta = {
       mode: selections.mode || '',
       resolution: selections.resolution || '',
@@ -838,7 +1047,7 @@ export default function StudioPage({
       type: jobTypeToHistoryType(jobType),
       resultUrl: url,
       prompt,
-      modelName: currentModel?.name || slug,
+      modelName: model?.name || slug,
       modelSlug: slug,
       meta,
     });
@@ -849,7 +1058,7 @@ export default function StudioPage({
         type: jobType,
         resultUrl: url,
         prompt,
-        modelName: currentModel?.name || slug,
+        modelName: model?.name || slug,
         modelSlug: slug,
         createdAt,
       },
@@ -864,14 +1073,18 @@ export default function StudioPage({
     prompt: string,
     pendingId: string,
     refUrl?: string,
+    overrides?: Partial<JobSelections>,
+    modelOverride?: GommoModel,
   ): Promise<boolean> {
-    const runSelections = { ...selections, prompt };
+    const model = modelOverride ?? currentModel!;
+    const jobSchema = modelOverride ? analyzeModel(model, jobType) : schema!;
+    const runSelections: JobSelections = { ...selections, prompt, ...overrides };
     if (refUrl) {
-      if (schema?.fields.references) runSelections.references = [refUrl];
-      else if (schema?.fields.subjects) runSelections.subjects = [refUrl];
+      if (jobSchema.fields.references) runSelections.references = [refUrl];
+      else if (jobSchema.fields.subjects) runSelections.subjects = [refUrl];
       else runSelections.images = [refUrl];
     }
-    const { payload } = buildJobPayload(currentModel!, jobType, runSelections, {
+    const { payload } = buildJobPayload(model, jobType, runSelections, {
       domain: auth?.domain,
       projectId: auth?.projectId,
     });
@@ -894,7 +1107,7 @@ export default function StudioPage({
       if (finalUrl) {
         setResultUrl(finalUrl);
         updateLocalJob(localId, { status: 'success', result_url: finalUrl });
-        recordSuccess(finalUrl, slug, prompt);
+        recordSuccess(finalUrl, slug, prompt, model);
         setPendingJobs((prev) => prev.filter((p) => p.id !== pendingId));
         loadRecentJobs();
         return true;
@@ -930,11 +1143,182 @@ export default function StudioPage({
       return;
     }
 
+    if (
+      !isMotionView &&
+      !isEditView &&
+      schema.fields.references &&
+      (!schema.fields.startFrame || inputMode === 'component')
+    ) {
+      const refs = (selections.references || []).filter(Boolean);
+      const imgC = refs.filter((u) => urlMediaKind(u) !== 'video').length;
+      const vidC = refs.filter((u) => urlMediaKind(u) === 'video').length;
+      const limits = getReferenceLimits(currentModel, schema, jobType);
+      if (imgC > limits.image) {
+        setError(`Quá nhiều ảnh tham chiếu (tối đa ${limits.image}).`);
+        return;
+      }
+      if (vidC > limits.video) {
+        setError(`Quá nhiều video tham chiếu (tối đa ${limits.video}).`);
+        return;
+      }
+    }
+
+    // Chế độ Motion: cần ảnh nhân vật + video tham chiếu; Auto + Multi-Prompt → batch.
+    if (isMotionView) {
+      const charUrl = (selections.images || []).find(Boolean) || '';
+      if (!charUrl) {
+        setError('Tải ảnh nhân vật trước.');
+        return;
+      }
+      if (!motionVideoUrl) {
+        setError('Tải video tham chiếu trước.');
+        return;
+      }
+
+      const useMotionMulti = composerMode === 'auto' && multiPrompt;
+      let motionPrompts: string[];
+      const baseMotionPrompt = selections.prompt || '';
+      if (useMotionMulti) {
+        const sep = promptSeparator.trim() || '=====';
+        const escaped = sep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        motionPrompts = baseMotionPrompt
+          .split(new RegExp(escaped))
+          .map((p) => p.trim())
+          .filter(Boolean);
+        if (motionPrompts.length === 0) {
+          setError(`Nhập ít nhất 1 prompt (mỗi prompt cách nhau bằng ${sep}).`);
+          return;
+        }
+      } else {
+        motionPrompts = [baseMotionPrompt];
+      }
+
+      abortRef.current?.abort();
+      abortRef.current = new AbortController();
+      setSubmitting(true);
+      setError('');
+      setProgress('Đang tạo job…');
+      setResultUrl(null);
+      const slug = modelSlug(currentModel);
+
+      try {
+        motionPrompts = await normalizePromptsList(motionPrompts);
+        const motionTasks = motionPrompts.map((prompt) => ({
+          prompt,
+          pendingId: crypto.randomUUID(),
+        }));
+        setPendingJobs((prev) => [
+          ...motionTasks.map((t) => ({
+            id: t.pendingId,
+            prompt: t.prompt,
+            status: 'processing' as const,
+          })),
+          ...prev.filter((p) => p.status === 'processing'),
+        ]);
+
+        const limit = Math.max(1, Math.min(concurrencyLimit, motionTasks.length));
+        let cursor = 0;
+        const worker = async () => {
+          while (cursor < motionTasks.length) {
+            const i = cursor++;
+            const t = motionTasks[i];
+            await runOneJob(slug, t.prompt, t.pendingId, undefined, {
+              images: [charUrl],
+              extra: {
+                ...(selections.extra || {}),
+                subType: 'motion',
+                image_url: charUrl,
+                video_url: motionVideoUrl,
+              },
+            });
+          }
+        };
+        await Promise.all(Array.from({ length: limit }, () => worker()));
+        setProgress('Hoàn tất!');
+        await refreshCreditsAfterJob();
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    // Chế độ Edit: sửa video có sẵn theo prompt.
+    if (isEditView) {
+      if (!editVideoUrl) {
+        setError('Tải video cần sửa trước.');
+        return;
+      }
+      const editPrompt = (selections.prompt || '').trim();
+      if (!editPrompt) {
+        setError('Nhập mô tả chỉnh sửa.');
+        return;
+      }
+
+      abortRef.current?.abort();
+      abortRef.current = new AbortController();
+      setSubmitting(true);
+      setError('');
+      setProgress('Đang tạo job…');
+      setResultUrl(null);
+      const slug = modelSlug(currentModel);
+      const pendingId = crypto.randomUUID();
+      setPendingJobs((prev) => [
+        { id: pendingId, prompt: editPrompt, status: 'processing' },
+        ...prev.filter((p) => p.status === 'processing'),
+      ]);
+
+      try {
+        let prompt = editPrompt;
+        if (normalizePrompt) {
+          [prompt] = await normalizePromptsList([prompt]);
+        }
+        await runOneJob(slug, prompt, pendingId, undefined, {
+          extra: {
+            ...(selections.extra || {}),
+            subType: 'edit',
+            video_url: editVideoUrl,
+          },
+        });
+        setProgress('Hoàn tất!');
+        await refreshCreditsAfterJob();
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     const batchType = jobType === 'image' || jobType === 'video';
     const useMultiPrompt = composerMode === 'auto' && multiPrompt && batchType;
-    const basePrompt = selections.prompt || '';
+    let basePrompt = selections.prompt || '';
+    if (multiShotEnabled && schema.fields.multiShots && activeShots.length >= 2) {
+      basePrompt = activeShots.map((s) => s.prompt.trim()).filter(Boolean).join(' · ');
+    }
+    if (composerMode === 'ai' && !basePrompt.trim() && aiBrief.trim()) {
+      basePrompt = expandBriefToPrompt(aiBrief, jobType);
+    }
 
-    // Danh sách prompt cần tạo: multi-prompt tách theo ký tự phân cách (mỗi prompt 1 ảnh);
+    if (composerMode === 'multi') {
+      const validSlugs = selectedSlugs.filter((s) =>
+        pickerModels.some((m) => modelSlug(m) === s),
+      );
+      if (validSlugs.length === 0) {
+        setError('Chọn ít nhất 1 model.');
+        return;
+      }
+    }
+
+    if (multiShotEnabled && schema.fields.multiShots) {
+      if (activeShots.length < multiShotConfig.minShots) {
+        setError(`Cần ít nhất ${multiShotConfig.minShots} cảnh (kịch bản).`);
+        return;
+      }
+      if (activeShots.length > multiShotConfig.maxShots) {
+        setError(`Tối đa ${multiShotConfig.maxShots} cảnh.`);
+        return;
+      }
+    }
+
+    // Danh sách prompt cần tạo:
     // ngược lại lặp theo số lượng (qty) cho image/video, các loại khác giữ 1 job.
     let prompts: string[];
     if (useMultiPrompt) {
@@ -949,8 +1333,13 @@ export default function StudioPage({
         return;
       }
     } else {
-      prompts = batchType ? Array.from({ length: qty }, () => basePrompt) : [basePrompt];
+      prompts =
+        batchType && composerMode !== 'multi'
+          ? Array.from({ length: qty }, () => basePrompt)
+          : [basePrompt];
     }
+
+    if (normalizePrompt) prompts = await normalizePromptsList(prompts);
 
     // Gán ảnh tham chiếu cho từng prompt theo quy cách chọn (chỉ khi bật multi-prompt
     // + "mỗi prompt 1 tham chiếu" + có ảnh trong multiRefs).
@@ -963,6 +1352,31 @@ export default function StudioPage({
       return multiRefs[i % multiRefs.length];
     };
 
+    type JobTask = { slug: string; prompt: string; model: GommoModel; pendingId: string };
+    let tasks: JobTask[];
+
+    if (composerMode === 'multi') {
+      const validSlugs = selectedSlugs.filter((s) =>
+        pickerModels.some((m) => modelSlug(m) === s),
+      );
+      tasks = validSlugs.map((slug) => {
+        const model = pickerModels.find((m) => modelSlug(m) === slug)!;
+        return {
+          slug,
+          prompt: prompts[0] || '',
+          model,
+          pendingId: crypto.randomUUID(),
+        };
+      });
+    } else {
+      tasks = prompts.map((prompt) => ({
+        slug: modelSlug(currentModel),
+        prompt,
+        model: currentModel!,
+        pendingId: crypto.randomUUID(),
+      }));
+    }
+
     abortRef.current?.abort();
     abortRef.current = new AbortController();
 
@@ -971,23 +1385,28 @@ export default function StudioPage({
     setProgress('Đang tạo job…');
     setResultUrl(null);
 
-    const slug = modelSlug(currentModel);
-    const newPending: PendingJob[] = prompts.map((prompt) => ({
-      id: crypto.randomUUID(),
-      prompt,
-      status: 'processing',
+    const newPending: PendingJob[] = tasks.map((t) => ({
+      id: t.pendingId,
+      prompt: t.prompt,
+      status: 'processing' as const,
     }));
-    // Bỏ các thẻ lỗi cũ, thêm thẻ đang tạo của lần này lên đầu.
     setPendingJobs((prev) => [...newPending, ...prev.filter((p) => p.status === 'processing')]);
 
     try {
-      // Pool giới hạn luồng: chạy tối đa `limit` job cùng lúc.
-      const limit = Math.max(1, Math.min(concurrencyLimit, prompts.length));
+      const limit = Math.max(1, Math.min(concurrencyLimit, tasks.length));
       let cursor = 0;
       const worker = async () => {
-        while (cursor < prompts.length) {
+        while (cursor < tasks.length) {
           const i = cursor++;
-          await runOneJob(slug, prompts[i], newPending[i].id, refForIndex(i));
+          const task = tasks[i];
+          await runOneJob(
+            task.slug,
+            task.prompt,
+            task.pendingId,
+            composerMode === 'multi' ? undefined : refForIndex(i),
+            undefined,
+            composerMode === 'multi' ? task.model : undefined,
+          );
         }
       };
       await Promise.all(Array.from({ length: limit }, () => worker()));
@@ -1071,16 +1490,13 @@ export default function StudioPage({
     setResultUrl(null);
     setPendingJobs([]);
     setMultiRefs([]);
+    setMotionVideoUrl('');
+    setEditVideoUrl('');
+    setVideoMode('create');
+    setMultiShotEnabled(false);
+    setInputMode('frame');
+    localStorage.setItem('studioInputMode', 'frame');
     setSelections(defaultSelectionsForType(type));
-  }
-
-  async function handleDropFile(file: File) {
-    const url = await handleUpload(file, 'image');
-    if (!url) return;
-    if (schema?.fields.references) updateUrlList('references', 0, url);
-    else if (schema?.fields.subjects) updateUrlList('subjects', 0, url);
-    else if (schema?.fields.startFrame) updateUrlList('images', 0, url);
-    setUploadedPreview(url);
   }
 
   const composerResults = useMemo(
@@ -1161,52 +1577,399 @@ export default function StudioPage({
     clearSelection();
   }
 
+  function startResize(e: ReactPointerEvent<HTMLDivElement>) {
+    e.preventDefault();
+    resizingRef.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    const onMove = (ev: PointerEvent) => {
+      if (!resizingRef.current || !composerRef.current) return;
+      const rect = composerRef.current.getBoundingClientRect();
+      const w = Math.max(320, Math.min(640, ev.clientX - rect.left - 16));
+      sideWidthRef.current = w;
+      setSideWidth(w);
+    };
+    const onUp = () => {
+      resizingRef.current = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      localStorage.setItem('studioSideWidth', String(Math.round(sideWidthRef.current)));
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+
+  // Khối nhập media: model có thể hỗ trợ Ảnh Frame (start/end) và/hoặc Thành phần (tham chiếu).
+  const hasFrame = !isMotionView && !isEditView && Boolean(schema?.fields.startFrame);
+  const hasComponent =
+    !isMotionView && !isEditView && Boolean(schema?.fields.references || schema?.fields.subjects);
+  const showInputTabs = hasFrame && hasComponent;
+  const inputView: 'frame' | 'component' = showInputTabs
+    ? inputMode
+    : hasFrame
+      ? 'frame'
+      : 'component';
+  const componentKey: 'references' | 'subjects' = schema?.fields.references ? 'references' : 'subjects';
+  const refLimits = getReferenceLimits(currentModel, schema, jobType);
+  const maxComponents = schema?.fields.references
+    ? refLimits.image + refLimits.video || schema.limits.maxReference || 4
+    : schema?.limits.maxSubject || 1;
+  const componentList = (selections[componentKey] || []).filter(Boolean);
+  const componentImageCount = componentList.filter((u) => urlMediaKind(u) !== 'video').length;
+  const componentVideoCount = componentList.filter((u) => urlMediaKind(u) === 'video').length;
+  const canAddComponentImage =
+    componentKey === 'references'
+      ? refLimits.image > 0 && componentImageCount < refLimits.image
+      : componentList.length < maxComponents;
+  const canAddComponentVideo =
+    componentKey === 'references' && refLimits.video > 0 && componentVideoCount < refLimits.video;
+  const canAddComponentAny = canAddComponentImage || canAddComponentVideo;
+
+  const addComponent = (url: string, kind: 'image' | 'video') => {
+    setSelections((s) => {
+      const list = (s[componentKey] || []).filter(Boolean);
+      if (componentKey === 'references') {
+        const imgC = list.filter((u) => urlMediaKind(u) !== 'video').length;
+        const vidC = list.filter((u) => urlMediaKind(u) === 'video').length;
+        if (kind === 'video') {
+          if (vidC >= refLimits.video) return s;
+        } else if (imgC >= refLimits.image) {
+          return s;
+        }
+      } else if (list.length >= maxComponents) {
+        return s;
+      }
+      return { ...s, [componentKey]: [...list, url] };
+    });
+  };
+  const removeComponent = (idx: number) => {
+    setSelections((s) => {
+      const list = [...(s[componentKey] || [])];
+      list.splice(idx, 1);
+      return { ...s, [componentKey]: list };
+    });
+  };
+
+  async function ingestMediaFile(
+    file: File,
+    target: 'component' | 'frameStart' | 'frameEnd' | 'motionChar' | 'motionVideo' | 'editVideo',
+  ) {
+    const kind =
+      target === 'motionVideo' || target === 'editVideo' || mediaKindFromFile(file) === 'video'
+        ? 'video'
+        : 'image';
+
+    if (target === 'component') {
+      const fileKind = mediaKindFromFile(file);
+      if (fileKind === 'video' && !canAddComponentVideo) {
+        setError('Đã đạt giới hạn video tham chiếu.');
+        return;
+      }
+      if (fileKind === 'image' && !canAddComponentImage) {
+        setError('Đã đạt giới hạn ảnh tham chiếu.');
+        return;
+      }
+    }
+
+    const rules = getUploadRules(currentModel, mapUploadTarget(target, kind));
+    const validationError = await validateMediaFile(file, rules, kind);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setError('');
+    const url = await handleUpload(file, kind);
+    if (!url) return;
+    if (target === 'component') addComponent(url, kind);
+    else if (target === 'frameStart') updateUrlList('images', 0, url);
+    else if (target === 'frameEnd') updateUrlList('images', 1, url);
+    else if (target === 'motionChar') updateUrlList('images', 0, url);
+    else if (target === 'motionVideo') setMotionVideoUrl(url);
+    else if (target === 'editVideo') setEditVideoUrl(url);
+  }
+
+  function updateShot(id: string, patch: Partial<ComposerShot>) {
+    setSelections((s) => ({
+      ...s,
+      shots: (s.shots || []).map((shot) => (shot.id === id ? { ...shot, ...patch } : shot)),
+    }));
+  }
+
+  function addShotRow() {
+    setSelections((s) => {
+      const list = s.shots || [];
+      if (list.length >= multiShotConfig.maxShots) return s;
+      return { ...s, shots: [...list, newShot('')] };
+    });
+  }
+
+  function removeShotRow(id: string) {
+    setSelections((s) => ({
+      ...s,
+      shots: (s.shots || []).filter((shot) => shot.id !== id),
+    }));
+  }
+
+  function enableMultiShot(on: boolean) {
+    setMultiShotEnabled(on);
+    if (on) {
+      setSelections((s) => {
+        const existing = (s.shots || []).filter((x) => x.prompt?.trim());
+        if (existing.length >= multiShotConfig.minShots) return { ...s, shots: existing };
+        const seed = s.prompt?.trim() || aiBrief.trim();
+        const base = existing.length ? existing : seed ? [newShot(seed)] : [newShot('')];
+        while (base.length < multiShotConfig.minShots) base.push(newShot(''));
+        return { ...s, shots: base };
+      });
+    }
+  }
+
+  async function generateShotsFromBrief() {
+    const source = aiBrief.trim() || selections.prompt?.trim() || '';
+    if (!source) {
+      setError('Nhập ý tưởng trước khi sinh kịch bản.');
+      return;
+    }
+    setEnhancingPrompt(true);
+    setError('');
+    try {
+      const shots = canUseComposerPromptAi()
+        ? await generateShotsWithAi(source, jobType, multiShotConfig.maxShots, {
+            signal: abortRef.current?.signal,
+          })
+        : [
+            newShot(expandBriefToPrompt(source, jobType)),
+            newShot(`${expandBriefToPrompt(source, jobType)} — close-up detail shot.`),
+          ];
+      setMultiShotEnabled(true);
+      setSelections((s) => ({ ...s, shots }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setEnhancingPrompt(false);
+    }
+  }
+
+  async function generateAiPrompt() {
+    const source = aiBrief.trim() || selections.prompt?.trim() || '';
+    if (!source) {
+      setError('Nhập ý tưởng ngắn trước.');
+      return;
+    }
+    setEnhancingPrompt(true);
+    setError('');
+    try {
+      const expanded = canUseComposerPromptAi()
+        ? await enhancePromptWithAi(source, jobType)
+        : expandBriefToPrompt(source, jobType);
+      updateSelection('prompt', expanded);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setEnhancingPrompt(false);
+    }
+  }
+
+  async function enhanceCurrentPrompt() {
+    const source = selections.prompt?.trim() || aiBrief.trim() || '';
+    if (!source) {
+      setError('Nhập prompt trước.');
+      return;
+    }
+    setEnhancingPrompt(true);
+    setError('');
+    try {
+      const expanded = canUseComposerPromptAi()
+        ? await enhancePromptWithAi(source, jobType)
+        : expandBriefToPrompt(source, jobType);
+      updateSelection('prompt', expanded);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setEnhancingPrompt(false);
+    }
+  }
+
+  async function normalizePromptsList(prompts: string[]): Promise<string[]> {
+    if (!normalizePrompt) return prompts;
+    return Promise.all(
+      prompts.map(async (p) => {
+        const raw = p.trim();
+        if (!raw) return p;
+        try {
+          if (canUseComposerPromptAi()) {
+            return await normalizePromptWithAi(raw, jobType, {
+              signal: abortRef.current?.signal,
+            });
+          }
+        } catch {
+          /* fallback local */
+        }
+        return normalizeOnePrompt(raw);
+      }),
+    );
+  }
+
   if (layout === 'composer') {
     return (
-      <div className="studio-composer">
-        <aside className="composer-side">
+      <div
+        className="studio-composer"
+        ref={composerRef}
+        style={{ gridTemplateColumns: `${sideWidth}px 6px 1fr` }}
+      >
+        <aside
+          className="composer-side"
+          onPaste={(e) => {
+            const file = [...(e.clipboardData?.files ?? [])][0];
+            if (!file) return;
+            e.preventDefault();
+            if (isMotionView) {
+              if (!selections.images?.[0]) void ingestMediaFile(file, 'motionChar');
+              else if (!motionVideoUrl) void ingestMediaFile(file, 'motionVideo');
+              return;
+            }
+            if (isEditView) {
+              if (!editVideoUrl) void ingestMediaFile(file, 'editVideo');
+              return;
+            }
+            if (inputView === 'frame') {
+              if (!selections.images?.[0]) void ingestMediaFile(file, 'frameStart');
+              else if (schema?.fields.endFrame && !selections.images?.[1]) {
+                void ingestMediaFile(file, 'frameEnd');
+              }
+            } else if (canAddComponentAny) {
+              void ingestMediaFile(file, 'component');
+            }
+          }}
+        >
           <div className="composer-side-head">
-            <button type="button" className="composer-back" aria-label="Quay lại">
+            <button
+              type="button"
+              className="composer-back"
+              aria-label="Quay lại"
+              onClick={() => navigate(-1)}
+            >
               <ChevronLeft size={16} />
             </button>
             <span className="composer-title">Tạo {jobTypeLabel(jobType)}</span>
           </div>
 
-          <div className="composer-mode-tabs">
-            <button
-              type="button"
-              className={composerMode === 'single' ? 'active' : ''}
-              onClick={() => setComposerMode('single')}
-            >
-              Đơn
-            </button>
-            <button
-              type="button"
-              className={composerMode === 'auto' ? 'active' : ''}
-              onClick={() => setComposerMode('auto')}
-            >
-              <Sparkles size={13} />
-              Auto Mode
-            </button>
-          </div>
+          {(jobType === 'video' && (hasMotionModels || hasEditModels)) && (
+            <div className={`composer-videomode-tabs${hasEditModels && hasMotionModels ? ' composer-videomode-tabs-3' : ''}`}>
+              <button
+                type="button"
+                className={videoMode === 'create' ? 'active' : ''}
+                onClick={() => setVideoMode('create')}
+              >
+                <Clapperboard size={14} />
+                Tạo Video
+              </button>
+              {hasMotionModels && (
+                <button
+                  type="button"
+                  className={videoMode === 'motion' ? 'active' : ''}
+                  onClick={() => setVideoMode('motion')}
+                >
+                  <PersonStanding size={14} />
+                  Motion
+                </button>
+              )}
+              {hasEditModels && (
+                <button
+                  type="button"
+                  className={videoMode === 'edit' ? 'active' : ''}
+                  onClick={() => setVideoMode('edit')}
+                >
+                  <Film size={14} />
+                  Edit
+                </button>
+              )}
+            </div>
+          )}
+
+          {isMotionView ? (
+            <div className="composer-mode-tabs composer-mode-tabs-2">
+              <button
+                type="button"
+                className={composerMode === 'single' ? 'active' : ''}
+                onClick={() => switchComposerMode('single')}
+              >
+                Đơn
+              </button>
+              <button
+                type="button"
+                className={composerMode === 'auto' ? 'active' : ''}
+                onClick={() => switchComposerMode('auto')}
+              >
+                <Sparkles size={13} />
+                Auto
+              </button>
+            </div>
+          ) : isEditView ? (
+            <div className="composer-mode-tabs composer-mode-tabs-2">
+              <button type="button" className="active">
+                Đơn
+              </button>
+            </div>
+          ) : (
+            <div className="composer-mode-tabs composer-mode-tabs-4">
+              <button
+                type="button"
+                className={composerMode === 'single' ? 'active' : ''}
+                onClick={() => switchComposerMode('single')}
+              >
+                Đơn
+              </button>
+              <button
+                type="button"
+                className={composerMode === 'multi' ? 'active' : ''}
+                onClick={() => switchComposerMode('multi')}
+              >
+                Multi
+              </button>
+              <button
+                type="button"
+                className={composerMode === 'auto' ? 'active' : ''}
+                onClick={() => switchComposerMode('auto')}
+              >
+                Auto
+              </button>
+              <button
+                type="button"
+                className={composerMode === 'ai' ? 'active' : ''}
+                onClick={() => switchComposerMode('ai')}
+              >
+                <Bot size={13} />
+                AI
+              </button>
+            </div>
+          )}
 
           <div className="composer-field">
             <div className="composer-label-row">
               <span className="composer-label">Model</span>
-              <label className="composer-toggle">
-                <input
-                  type="checkbox"
-                  checked={multiModel}
-                  onChange={(e) => setMultiModel(e.target.checked)}
-                />
-                <span>Đa model</span>
-              </label>
+              {composerMode === 'multi' && (
+                <span className="composer-ref-count">{selectedSlugs.length} đã chọn</span>
+              )}
             </div>
             <ModelPicker
-              models={models}
+              models={pickerModels}
               value={selectedSlug}
-              onChange={setSelectedSlug}
+              onChange={(slug) => {
+                setSelectedSlug(slug);
+                if (composerMode === 'multi') {
+                  setSelectedSlugs((prev) =>
+                    prev.includes(slug) ? prev : [...prev, slug],
+                  );
+                }
+              }}
               loading={loadingModels}
+              multi={composerMode === 'multi'}
+              multiValues={selectedSlugs}
+              onMultiChange={setSelectedSlugs}
             />
           </div>
 
@@ -1263,90 +2026,340 @@ export default function StudioPage({
             </div>
           )}
 
-          {(schema?.fields.references || schema?.fields.subjects || schema?.fields.startFrame) && (
-            <>
+          {isMotionView && (
+            <div className="composer-motion">
+              <div className="composer-motion-grid">
+                <div className="composer-motion-box">
+                  <span className="composer-label">Ảnh nhân vật</span>
+                  <label
+                    className="composer-motion-drop"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) void ingestMediaFile(file, 'motionChar');
+                    }}
+                  >
+                    <input
+                      type="file"
+                      accept="image/*"
+                      hidden
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void ingestMediaFile(file, 'motionChar');
+                      }}
+                    />
+                    {selections.images?.[0] ? (
+                      <img
+                        className="composer-motion-preview"
+                        src={selections.images[0]}
+                        alt="nhân vật"
+                      />
+                    ) : (
+                      <>
+                        <span className="composer-dropzone-plus">
+                          <PersonStanding size={18} />
+                        </span>
+                        <span className="composer-dropzone-text">Tải ảnh nhân vật</span>
+                        <span className="composer-dropzone-hint">JPG / PNG, ≥ 1K</span>
+                      </>
+                    )}
+                  </label>
+                </div>
+
+                <div className="composer-motion-box">
+                  <span className="composer-label">Video tham chiếu</span>
+                  <label
+                    className="composer-motion-drop"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) void ingestMediaFile(file, 'motionVideo');
+                    }}
+                  >
+                    <input
+                      type="file"
+                      accept="video/*"
+                      hidden
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void ingestMediaFile(file, 'motionVideo');
+                      }}
+                    />
+                    {motionVideoUrl ? (
+                      <video
+                        className="composer-motion-preview"
+                        src={motionVideoUrl}
+                        muted
+                        loop
+                        playsInline
+                      />
+                    ) : (
+                      <>
+                        <span className="composer-dropzone-plus">
+                          <Video size={18} />
+                        </span>
+                        <span className="composer-dropzone-text">Tải video động tác</span>
+                        <span className="composer-dropzone-hint">≤ 30s / 50MB, 720p</span>
+                      </>
+                    )}
+                  </label>
+                </div>
+              </div>
+
+              {modelSelectNotices(currentModel).length > 0 && (
+                <ul className="composer-motion-notices">
+                  {modelSelectNotices(currentModel).map((n, i) => (
+                    <li key={i}>{n}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {isEditView && (
+            <div className="composer-edit">
+              <span className="composer-label">Video cần sửa</span>
               <label
-                className={`composer-dropzone ${dragOver ? 'drag' : ''}`}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragOver(true);
-                }}
-                onDragLeave={() => setDragOver(false)}
+                className="composer-edit-drop"
+                onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault();
-                  setDragOver(false);
                   const file = e.dataTransfer.files?.[0];
-                  if (file) void handleDropFile(file);
+                  if (file) void ingestMediaFile(file, 'editVideo');
                 }}
               >
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="video/*"
                   hidden
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) void handleDropFile(file);
+                    if (file) void ingestMediaFile(file, 'editVideo');
                   }}
                 />
-                {uploadedPreview ? (
-                  <img className="composer-dropzone-preview" src={uploadedPreview} alt="upload" />
+                {editVideoUrl ? (
+                  <video className="composer-edit-preview" src={editVideoUrl} muted loop playsInline />
                 ) : (
                   <>
                     <span className="composer-dropzone-plus">
-                      <Plus size={18} />
+                      <Film size={18} />
                     </span>
-                    <span className="composer-dropzone-text">Nhấp / Kéo thả / Dán</span>
-                    <span className="composer-dropzone-hint">
-                      Hỗ trợ JPG / PNG tối đa 10MB, kích thước tối thiểu 300px
-                    </span>
+                    <span className="composer-dropzone-text">Tải video nguồn</span>
+                    <span className="composer-dropzone-hint">MP4 / WebM</span>
                   </>
                 )}
               </label>
-
-              <div className="composer-label-row composer-ref-row">
-                <span className="composer-label">
-                  {schema?.fields.references
-                    ? 'Ảnh tham chiếu'
-                    : schema?.fields.subjects
-                      ? 'Nhân vật (subject)'
-                      : schema?.fields.endFrame
-                        ? 'Ảnh đầu (start frame)'
-                        : 'Ảnh nguồn'}
-                </span>
-                <span className="composer-ref-count">
-                  {uploadedPreview ? 1 : 0}/
-                  {schema?.fields.references
-                    ? schema.limits.maxReference || 5
-                    : schema?.fields.subjects
-                      ? schema.limits.maxSubject || 1
-                      : 1}
-                </span>
-              </div>
-            </>
+              <p className="composer-mp-hint">Mô tả thay đổi bạn muốn (prompt) ở ô bên dưới.</p>
+            </div>
           )}
 
-          {schema?.fields.endFrame && (
-            <UrlField
-              label="Ảnh cuối (end frame)"
-              value={selections.images?.[1] || ''}
-              onChange={(v) => updateUrlList('images', 1, v)}
-              onUpload={async (f) => {
-                const uploaded = await handleUpload(f, 'image');
-                if (uploaded) updateUrlList('images', 1, uploaded);
-              }}
-            />
-          )}
+          {!isMotionView && !isEditView && (hasFrame || hasComponent) && (
+            <div className="composer-inputs">
+              {showInputTabs && (
+                <div className="composer-input-tabs">
+                  <button
+                    type="button"
+                    className={inputView === 'frame' ? 'active' : ''}
+                    onClick={() => switchInputMode('frame')}
+                  >
+                    Từ Ảnh Frame
+                  </button>
+                  <button
+                    type="button"
+                    className={inputView === 'component' ? 'active' : ''}
+                    onClick={() => switchInputMode('component')}
+                  >
+                    Từ Thành Phần
+                  </button>
+                </div>
+              )}
 
-          {schema?.fields.references && schema?.fields.subjects && (
-            <UrlField
-              label={`Nhân vật (subject, tối đa ${schema.limits.maxSubject})`}
-              value={selections.subjects?.[0] || ''}
-              onChange={(v) => updateUrlList('subjects', 0, v)}
-              onUpload={async (f) => {
-                const uploaded = await handleUpload(f, 'image');
-                if (uploaded) updateUrlList('subjects', 0, uploaded);
-              }}
-            />
+              {inputView === 'frame' && (
+                <div className="composer-frame-grid">
+                  <div className="composer-motion-box">
+                    <span className="composer-label">Ảnh đầu</span>
+                    <label
+                      className="composer-motion-drop"
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const file = e.dataTransfer.files?.[0];
+                        if (file) void ingestMediaFile(file, 'frameStart');
+                      }}
+                    >
+                      <input
+                        type="file"
+                        accept="image/*"
+                        hidden
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) void ingestMediaFile(file, 'frameStart');
+                        }}
+                      />
+                      {selections.images?.[0] ? (
+                        <img
+                          className="composer-motion-preview"
+                          src={selections.images[0]}
+                          alt="ảnh đầu"
+                        />
+                      ) : (
+                        <>
+                          <span className="composer-dropzone-plus">
+                            <Plus size={18} />
+                          </span>
+                          <span className="composer-dropzone-text">Tự chọn</span>
+                        </>
+                      )}
+                    </label>
+                  </div>
+
+                  {schema?.fields.endFrame && (
+                    <div className="composer-motion-box">
+                      <span className="composer-label">Ảnh cuối</span>
+                      <label
+                        className="composer-motion-drop"
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const file = e.dataTransfer.files?.[0];
+                          if (file) void ingestMediaFile(file, 'frameEnd');
+                        }}
+                      >
+                        <input
+                          type="file"
+                          accept="image/*"
+                          hidden
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) void ingestMediaFile(file, 'frameEnd');
+                          }}
+                        />
+                        {selections.images?.[1] ? (
+                          <img
+                            className="composer-motion-preview"
+                            src={selections.images[1]}
+                            alt="ảnh cuối"
+                          />
+                        ) : (
+                          <>
+                            <span className="composer-dropzone-plus">
+                              <Plus size={18} />
+                            </span>
+                            <span className="composer-dropzone-text">Tự chọn</span>
+                          </>
+                        )}
+                      </label>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {inputView === 'component' && (
+                <>
+                  <div className="composer-label-row composer-ref-row">
+                    <span className="composer-label">
+                      {componentKey === 'references' ? 'Tham chiếu' : 'Nhân vật (subject)'}
+                    </span>
+                    <span className="composer-ref-count">
+                      {componentKey === 'references' ? (
+                        <>
+                          {refLimits.image > 0 && (
+                            <span title="Ảnh tham chiếu">
+                              {componentImageCount}/{refLimits.image}
+                            </span>
+                          )}
+                          {refLimits.video > 0 && (
+                            <span title="Video tham chiếu">
+                              {refLimits.image > 0 ? ' ' : ''}
+                              {componentVideoCount}/{refLimits.video}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {componentList.length}/{maxComponents}
+                        </>
+                      )}
+                    </span>
+                  </div>
+
+                  {canAddComponentAny && (
+                    <div
+                      className={`composer-addmedia ${componentDragOver ? 'drag' : ''}`}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setComponentDragOver(true);
+                      }}
+                      onDragLeave={() => setComponentDragOver(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setComponentDragOver(false);
+                        const file = e.dataTransfer.files?.[0];
+                        if (file) void ingestMediaFile(file, 'component');
+                      }}
+                    >
+                      <div className="composer-addmedia-btns">
+                        {canAddComponentImage && (
+                          <label className="composer-addmedia-btn" title="Thêm ảnh">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              hidden
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                e.target.value = '';
+                                if (file) void ingestMediaFile(file, 'component');
+                              }}
+                            />
+                            <ImageIcon size={18} />
+                          </label>
+                        )}
+                        {canAddComponentVideo && (
+                          <label className="composer-addmedia-btn" title="Thêm video">
+                            <input
+                              type="file"
+                              accept="video/*"
+                              hidden
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                e.target.value = '';
+                                if (file) void ingestMediaFile(file, 'component');
+                              }}
+                            />
+                            <Video size={18} />
+                          </label>
+                        )}
+                      </div>
+                      <span className="composer-addmedia-text">Thêm media</span>
+                      <span className="composer-dropzone-hint">Nhấp / Kéo thả / Dán · Ảnh hoặc video</span>
+                    </div>
+                  )}
+
+                  {componentList.length > 0 && (
+                    <div className="composer-mp-refgrid">
+                      {componentList.map((url, i) => (
+                        <div key={`${url}-${i}`} className="composer-mp-refthumb">
+                          {urlMediaKind(url) === 'video' ? (
+                            <video src={url} muted loop playsInline />
+                          ) : urlMediaKind(url) === 'audio' ? (
+                            <span className="composer-ref-audio">
+                              <Video size={16} />
+                            </span>
+                          ) : (
+                            <img src={url} alt={`tham chiếu ${i + 1}`} />
+                          )}
+                          <button type="button" onClick={() => removeComponent(i)}>
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           )}
 
           {schema?.fields.text && (
@@ -1381,7 +2394,36 @@ export default function StudioPage({
             </div>
           )}
 
-          {composerMode === 'auto' && (jobType === 'image' || jobType === 'video') && (
+          {composerMode === 'ai' && schema?.fields.prompt && (
+            <div className="composer-ai-panel">
+              <div className="composer-label-row">
+                <span className="composer-label">Ý tưởng AI</span>
+                <button
+                  type="button"
+                  className="composer-enhance"
+                  disabled={enhancingPrompt}
+                  onClick={() => void generateAiPrompt()}
+                >
+                  <Sparkles size={13} />
+                  {enhancingPrompt ? 'Đang sinh…' : 'Sinh prompt'}
+                </button>
+              </div>
+              <textarea
+                className="composer-textarea"
+                rows={3}
+                placeholder="Mô tả ngắn ý tưởng của bạn…"
+                value={aiBrief}
+                onChange={(e) => setAiBrief(e.target.value)}
+              />
+              <p className="composer-mp-hint">
+                {canUseComposerPromptAi()
+                  ? 'AI sẽ mở rộng thành prompt chi tiết (Gommo token hoặc tài khoản app).'
+                  : 'Đăng nhập để dùng AI; hiện dùng mẫu mở rộng cơ bản.'}
+              </p>
+            </div>
+          )}
+
+          {composerMode === 'auto' && !isMotionView && !isEditView && (jobType === 'image' || jobType === 'video') && (
             <div className="composer-multiprompt">
               <label className="composer-switch-row">
                 <span className="composer-switch-text">
@@ -1478,6 +2520,12 @@ export default function StudioPage({
                                 const files = Array.from(e.target.files || []);
                                 e.target.value = '';
                                 for (const f of files) {
+                                  const rules = getUploadRules(currentModel, 'referenceImage');
+                                  const err = await validateMediaFile(f, rules, 'image');
+                                  if (err) {
+                                    setError(err);
+                                    break;
+                                  }
                                   const url = await handleUpload(f, 'image');
                                   if (url) setMultiRefs((prev) => [...prev, url]);
                                 }
@@ -1531,11 +2579,94 @@ export default function StudioPage({
             </div>
           )}
 
-          {schema?.fields.prompt && (
+          {schema?.fields.multiShots && !isMotionView && !isEditView && (
+            <div className="composer-multishot">
+              <label className="composer-switch-row">
+                <span className="composer-switch-text">
+                  <Clapperboard size={14} />
+                  <span>
+                    <strong>Multi-Shot</strong>
+                    <small>
+                      Nhiều cảnh trong 1 video ({multiShotConfig.minShots}–{multiShotConfig.maxShots}{' '}
+                      cảnh).
+                    </small>
+                  </span>
+                </span>
+                <span className={`composer-switch ${multiShotEnabled ? 'on' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={multiShotEnabled}
+                    onChange={(e) => enableMultiShot(e.target.checked)}
+                  />
+                  <span className="composer-switch-knob" />
+                </span>
+              </label>
+
+              {multiShotEnabled && (
+                <div className="composer-shots-panel">
+                  <div className="composer-label-row">
+                    <span className="composer-label">Kịch bản / cảnh</span>
+                    <div className="composer-shots-tools">
+                      <button
+                        type="button"
+                        className="composer-enhance"
+                        disabled={enhancingPrompt}
+                        onClick={() => void generateShotsFromBrief()}
+                      >
+                        <Sparkles size={13} />
+                        {enhancingPrompt ? 'Đang sinh…' : 'Sinh kịch bản'}
+                      </button>
+                      {(selections.shots || []).length < multiShotConfig.maxShots && (
+                        <button type="button" className="composer-shot-add" onClick={addShotRow}>
+                          <Plus size={14} /> Thêm cảnh
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {(selections.shots || []).map((shot, i) => (
+                    <div key={shot.id} className="composer-shot-row">
+                      <span className="composer-shot-index">Cảnh {i + 1}</span>
+                      <textarea
+                        className="composer-textarea composer-shot-input"
+                        rows={2}
+                        placeholder="Mô tả cảnh…"
+                        value={shot.prompt}
+                        onChange={(e) => updateShot(shot.id, { prompt: e.target.value })}
+                      />
+                      {(selections.shots || []).length > multiShotConfig.minShots && (
+                        <button
+                          type="button"
+                          className="composer-shot-remove"
+                          aria-label="Xóa cảnh"
+                          onClick={() => removeShotRow(shot.id)}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {schema?.fields.prompt && !(multiShotEnabled && schema.fields.multiShots) && (
             <div className="composer-field">
               <div className="composer-label-row">
-                <span className="composer-label">
-                  {schema.fields.musicName ? 'Phong cách / mô tả' : 'Mô tả'}
+                <span className="composer-label composer-prompt-label">
+                  {composerMode === 'ai' || (multiShotEnabled && schema.fields.multiShots) ? (
+                    <>
+                      <span className="composer-prompt-bar" />
+                      PROMPT
+                      <span className="composer-script-badge">
+                        {scriptCount} Kịch bản
+                      </span>
+                    </>
+                  ) : schema.fields.musicName ? (
+                    'Phong cách / mô tả'
+                  ) : (
+                    'Mô tả'
+                  )}
                 </span>
                 <div className="composer-desc-tools">
                   <button
@@ -1559,12 +2690,21 @@ export default function StudioPage({
                   >
                     <Clipboard size={14} />
                   </button>
-                  <button type="button" aria-label="Mở rộng">
+                  <button
+                    type="button"
+                    aria-label="Mở rộng"
+                    onClick={() => setPromptModalOpen(true)}
+                  >
                     <Maximize2 size={14} />
                   </button>
-                  <button type="button" className="composer-enhance">
+                  <button
+                    type="button"
+                    className="composer-enhance"
+                    disabled={enhancingPrompt}
+                    onClick={() => void enhanceCurrentPrompt()}
+                  >
                     <Sparkles size={13} />
-                    Nâng cao
+                    {enhancingPrompt ? 'Đang nâng cao…' : 'Nâng cao'}
                   </button>
                 </div>
               </div>
@@ -1584,17 +2724,43 @@ export default function StudioPage({
             </div>
           )}
 
+          {schema?.fields.prompt && (
+            <label className="composer-switch-row composer-normalize">
+              <span className="composer-switch-text">
+                <Wand2 size={14} />
+                <span>
+                  <strong>Chuẩn hóa</strong>
+                  <small>
+                    {canUseComposerPromptAi()
+                      ? 'Tự động chuẩn hóa prompt bằng AI trước khi tạo.'
+                      : 'Gộp khoảng trắng thừa (đăng nhập Gommo token để dùng AI).'}
+                  </small>
+                </span>
+              </span>
+              <span className={`composer-switch ${normalizePrompt ? 'on' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={normalizePrompt}
+                  onChange={(e) => toggleNormalizePrompt(e.target.checked)}
+                />
+                <span className="composer-switch-knob" />
+              </span>
+            </label>
+          )}
+
           <div className="composer-cost">
             <span className="composer-coin">
-              <Sparkles size={13} /> {composerCost || 0}
+              <Sparkles size={13} /> {composerMode === 'multi' ? submitTotalCost : composerCost || 0}
             </span>
-            <div className="composer-qty">
-              <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
-              <span>{qty}</span>
-              <button type="button" onClick={() => setQty((q) => Math.min(8, q + 1))}>+</button>
-            </div>
+            {!isMotionView && !isEditView && composerMode !== 'multi' && (
+              <div className="composer-qty">
+                <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
+                <span>{qty}</span>
+                <button type="button" onClick={() => setQty((q) => Math.min(8, q + 1))}>+</button>
+              </div>
+            )}
             <span className="composer-total">
-              <Sparkles size={13} /> {(composerCost || 0) * qty}
+              <Sparkles size={13} /> {submitTotalCost}
             </span>
           </div>
 
@@ -1611,6 +2777,14 @@ export default function StudioPage({
             {submitting ? 'Đang tạo…' : `Tạo ${jobTypeLabel(jobType)}`}
           </button>
         </aside>
+
+        <div
+          className="composer-resizer"
+          onPointerDown={startResize}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Kéo để chỉnh độ rộng"
+        />
 
         <section className="composer-main">
           <div className="composer-toolbar">
@@ -1807,6 +2981,33 @@ export default function StudioPage({
             </div>
           )}
         </section>
+
+        {promptModalOpen &&
+          createPortal(
+            <div className="composer-prompt-modal" role="dialog" aria-modal="true">
+              <button
+                type="button"
+                className="composer-prompt-modal-backdrop"
+                aria-label="Đóng"
+                onClick={() => setPromptModalOpen(false)}
+              />
+              <div className="composer-prompt-modal-panel">
+                <div className="composer-prompt-modal-head">
+                  <span>Mô tả</span>
+                  <button type="button" onClick={() => setPromptModalOpen(false)}>
+                    ×
+                  </button>
+                </div>
+                <textarea
+                  className="composer-textarea composer-prompt-modal-text"
+                  rows={14}
+                  value={selections.prompt || ''}
+                  onChange={(e) => updateSelection('prompt', e.target.value)}
+                />
+              </div>
+            </div>,
+            document.body,
+          )}
       </div>
     );
   }

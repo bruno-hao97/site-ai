@@ -1,5 +1,7 @@
 import type { GommoModel, JobType } from './api';
 import { POLL_MEDIA } from './api';
+import type { ComposerShot } from './composerShots';
+import { buildMultiShotPayload, getMultiShotConfig } from './composerShots';
 
 export interface ModelOption {
   value: string;
@@ -44,7 +46,7 @@ export interface ModelSchema {
     multiShots: boolean;
     edit: boolean;
   };
-  limits: { maxSubject: number; maxReference: number };
+  limits: { maxSubject: number; maxReference: number; maxReferenceImage: number; maxReferenceVideo: number };
   options: {
     ratios: ModelOption[];
     modes: ModelOption[];
@@ -67,6 +69,7 @@ export interface JobSelections {
   images?: string[];
   references?: string[];
   subjects?: string[];
+  shots?: ComposerShot[];
   extra?: Record<string, unknown>;
 }
 
@@ -115,15 +118,23 @@ function getModesList(model: GommoModel): ModelOption[] {
   return [];
 }
 
-function getReferenceLimit(model: GommoModel): number {
+function getReferenceLimitsFromModel(model: GommoModel): {
+  image: number;
+  video: number;
+  total: number;
+} {
   const c = (model.configs || {}) as Record<string, Record<string, unknown>>;
-  const ref = c.reference as { limits?: { image?: number } } | undefined;
-  const tpl = c.templates as { override?: { reference?: { limits?: { image?: number } } } } | undefined;
-  return (
-    ref?.limits?.image ??
-    tpl?.override?.reference?.limits?.image ??
-    (model.withReference ? 3 : 0)
-  );
+  const ref = c.reference as { limits?: { image?: number; video?: number } } | undefined;
+  const tpl = c.templates as { override?: { reference?: { limits?: { image?: number; video?: number } } } } | undefined;
+  const image =
+    Number(ref?.limits?.image) ||
+    Number(tpl?.override?.reference?.limits?.image) ||
+    (model.withReference ? 3 : 0);
+  const video =
+    Number(ref?.limits?.video) ||
+    Number(tpl?.override?.reference?.limits?.video) ||
+    0;
+  return { image, video, total: image + (video || 0) };
 }
 
 export function analyzeModel(model: GommoModel, jobType: JobType): ModelSchema {
@@ -131,7 +142,8 @@ export function analyzeModel(model: GommoModel, jobType: JobType): ModelSchema {
   const modes = getModesList(model);
   const resolutions = normalizeOptions(model.resolutions);
   const durations = normalizeOptions(model.durations || model.duration);
-  const refLimit = getReferenceLimit(model);
+  const refLimits = getReferenceLimitsFromModel(model);
+  const refLimit = refLimits.image || refLimits.total;
   const maxSubject = Number(model.maxSubject) || 0;
   const configs = model.configs || {};
 
@@ -170,7 +182,12 @@ export function analyzeModel(model: GommoModel, jobType: JobType): ModelSchema {
       multiShots: Boolean(model.withMultiShots),
       edit: Boolean(model.withEdit),
     },
-    limits: { maxSubject, maxReference: refLimit },
+    limits: {
+      maxSubject,
+      maxReference: refLimit,
+      maxReferenceImage: refLimits.image || refLimit,
+      maxReferenceVideo: refLimits.video,
+    },
     options: { ratios, modes, resolutions, durations },
     configs,
   };
@@ -226,6 +243,34 @@ export function buildJobPayload(
   }
 
   Object.assign(payload, selections.extra || {});
+
+  const shotList = (selections.shots || []).filter((s) => s.prompt?.trim());
+  if (schema.fields.multiShots && shotList.length >= 2) {
+    const msCfg = getMultiShotConfig(model);
+    Object.assign(
+      payload,
+      buildMultiShotPayload(shotList, selections.duration, msCfg),
+    );
+    delete payload.prompt;
+  }
+
+  // Motion (Kling…): đảm bảo ratio mặc định nếu model hỗ trợ.
+  if (selections.extra?.subType === 'motion' && !payload.ratio) {
+    const hasDefault = schema.options.ratios.some(
+      (r) => r.value.toLowerCase() === 'default' || r.label.toLowerCase().includes('auto'),
+    );
+    if (hasDefault) payload.ratio = 'default';
+  }
+
+  // Edit video: map video nguồn.
+  if (selections.extra?.subType === 'edit') {
+    const src = selections.extra.video_url as string | undefined;
+    if (src) {
+      payload.video_url = src;
+      if (!payload.videos) payload.videos = [{ url: src }];
+    }
+  }
+
   return { payload, schema };
 }
 

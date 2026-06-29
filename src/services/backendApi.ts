@@ -452,3 +452,14 @@ export async function pollJobUntilDone(
   }
   throw new Error('Hết thời gian chờ job');
 }
+
+export async function composerPromptViaBackend(
+  action: 'enhance' | 'normalize' | 'shots',
+  text: string,
+  jobType: string,
+): Promise<{ text: string }> {
+  return request('/composer/prompt', {
+    method: 'POST',
+    body: JSON.stringify({ action, text, jobType }),
+  });
+}
