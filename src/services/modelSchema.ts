@@ -1,4 +1,5 @@
 import type { GommoModel, JobType } from './api';
+import { DEFAULT_DOMAIN } from './settingsStore';
 import { POLL_MEDIA } from './api';
 import type { ComposerShot } from './composerShots';
 import { buildMultiShotPayload, getMultiShotConfig } from './composerShots';
@@ -201,7 +202,7 @@ export function buildJobPayload(
 ): { payload: Record<string, unknown>; schema: ModelSchema } {
   const schema = analyzeModel(model, jobType);
   const payload: Record<string, unknown> = {
-    domain: domain || '79ai.net',
+    domain: domain || DEFAULT_DOMAIN,
     project_id: projectId || 'default',
   };
 

@@ -3,7 +3,7 @@ export default function AccountTransferPage() {
     <div className="account-settings">
       <h1 className="account-content-title">↔ CHUYỂN TIỀN</h1>
       <section className="panel account-card">
-        <p className="muted">Chuyển credit giữa các tài khoản trên nền tảng 79ai.</p>
+        <p className="muted">Chuyển credit giữa các tài khoản trên nền tảng vmedia.ai.</p>
         <form className="form account-form" onSubmit={(e) => e.preventDefault()}>
           <label className="field">
             <span className="label">ID NGƯỜI NHẬN</span>

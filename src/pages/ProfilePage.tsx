@@ -21,6 +21,7 @@ import {
   refreshSession,
 } from '../services/authStore';
 import { listHistory } from '../services/historyStore';
+import { APP_SITE_URL } from '../services/settingsStore';
 
 const UPGRADE_FEATURES = [
   'Credits không giới hạn',
@@ -344,7 +345,7 @@ export default function ProfilePage() {
               ))}
             </ul>
             <a
-              href="https://79ai.net/pricing"
+              href={`${APP_SITE_URL}/pricing`}
               target="_blank"
               rel="noreferrer"
               className="btn primary profile-upgrade-btn"

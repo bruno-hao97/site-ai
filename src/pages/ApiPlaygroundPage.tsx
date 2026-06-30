@@ -19,6 +19,7 @@ import {
   type JobSelections,
   type ModelSchema,
 } from '../services/modelSchema';
+import { DEFAULT_DOMAIN } from '../services/settingsStore';
 import { extractPollSnapshot } from '../services/mediaGenerationStatus';
 import { createJobAndPoll, type PollProgress } from '../services/polling';
 import { isLoggedIn, getGommoClient } from '../services/authStore';
@@ -235,7 +236,7 @@ export default function ApiPlaygroundPage() {
         <h1>API Playground</h1>
         <p className="lead">
           Luồng: load <code>/ai/models</code> → chọn model → <code>POST /ai/jobs/…</code> → poll{' '}
-          <code>/ai/jobs/&#123;id&#125;?media=…</code>. Domain cố định <code>79ai.net</code>.
+          <code>/ai/jobs/&#123;id&#125;?media=…</code>. Domain cố định <code>{DEFAULT_DOMAIN}</code>.
         </p>
       </div>
 
@@ -417,7 +418,7 @@ export default function ApiPlaygroundPage() {
               )}
 
               <div className="actions">
-                <button type="submit" className="btn primary" disabled={submitting || !hasToken()}>
+                <button type="submit" className="btn primary btn-job" disabled={submitting || !hasToken()}>
                   {submitting ? 'Đang chạy…' : 'Tạo job & poll'}
                 </button>
                 {submitting && (

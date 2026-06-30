@@ -1,3 +1,5 @@
+import { DEFAULT_DOMAIN } from './settingsStore';
+
 export const BASE_URL = 'https://v2.api.gommo.net';
 
 export type JobType = 'image' | 'video' | 'tts' | 'music' | 'avatar-lipsync';
@@ -42,7 +44,7 @@ export class GommoClient {
   domain: string;
   projectId: string;
 
-  constructor({ accessToken, domain = '79ai.net', projectId = 'default' }: GommoClientOptions) {
+  constructor({ accessToken, domain = DEFAULT_DOMAIN, projectId = 'default' }: GommoClientOptions) {
     this.accessToken = accessToken;
     this.domain = domain;
     this.projectId = projectId;
@@ -279,6 +281,10 @@ export interface GommoModel {
   server?: string;
   created_time?: number;
   price?: number;
+  /** % giảm giá model (vd. 20 = −20%). */
+  sale?: number;
+  /** Loại tính giá upstream, vd. `per_second` cho Motion. */
+  rate_type?: string;
   ratios?: unknown[];
   modes?: unknown[];
   mode?: unknown[];
@@ -295,7 +301,19 @@ export interface GommoModel {
   maxSubject?: number;
   configs?: Record<string, unknown>;
   notices?: unknown;
-  prices?: Array<{ mode?: string; resolution?: string; price?: number }>;
+  prices?: Array<{
+    mode?: string;
+    resolution?: string;
+    /** Giá sale / đơn vị (vd. credit/s sau giảm). */
+    price?: number;
+    /** Giá niêm yết / đơn vị trước giảm. */
+    price_default?: number;
+    original_price?: number;
+    price_original?: number;
+    list_price?: number;
+    promotion?: number;
+    sale?: number;
+  }>;
 }
 
 function sleep(ms: number): Promise<void> {

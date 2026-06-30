@@ -1,37 +1,144 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   fetchDashboardStats,
   type DashboardPeriod,
   type DashboardStats,
+  type Job,
 } from '../services/backendApi';
 import { fetchGommoDashboardStats } from '../services/gommoDashboard';
 import { loadAuth } from '../services/authStore';
-const PERIODS: { value: DashboardPeriod; label: string }[] = [
-  { value: '7d', label: '7 ngày' },
-  { value: '30d', label: '30 ngày' },
-  { value: 'all', label: 'Tất cả' },
+import {
+  buildChartBucketsFromSeries,
+  formatBucketStepLabel,
+  MAX_CHART_COLUMNS,
+} from '../services/dashboardChartBuckets';
+import { useLocale, type TranslateFn } from '../i18n/LanguageProvider';
+import type { AppLocale, TranslationKey } from '../i18n/types';
+
+const PERIOD_KEYS: { value: DashboardPeriod; key: TranslationKey }[] = [
+  { value: '7d', key: 'dashboard.period.7d' },
+  { value: '30d', key: 'dashboard.period.30d' },
+  { value: 'all', key: 'dashboard.period.all' },
 ];
 
-const TX_LABELS: Record<string, string> = {
-  signup_bonus: 'Bonus đăng ký',
-  job_charge: 'Trừ job',
-  job_refund: 'Hoàn credit',
-  topup: 'Nạp tiền',
-  promotion: 'Khuyến mãi',
+type ActivityTab = 'all' | 'video' | 'image' | 'audio' | 'music';
+
+const ACTIVITY_TAB_KEYS: { id: ActivityTab; key: TranslationKey }[] = [
+  { id: 'all', key: 'dashboard.activity.tab.all' },
+  { id: 'video', key: 'dashboard.activity.tab.video' },
+  { id: 'image', key: 'dashboard.activity.tab.image' },
+  { id: 'audio', key: 'dashboard.activity.tab.audio' },
+  { id: 'music', key: 'dashboard.activity.tab.music' },
+];
+
+const TX_KEYS: Record<string, TranslationKey> = {
+  signup_bonus: 'dashboard.tx.signup_bonus',
+  job_charge: 'dashboard.tx.job_charge',
+  job_refund: 'dashboard.tx.job_refund',
+  topup: 'dashboard.tx.topup',
+  promotion: 'dashboard.tx.promotion',
 };
 
-function formatDate(iso: string) {
+const ACTIVITY_PAGE_SIZE = 30;
+
+interface ActivityRow {
+  id: string;
+  model: string;
+  typeLabel: string;
+  category: ActivityTab | 'other';
+  status: string;
+  statusClass: string;
+  cost: number | null;
+  created_at: string;
+}
+
+function dateLocale(locale: AppLocale): string {
+  return locale === 'vi' ? 'vi-VN' : 'en-US';
+}
+
+function normalizeCategory(type: string): ActivityTab | 'other' {
+  const t = type.toLowerCase();
+  if (t === 'image') return 'image';
+  if (t === 'video' || t === 'avatar-lipsync') return 'video';
+  if (t === 'tts' || t.includes('audio')) return 'audio';
+  if (t === 'music') return 'music';
+  return 'other';
+}
+
+function formatTypeLabel(type: string, t: TranslateFn): string {
+  const cat = normalizeCategory(type);
+  if (cat === 'image') return t('dashboard.activity.tab.image');
+  if (cat === 'video') return t('dashboard.activity.tab.video');
+  if (cat === 'audio') return t('dashboard.activity.tab.audio');
+  if (cat === 'music') return t('dashboard.activity.tab.music');
+  return type || '—';
+}
+
+function formatJobStatus(status: string, t: TranslateFn): { label: string; className: string } {
+  if (/success|finish|done|complete/i.test(status)) {
+    return { label: t('dashboard.status.success'), className: 'success' };
+  }
+  if (/fail|error|cancel/i.test(status)) {
+    return { label: t('dashboard.status.failed'), className: 'failed' };
+  }
+  if (/process|pending|queue|active/i.test(status)) {
+    return { label: t('dashboard.status.processing'), className: 'processing' };
+  }
+  return { label: status || '—', className: '' };
+}
+
+function jobToRow(job: Job, t: TranslateFn): ActivityRow {
+  const { label, className } = formatJobStatus(job.status, t);
+  return {
+    id: job.id,
+    model: job.model_id || '—',
+    typeLabel: formatTypeLabel(job.type, t),
+    category: normalizeCategory(job.type),
+    status: label,
+    statusClass: className,
+    cost: job.cost,
+    created_at: job.created_at,
+  };
+}
+
+function buildActivityRows(stats: DashboardStats, isGommo: boolean, t: TranslateFn): ActivityRow[] {
+  const jobRows = stats.recent_jobs.map((job) => jobToRow(job, t));
+
+  if (isGommo) return jobRows;
+
+  const jobIds = new Set(stats.recent_jobs.map((j) => j.id));
+  const extraRows: ActivityRow[] = stats.recent_transactions
+    .filter((tx) => tx.type !== 'job_charge' || !tx.job_id || !jobIds.has(tx.job_id))
+    .map((tx) => ({
+      id: tx.id,
+      model: tx.description || (TX_KEYS[tx.type] ? t(TX_KEYS[tx.type]) : tx.type),
+      typeLabel: TX_KEYS[tx.type] ? t(TX_KEYS[tx.type]) : tx.type,
+      category: 'other' as const,
+      status: '—',
+      statusClass: '',
+      cost: tx.amount,
+      created_at: tx.created_at,
+    }));
+
+  return [...jobRows, ...extraRows].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+}
+
+function filterActivityRows(rows: ActivityRow[], tab: ActivityTab): ActivityRow[] {
+  if (tab === 'all') return rows;
+  return rows.filter((r) => r.category === tab);
+}
+
+function formatDate(iso: string, locale: AppLocale) {
   try {
-    return new Date(iso).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' });
+    return new Date(iso).toLocaleString(dateLocale(locale), {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    });
   } catch {
     return iso;
   }
-}
-
-function formatShortDate(date: string) {
-  const d = new Date(date + 'T00:00:00');
-  return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
 }
 
 function BarChart({
@@ -48,16 +155,17 @@ function BarChart({
   const max = Math.max(1, ...data.map((d) => Number(d[valueKey]) || 0));
 
   return (
-    <div className="chart">
+    <div className="chart chart--fixed-cols">
       <p className="chart-title">{label}</p>
       <div className="chart-bars">
-        {data.map((d) => {
+        {data.map((d, i) => {
           const val = Number(d[valueKey]) || 0;
           const h = Math.round((val / max) * 100);
+          const axisLabel = String(d.date);
           return (
-            <div key={String(d.date)} className="chart-bar-wrap" title={`${d.date}: ${val}`}>
+            <div key={`${d.date}-${i}`} className="chart-bar-wrap" title={`${axisLabel}: ${val}`}>
               <div className="chart-bar" style={{ height: `${h}%`, background: color }} />
-              <span className="chart-bar-label">{formatShortDate(String(d.date))}</span>
+              <span className="chart-bar-label">{axisLabel}</span>
             </div>
           );
         })}
@@ -67,21 +175,68 @@ function BarChart({
 }
 
 export default function DashboardPage() {
+  const { locale, t } = useLocale();
   const [period, setPeriod] = useState<DashboardPeriod>('7d');
+  const [activityTab, setActivityTab] = useState<ActivityTab>('all');
+  const [activityPage, setActivityPage] = useState(1);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const isGommo = Boolean(loadAuth());
+  const numberLocale = dateLocale(locale);
+
+  const activityRows = useMemo(
+    () => (stats ? buildActivityRows(stats, isGommo, t) : []),
+    [stats, isGommo, t],
+  );
+  const filteredRows = useMemo(
+    () => filterActivityRows(activityRows, activityTab),
+    [activityRows, activityTab],
+  );
+
+  const totalActivityPages = Math.max(1, Math.ceil(filteredRows.length / ACTIVITY_PAGE_SIZE));
+  const safeActivityPage = Math.min(activityPage, totalActivityPages);
+  const activityStartIndex = filteredRows.length
+    ? (safeActivityPage - 1) * ACTIVITY_PAGE_SIZE + 1
+    : 0;
+  const activityEndIndex = Math.min(safeActivityPage * ACTIVITY_PAGE_SIZE, filteredRows.length);
+  const pageRows = filteredRows.slice(
+    (safeActivityPage - 1) * ACTIVITY_PAGE_SIZE,
+    safeActivityPage * ACTIVITY_PAGE_SIZE,
+  );
+
+  const activeTabLabel = ACTIVITY_TAB_KEYS.find((tab) => tab.id === activityTab);
+
+  useEffect(() => {
+    setActivityPage(1);
+  }, [activityTab, period]);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      // User đăng nhập Gommo: dựng thống kê từ data Gommo thật.
-      // User backend (Google/local): dùng ledger backend.
-      const data = loadAuth()
+      const raw = loadAuth()
         ? await fetchGommoDashboardStats(period)
         : await fetchDashboardStats(period);
-      setStats(data);
+
+      if (!loadAuth()) {
+        const rebucketed = buildChartBucketsFromSeries(
+          period,
+          raw.charts.jobs_by_day,
+          raw.charts.credits_by_day,
+        );
+        setStats({
+          ...raw,
+          charts: {
+            jobs_by_day: rebucketed.jobs_by_day,
+            credits_by_day: rebucketed.credits_by_day,
+          },
+          chart_bucket_days: rebucketed.bucket_days,
+          chart_column_count: rebucketed.column_count,
+        });
+      } else {
+        setStats(raw);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -97,76 +252,103 @@ export default function DashboardPage() {
     <div className="page dashboard-page">
       <div className="page-head dashboard-head">
         <div>
-          <p className="kicker">Dashboard</p>
-          <h1>Thống kê sử dụng</h1>
-          <p className="lead">4 KPI, biểu đồ theo ngày, lịch sử job và giao dịch credit.</p>
+          <p className="kicker">{t('dashboard.kicker')}</p>
+          <h1>{t('dashboard.title')}</h1>
+          <p className="lead">{t('dashboard.lead')}</p>
         </div>
         <div className="period-tabs">
-          {PERIODS.map((p) => (
+          {PERIOD_KEYS.map((p) => (
             <button
               key={p.value}
               type="button"
               className={`tab ${period === p.value ? 'active' : ''}`}
               onClick={() => setPeriod(p.value)}
             >
-              {p.label}
+              {t(p.key)}
             </button>
           ))}
         </div>
       </div>
 
-      {loading && <p className="muted">Đang tải…</p>}
+      {loading && <p className="muted">{t('dashboard.loading')}</p>}
       {error && <p className="error">{error}</p>}
 
       {stats && !loading && (
         <>
           <div className="kpi-grid">
             <div className="kpi-card panel">
-              <span className="kpi-label">Số dư credit</span>
+              <span className="kpi-label">{t('dashboard.kpi.balance')}</span>
               <span className="kpi-value">{stats.kpis.balance}</span>
             </div>
             <div className="kpi-card panel">
-              <span className="kpi-label">Ảnh đã tạo</span>
+              <span className="kpi-label">{t('dashboard.kpi.images')}</span>
               <span className="kpi-value">{stats.kpis.images_success}</span>
-              <span className="kpi-sub">thành công</span>
+              <span className="kpi-sub">{t('dashboard.kpi.successSub')}</span>
             </div>
             <div className="kpi-card panel">
-              <span className="kpi-label">Video đã tạo</span>
+              <span className="kpi-label">{t('dashboard.kpi.videos')}</span>
               <span className="kpi-value">{stats.kpis.videos_success}</span>
-              <span className="kpi-sub">thành công</span>
+              <span className="kpi-sub">{t('dashboard.kpi.successSub')}</span>
             </div>
             <div className="kpi-card panel">
-              <span className="kpi-label">Chi phí tiêu thụ</span>
+              <span className="kpi-label">{t('dashboard.kpi.consumed')}</span>
               <span className="kpi-value">{stats.kpis.credits_consumed_net}</span>
-              <span className="kpi-sub">credit (net)</span>
+              <span className="kpi-sub">{t('dashboard.kpi.creditNet')}</span>
             </div>
           </div>
 
           <div className="dashboard-meta panel">
-            <span>Tổng job: <strong>{stats.totals.jobs_total}</strong></span>
-            <span>Thành công: <strong className="ok">{stats.totals.jobs_success}</strong></span>
-            <span>Thất bại: <strong className="fail">{stats.totals.jobs_failed}</strong></span>
-            <span>Tỷ lệ OK: <strong>{stats.totals.success_rate}%</strong></span>
-            <span>Đã charge: {stats.credits.charged}</span>
-            <span>Đã hoàn: {stats.credits.refunded}</span>
+            <span>
+              {t('dashboard.meta.jobsTotal')}: <strong>{stats.totals.jobs_total}</strong>
+            </span>
+            <span>
+              {t('dashboard.meta.success')}:{' '}
+              <strong className="ok">{stats.totals.jobs_success}</strong>
+            </span>
+            <span>
+              {t('dashboard.meta.failed')}:{' '}
+              <strong className="fail">{stats.totals.jobs_failed}</strong>
+            </span>
+            <span>
+              {t('dashboard.meta.okRate')}: <strong>{stats.totals.success_rate}%</strong>
+            </span>
+            <span>
+              {t('dashboard.meta.charged')}: {stats.credits.charged}
+            </span>
+            <span>
+              {t('dashboard.meta.refunded')}: {stats.credits.refunded}
+            </span>
             {(stats.credits.topped_up_total ?? 0) > 0 && (
-              <span>Đã nạp: <strong className="ok">{stats.credits.topped_up_total}</strong> credit</span>
+              <span>
+                {t('dashboard.meta.toppedUpAmount', {
+                  amount: stats.credits.topped_up_total ?? 0,
+                })}
+              </span>
             )}
           </div>
 
           <div className="charts-grid">
+            {stats.chart_bucket_days != null && (
+              <p className="chart-period-hint muted">
+                {t('dashboard.chart.hint', {
+                  columns: MAX_CHART_COLUMNS,
+                  step: formatBucketStepLabel(stats.chart_bucket_days, t),
+                })}
+                {period === 'all' ? ` · ${t('dashboard.chart.hintAllHistory')}` : ''}
+              </p>
+            )}
             <section className="panel">
               <BarChart
                 data={stats.charts.jobs_by_day}
                 valueKey="jobs"
-                label="Job theo ngày"
+                label={t('dashboard.chart.jobs')}
               />
             </section>
             <section className="panel">
               <BarChart
                 data={stats.charts.jobs_by_day}
                 valueKey="success"
-                label="Job thành công / ngày"
+                label={t('dashboard.chart.jobsSuccess')}
                 color="var(--ok)"
               />
             </section>
@@ -174,76 +356,138 @@ export default function DashboardPage() {
               <BarChart
                 data={stats.charts.credits_by_day}
                 valueKey="net"
-                label="Credit tiêu thụ (net) / ngày"
+                label={t('dashboard.chart.credits')}
                 color="#e8a838"
               />
             </section>
           </div>
 
-          <div className="tables-grid">
-            <section className="panel">
-              <div className="panel-head">
-                <h2>Job gần đây</h2>
-                <Link to="/app" className="btn ghost sm">Tạo ảnh →</Link>
-              </div>
-              {stats.recent_jobs.length === 0 ? (
-                <p className="muted">Chưa có job.</p>
-              ) : (
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Model</th>
-                      <th>Loại</th>
-                      <th>Trạng thái</th>
-                      <th>Chi phí</th>
-                      <th>Thời gian</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {stats.recent_jobs.map((j) => (
-                      <tr key={j.id}>
-                        <td className="mono">{j.model_id}</td>
-                        <td>{j.type}</td>
-                        <td><span className={`badge ${j.status}`}>{j.status}</span></td>
-                        <td>−{j.cost}</td>
-                        <td>{formatDate(j.created_at)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </section>
+          <section className="panel dashboard-activity">
+            <div className="panel-head">
+              <h2>{t('dashboard.activity.title')}</h2>
+            </div>
 
-            <section className="panel">
-              <h2>Giao dịch credit</h2>
-              {stats.recent_transactions.length === 0 ? (
-                <p className="muted">Chưa có giao dịch.</p>
-              ) : (
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Loại</th>
-                      <th>Số tiền</th>
-                      <th>Mô tả</th>
-                      <th>Thời gian</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {stats.recent_transactions.map((t) => (
-                      <tr key={t.id}>
-                        <td>{TX_LABELS[t.type] || t.type}</td>
-                        <td className={t.amount >= 0 ? 'amount-plus' : 'amount-minus'}>
-                          {t.amount >= 0 ? '+' : ''}{t.amount}
-                        </td>
-                        <td className="muted-cell">{t.description || '—'}</td>
-                        <td>{formatDate(t.created_at)}</td>
-                      </tr>
+            <div className="period-tabs dashboard-type-tabs">
+              {ACTIVITY_TAB_KEYS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  className={`tab ${activityTab === tab.id ? 'active' : ''}`}
+                  onClick={() => setActivityTab(tab.id)}
+                >
+                  {t(tab.key)}
+                </button>
+              ))}
+            </div>
+
+            {filteredRows.length > ACTIVITY_PAGE_SIZE && (
+              <div className="uh-pagination dashboard-activity-pagination">
+                <span className="uh-pag-info">
+                  {t('dashboard.pagination.showing', {
+                    from: activityStartIndex,
+                    to: activityEndIndex,
+                    total: filteredRows.length.toLocaleString(numberLocale),
+                  })}
+                </span>
+                <div className="uh-pag-btns">
+                  <button
+                    type="button"
+                    className="uh-pag-btn"
+                    disabled={safeActivityPage <= 1}
+                    onClick={() => setActivityPage((p) => Math.max(1, p - 1))}
+                  >
+                    ‹
+                  </button>
+                  {Array.from({ length: totalActivityPages }, (_, i) => i + 1)
+                    .filter(
+                      (n) =>
+                        n === 1 ||
+                        n === totalActivityPages ||
+                        Math.abs(n - safeActivityPage) <= 1,
+                    )
+                    .map((n, idx, arr) => (
+                      <span key={n} className="uh-pag-seg">
+                        {idx > 0 && n - arr[idx - 1] > 1 && (
+                          <span className="uh-pag-ellipsis">…</span>
+                        )}
+                        <button
+                          type="button"
+                          className={`uh-pag-btn ${safeActivityPage === n ? 'active' : ''}`}
+                          onClick={() => setActivityPage(n)}
+                        >
+                          {n}
+                        </button>
+                      </span>
                     ))}
-                  </tbody>
-                </table>
-              )}
-            </section>
-          </div>
+                  <button
+                    type="button"
+                    className="uh-pag-btn"
+                    disabled={safeActivityPage >= totalActivityPages}
+                    onClick={() => setActivityPage((p) => Math.min(totalActivityPages, p + 1))}
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {filteredRows.length === 0 ? (
+              <p className="muted">
+                {activityTab === 'all'
+                  ? t('dashboard.activity.empty')
+                  : t('dashboard.activity.emptyType', {
+                      type: activeTabLabel ? t(activeTabLabel.key).toLowerCase() : '',
+                    })}
+              </p>
+            ) : (
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>{t('dashboard.table.model')}</th>
+                    <th>{t('dashboard.table.type')}</th>
+                    <th>{t('dashboard.table.status')}</th>
+                    <th>{t('dashboard.table.credit')}</th>
+                    <th>{t('dashboard.table.time')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.map((row) => (
+                    <tr key={row.id}>
+                      <td className="mono">{row.model}</td>
+                      <td>{row.typeLabel}</td>
+                      <td>
+                        {row.status !== '—' ? (
+                          <span className={`badge ${row.statusClass}`}>{row.status}</span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td
+                        className={
+                          row.category === 'other'
+                            ? row.cost != null && row.cost >= 0
+                              ? 'amount-plus'
+                              : row.cost != null && row.cost < 0
+                                ? 'amount-minus'
+                                : ''
+                            : row.cost != null && row.cost > 0
+                              ? 'amount-minus'
+                              : ''
+                        }
+                      >
+                        {row.cost == null || row.cost === 0
+                          ? '—'
+                          : row.category === 'other'
+                            ? `${row.cost >= 0 ? '+' : ''}${row.cost}`
+                            : `−${row.cost}`}
+                      </td>
+                      <td>{formatDate(row.created_at, locale)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
         </>
       )}
     </div>

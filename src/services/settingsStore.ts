@@ -5,8 +5,20 @@ const KEYS = {
   projectId: 'gommo_project_id',
 } as const;
 
-export const DEFAULT_DOMAIN = '79ai.net';
+export const DEFAULT_DOMAIN = 'vmedia.ai';
+export const APP_SITE_URL = `https://${DEFAULT_DOMAIN}`;
 export const DEFAULT_PROJECT_ID = 'default';
+
+const LEGACY_DOMAINS = new Set(['79ai.net', '79ai.com', 'www.79ai.net']);
+
+/** Chuẩn hóa domain cũ (79ai…) → vmedia.ai. */
+export function normalizeDomain(domain?: string | null): string {
+  const trimmed = (domain || '').trim();
+  if (!trimmed) return DEFAULT_DOMAIN;
+  const lower = trimmed.toLowerCase().replace(/^www\./, '');
+  if (LEGACY_DOMAINS.has(lower) || lower.endsWith('.79ai.net')) return DEFAULT_DOMAIN;
+  return trimmed;
+}
 
 export interface GommoSettings {
   accessToken: string;
@@ -15,9 +27,13 @@ export interface GommoSettings {
 }
 
 export function loadSettings(): GommoSettings {
+  const domain = normalizeDomain(localStorage.getItem(KEYS.domain) || DEFAULT_DOMAIN);
+  if (localStorage.getItem(KEYS.domain) !== domain) {
+    localStorage.setItem(KEYS.domain, domain);
+  }
   return {
     accessToken: localStorage.getItem(KEYS.token) || '',
-    domain: localStorage.getItem(KEYS.domain) || DEFAULT_DOMAIN,
+    domain,
     projectId: localStorage.getItem(KEYS.projectId) || DEFAULT_PROJECT_ID,
   };
 }
@@ -28,7 +44,7 @@ export function saveSettings(partial: Partial<GommoSettings>): void {
     else localStorage.removeItem(KEYS.token);
   }
   if (partial.domain != null) {
-    localStorage.setItem(KEYS.domain, partial.domain || DEFAULT_DOMAIN);
+    localStorage.setItem(KEYS.domain, normalizeDomain(partial.domain) || DEFAULT_DOMAIN);
   }
   if (partial.projectId != null) {
     localStorage.setItem(KEYS.projectId, partial.projectId || DEFAULT_PROJECT_ID);

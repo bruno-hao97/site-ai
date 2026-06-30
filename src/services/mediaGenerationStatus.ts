@@ -133,17 +133,22 @@ export function extractPollSnapshot(envelope: {
   raw?: {
     imageInfo?: { status?: string; result_url?: string };
     videoInfo?: { status?: string; result_url?: string; url?: string };
+    audioInfo?: { status?: string; result_url?: string; url?: string; file_url?: string };
   };
 }): PollSnapshot {
   const data = envelope.data || {};
   const raw = envelope.raw || {};
+  const audioInfo = raw.audioInfo;
   return {
-    status: data.status || raw.imageInfo?.status || raw.videoInfo?.status || '',
+    status: data.status || raw.imageInfo?.status || raw.videoInfo?.status || audioInfo?.status || '',
     resultUrl:
       data.result_url ??
       raw.imageInfo?.result_url ??
       raw.videoInfo?.result_url ??
       raw.videoInfo?.url ??
+      audioInfo?.file_url ??
+      audioInfo?.result_url ??
+      audioInfo?.url ??
       null,
     idBase: data.id_base || data.job_id,
   };

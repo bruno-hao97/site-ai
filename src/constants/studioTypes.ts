@@ -49,3 +49,18 @@ export const REUSABLE_JOB_TYPES: JobType[] = [
   'music',
   'avatar-lipsync',
 ];
+
+/** Route studio theo loại job (thay cho /app cũ). */
+export function studioRouteForType(type: JobType): string {
+  switch (type) {
+    case 'video':
+    case 'avatar-lipsync':
+      return '/video';
+    case 'music':
+      return '/music';
+    case 'tts':
+      return '/audio';
+    default:
+      return '/image';
+  }
+}

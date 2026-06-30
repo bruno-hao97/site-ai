@@ -10,22 +10,33 @@ import type {
   DashboardStats,
   Job,
 } from './backendApi';
+import { buildChartBuckets } from './dashboardChartBuckets';
 
 const PAGE_LIMIT = 50;
-const MAX_PAGES = 4; // tối đa ~200 item mỗi loại để tránh tải quá nhiều
+// Chặn vòng lặp vô hạn nếu API luôn trả nextAfterId (~2000 item mỗi loại).
+const SAFETY_MAX_PAGES = 40;
 
 type Fetcher = (params: { limit?: number; afterId?: string }) => Promise<{
   items: FeedItem[];
   nextAfterId: string;
 }>;
 
-async function fetchAllMine(fetcher: Fetcher, maxItems: number): Promise<FeedItem[]> {
+/**
+ * Lấy hết job của user theo từng trang. Dữ liệu Gommo trả về đã sắp xếp giảm dần
+ * theo thời gian, nên khi trang hiện tại đã chạm mốc `cutoff` (job cũ hơn khoảng
+ * đang xem) thì dừng sớm để khỏi tải thừa. `cutoff = 0` (period 'all') tải toàn bộ.
+ */
+async function fetchAllMine(fetcher: Fetcher, cutoff: number): Promise<FeedItem[]> {
   const all: FeedItem[] = [];
   let afterId = '';
-  for (let i = 0; i < MAX_PAGES; i += 1) {
+  for (let i = 0; i < SAFETY_MAX_PAGES; i += 1) {
     const page = await fetcher({ limit: PAGE_LIMIT, afterId });
     all.push(...page.items);
-    if (!page.nextAfterId || page.items.length === 0 || all.length >= maxItems) break;
+    if (!page.nextAfterId || page.items.length === 0) break;
+    if (cutoff > 0) {
+      const oldest = page.items[page.items.length - 1];
+      if (itemTime(oldest) < cutoff) break;
+    }
     afterId = page.nextAfterId;
   }
   return all;
@@ -45,27 +56,10 @@ function isFailed(status: string | undefined): boolean {
   return /fail|error|cancel/i.test(status ?? '');
 }
 
-function dayKey(tsSeconds: number): string {
-  const d = new Date(tsSeconds * 1000);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function periodDays(period: DashboardPeriod): number {
-  if (period === '7d') return 7;
-  return 30; // '30d' và 'all' đều hiển thị 30 ngày gần nhất trên biểu đồ
-}
-
-function emptyDayBuckets(period: DashboardPeriod): string[] {
-  const days = periodDays(period);
-  const keys: string[] = [];
-  const now = Date.now();
-  for (let i = days - 1; i >= 0; i -= 1) {
-    keys.push(dayKey(Math.floor((now - i * 86400_000) / 1000)));
-  }
-  return keys;
+function periodCutoffSeconds(period: DashboardPeriod): number {
+  if (period === '7d') return 7 * 86400;
+  if (period === '30d') return 30 * 86400;
+  return 0;
 }
 
 /**
@@ -75,15 +69,14 @@ function emptyDayBuckets(period: DashboardPeriod): string[] {
 export async function fetchGommoDashboardStats(
   period: DashboardPeriod = '7d',
 ): Promise<DashboardStats> {
-  const [videos, images] = await Promise.all([
-    fetchAllMine(fetchMyVideos, PAGE_LIMIT * MAX_PAGES),
-    fetchAllMine(fetchMyImages, PAGE_LIMIT * MAX_PAGES),
-  ]);
+  const cutoffSec = periodCutoffSeconds(period);
+  const cutoff = cutoffSec > 0 ? Math.floor(Date.now() / 1000) - cutoffSec : 0;
 
-  const cutoff =
-    period === 'all'
-      ? 0
-      : Math.floor(Date.now() / 1000) - periodDays(period) * 86400;
+  // Lấy toàn bộ job Gommo của user (ảnh + video) trong khoảng đang xem.
+  const [videos, images] = await Promise.all([
+    fetchAllMine(fetchMyVideos, cutoff),
+    fetchAllMine(fetchMyImages, cutoff),
+  ]);
 
   const all: FeedItem[] = [...videos, ...images].filter(
     (it) => itemTime(it) >= cutoff,
@@ -97,28 +90,17 @@ export async function fetchGommoDashboardStats(
   const jobsTotal = all.length;
   const creditsConsumed = all.reduce((sum, it) => sum + (it.credit_fee || 0), 0);
 
-  // Biểu đồ theo ngày
-  const dayKeys = emptyDayBuckets(period);
-  const jobsByDayMap = new Map<string, { jobs: number; success: number; failed: number }>();
-  const creditsByDayMap = new Map<string, number>();
-  for (const k of dayKeys) {
-    jobsByDayMap.set(k, { jobs: 0, success: 0, failed: 0 });
-    creditsByDayMap.set(k, 0);
-  }
-  for (const it of all) {
-    const k = dayKey(itemTime(it));
-    const bucket = jobsByDayMap.get(k);
-    if (bucket) {
-      bucket.jobs += 1;
-      if (isSuccess(it.status)) bucket.success += 1;
-      if (isFailed(it.status)) bucket.failed += 1;
-      creditsByDayMap.set(k, (creditsByDayMap.get(k) ?? 0) + (it.credit_fee || 0));
-    }
-  }
+  const chartPoints = all.map((it) => ({
+    tsSeconds: itemTime(it),
+    success: isSuccess(it.status),
+    failed: isFailed(it.status),
+    credit: it.credit_fee || 0,
+  }));
+  const { jobs_by_day, credits_by_day, bucket_days } = buildChartBuckets(period, chartPoints);
 
   const sorted = [...all].sort((a, b) => itemTime(b) - itemTime(a));
 
-  const recentJobs: Job[] = sorted.slice(0, 12).map((it) => ({
+  const recentJobs: Job[] = sorted.slice(0, 50).map((it) => ({
     id: it.id_base,
     type: it.type,
     model_id: it.modelInfo?.name || it.model || '—',
@@ -164,19 +146,11 @@ export async function fetchGommoDashboardStats(
       signup_bonus: 0,
     },
     charts: {
-      jobs_by_day: dayKeys.map((date) => ({
-        date,
-        jobs: jobsByDayMap.get(date)?.jobs ?? 0,
-        success: jobsByDayMap.get(date)?.success ?? 0,
-        failed: jobsByDayMap.get(date)?.failed ?? 0,
-      })),
-      credits_by_day: dayKeys.map((date) => ({
-        date,
-        charged: creditsByDayMap.get(date) ?? 0,
-        refunded: 0,
-        net: creditsByDayMap.get(date) ?? 0,
-      })),
+      jobs_by_day,
+      credits_by_day,
     },
+    chart_bucket_days: bucket_days,
+    chart_column_count: 10,
     recent_jobs: recentJobs,
     recent_transactions: recentTransactions,
   };

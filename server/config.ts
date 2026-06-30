@@ -9,8 +9,10 @@ export const config = {
     authBaseUrl: process.env.GOMMO_AUTH_BASE_URL || 'https://api.gommo.net',
     authPath: process.env.GOMMO_AUTH_PATH || '/api/apps/go-mmo',
     accessToken: process.env.GOMMO_ACCESS_TOKEN || '',
-    domain: process.env.GOMMO_DOMAIN || '79ai.net',
+    domain: process.env.GOMMO_DOMAIN || 'vmedia.ai',
     projectId: process.env.GOMMO_PROJECT_ID || 'default',
+    deviceId: process.env.GOMMO_DEVICE_ID || 'd991c6e9-5f3a-4d52-8065-728e3c260e11',
+    deviceName: process.env.GOMMO_DEVICE_NAME || 'AICenter',
   },
   credits: {
     signupBonus: Number(process.env.SIGNUP_BONUS_CREDITS) || 1000,

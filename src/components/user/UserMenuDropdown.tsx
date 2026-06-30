@@ -7,6 +7,7 @@ import {
 } from '../../services/authStore';
 import { loadTheme, saveTheme, type ThemeMode } from '../../services/themeStore';
 import { Check, ChevronDown, CircleHelp, ClipboardList, Clock, CreditCard, Gift, KeyRound, LayoutDashboard, LogOut, Moon, Pencil, Settings, Shield, Sun, Trash2, User, Users, Wallet } from 'lucide-react';
+import { APP_SITE_URL } from '../../services/settingsStore';
 import {
   countByProject,
   createProject,
@@ -21,9 +22,9 @@ const ICON = { size: 16, strokeWidth: 1.75, className: 'user-menu-item-icon' } a
 
 const EXTERNAL = {
   community: 'https://discord.gg/',
-  support: 'https://79ai.net/support',
-  referral: 'https://79ai.net/referral',
-  changelog: 'https://79ai.net/changelog',
+  support: `${APP_SITE_URL}/support`,
+  referral: `${APP_SITE_URL}/referral`,
+  changelog: `${APP_SITE_URL}/changelog`,
 };
 
 interface Props {

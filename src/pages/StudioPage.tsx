@@ -46,7 +46,6 @@ import UrlField from '../components/UrlField';
 import {
   defaultSelectionsForType,
   historyPromptFromSelections,
-  jobTypeLabel,
   jobTypeToHistoryType,
   REUSABLE_JOB_TYPES,
   STUDIO_JOB_TYPES,
@@ -112,8 +111,25 @@ import {
   getReferenceLimits,
   getUploadRules,
   mapUploadTarget,
+  probeVideoDuration,
   validateMediaFile,
 } from '../services/modelUploadRules';
+import ComposerVideoAgentChat from '../components/ComposerVideoAgentChat';
+import { useLocale } from '../i18n';
+import type { TranslationKey } from '../i18n';
+import type { TranslateFn } from '../i18n/LanguageProvider';
+import ComposerMediaSlot from '../components/ComposerMediaSlot';
+import ComposerMediaPickButton from '../components/ComposerMediaPickButton';
+import { mediaKindFromUrl, validateMediaUrl } from '../services/mediaUrlValidation';
+import {
+  computeMotionPriceQuote,
+  getMotionBilledSeconds,
+  getMotionPromotionPercent,
+  motionModelPriceLabel,
+  motionRateLabel,
+  probeVideoDurationFromUrl,
+  resolveMotionRatePerSecond,
+} from '../services/motionPricing';
 
 interface PendingJob {
   id: string;
@@ -123,14 +139,14 @@ interface PendingJob {
 
 type ComposerMode = 'single' | 'multi' | 'auto' | 'ai';
 
-function dateGroupLabel(iso: string): string {
+function dateGroupLabel(iso: string, t: TranslateFn): string {
   const d = new Date(iso);
   const now = new Date();
-  if (d.toDateString() === now.toDateString()) return 'Hôm nay';
+  if (d.toDateString() === now.toDateString()) return t('date.today');
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
-  if (d.toDateString() === yesterday.toDateString()) return 'Hôm qua';
-  return `Tháng ${d.getMonth() + 1} năm ${d.getFullYear()}`;
+  if (d.toDateString() === yesterday.toDateString()) return t('date.yesterday');
+  return t('date.monthYear', { month: d.getMonth() + 1, year: d.getFullYear() });
 }
 
 // Map server (field upstream) -> tên nhà cung cấp + phụ đề hiển thị, giống 79AI.
@@ -432,6 +448,9 @@ function ModelPicker({
   multi = false,
   multiValues = [],
   onMultiChange,
+  motionPricing = false,
+  selectionMode = '',
+  selectionResolution = '',
 }: {
   models: GommoModel[];
   value: string;
@@ -440,6 +459,9 @@ function ModelPicker({
   multi?: boolean;
   multiValues?: string[];
   onMultiChange?: (slugs: string[]) => void;
+  motionPricing?: boolean;
+  selectionMode?: string;
+  selectionResolution?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -472,7 +494,7 @@ function ModelPicker({
   const renderItem = (m: GommoModel) => {
     const slug = modelSlug(m);
     const active = multi ? multiValues.includes(slug) : slug === value;
-    const priceLabel = modelPriceLabel(m);
+    const priceLabel = motionPricing ? motionModelPriceLabel(m) : modelPriceLabel(m);
     const maint = isModelMaintenance(m);
     return (
       <button
@@ -548,7 +570,12 @@ function ModelPicker({
 
   const totalShown = tabModels.length;
   const panelStyle = anchoredPanelStyle(pos);
-  const triggerPrice = current ? modelPriceLabel(current) : '';
+  const triggerPrice = current
+    ? motionPricing
+      ? motionRateLabel(current, selectionMode, selectionResolution) ||
+        motionModelPriceLabel(current)
+      : modelPriceLabel(current)
+    : '';
   const multiLabel = useMemo(() => {
     if (!multi || multiValues.length === 0) return '';
     if (multiValues.length === 1) {
@@ -717,6 +744,7 @@ export default function StudioPage({
 }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useLocale();
   const [jobType, setJobType] = useState<JobType>(initialType);
   const [models, setModels] = useState<GommoModel[]>([]);
   const [selectedSlug, setSelectedSlug] = useState('');
@@ -740,6 +768,8 @@ export default function StudioPage({
   // /video có 2 chế độ cấp cao: tạo video thường ('create') và Motion ('motion').
   const [videoMode, setVideoMode] = useState<'create' | 'motion' | 'edit'>('create');
   const [motionVideoUrl, setMotionVideoUrl] = useState('');
+  const [motionVideoDuration, setMotionVideoDuration] = useState(0);
+  const [motionDurationLoading, setMotionDurationLoading] = useState(false);
   const [editVideoUrl, setEditVideoUrl] = useState('');
   const [multiShotEnabled, setMultiShotEnabled] = useState(false);
   // Chế độ nhập liệu: 'frame' (Ảnh đầu/cuối) hoặc 'component' (Thêm media – tham chiếu).
@@ -791,6 +821,19 @@ export default function StudioPage({
   );
   const isMotionView = jobType === 'video' && videoMode === 'motion' && hasMotionModels;
   const isEditView = jobType === 'video' && videoMode === 'edit' && hasEditModels;
+  const isImageComposer = jobType === 'image';
+  const isMusicComposer = jobType === 'music';
+  const isTwoTabComposer = isMotionView || isImageComposer;
+  const typeLabel = useCallback(
+    (type: JobType = jobType) => t(`jobType.${type}` as TranslationKey),
+    [t, jobType],
+  );
+  const isVideoAgentView =
+    jobType === 'video' &&
+    composerMode === 'ai' &&
+    videoMode === 'create' &&
+    !isMotionView &&
+    !isEditView;
   // Lọc model cho picker theo chế độ video đang chọn.
   const pickerModels = useMemo(() => {
     if (jobType !== 'video') return models;
@@ -812,14 +855,70 @@ export default function StudioPage({
   const modelPrice = currentModel?.price ?? 0;
   // User JWT trừ credit theo cấu hình backend; user Gommo token theo giá model upstream.
   const unitCost = useBackend ? backendCosts?.[jobType] ?? 0 : modelPrice;
+  const motionRatePerSec = useMemo(
+    () =>
+      isMotionView && currentModel
+        ? resolveMotionRatePerSecond(
+            currentModel,
+            selections.mode || '',
+            selections.resolution || '',
+          )
+        : 0,
+    [isMotionView, currentModel, selections.mode, selections.resolution],
+  );
+  const motionPromoPercent = useMemo(
+    () => (isMotionView && currentModel ? getMotionPromotionPercent(currentModel) : 0),
+    [isMotionView, currentModel],
+  );
+  const motionQuote = useMemo(() => {
+    if (!isMotionView || !currentModel || motionVideoDuration <= 0) {
+      return {
+        billedSeconds: 0,
+        saleRatePerSec: motionRatePerSec,
+        originalRatePerSec: 0,
+        scriptCount,
+        promoPercent: motionPromoPercent,
+        grossTotal: 0,
+        finalTotal: 0,
+      };
+    }
+    return computeMotionPriceQuote(
+      currentModel,
+      selections.mode || '',
+      selections.resolution || '',
+      motionVideoDuration,
+      scriptCount,
+    );
+  }, [
+    isMotionView,
+    currentModel,
+    motionVideoDuration,
+    scriptCount,
+    selections.mode,
+    selections.resolution,
+    motionRatePerSec,
+    motionPromoPercent,
+  ]);
+  const motionBilledSeconds = useMemo(
+    () =>
+      isMotionView && motionVideoDuration > 0
+        ? getMotionBilledSeconds(motionVideoDuration, currentModel)
+        : 0,
+    [isMotionView, motionVideoDuration, currentModel],
+  );
+  const motionGrossTotal = motionQuote.grossTotal;
+  const motionTotalCost = motionQuote.finalTotal;
   // Composer hiển thị giá động theo mode + resolution đang chọn (khớp 79AI);
   // fallback về unitCost nếu model chưa có bảng giá.
-  const composerCost = useMemo(
-    () => resolveModelPrice(currentModel, selections.mode || '', selections.resolution || '') || unitCost,
-    [currentModel, selections.mode, selections.resolution, unitCost],
-  );
+  const composerCost = useMemo(() => {
+    if (isMotionView) return motionRatePerSec;
+    return resolveModelPrice(currentModel, selections.mode || '', selections.resolution || '') || unitCost;
+  }, [isMotionView, motionRatePerSec, currentModel, selections.mode, selections.resolution, unitCost]);
   const submitQty = composerMode === 'multi' ? 1 : qty;
   const submitTotalCost = useMemo(() => {
+    if (isMotionView) {
+      return motionTotalCost * submitQty;
+    }
     if (composerMode === 'multi') {
       return selectedSlugs.reduce((sum, slug) => {
         const m = pickerModels.find((x) => modelSlug(x) === slug);
@@ -828,7 +927,18 @@ export default function StudioPage({
       }, 0);
     }
     return (composerCost || 0) * submitQty;
-  }, [composerMode, selectedSlugs, pickerModels, composerCost, selections.mode, selections.resolution, unitCost, submitQty]);
+  }, [
+    isMotionView,
+    motionTotalCost,
+    submitQty,
+    composerMode,
+    selectedSlugs,
+    pickerModels,
+    composerCost,
+    selections.mode,
+    selections.resolution,
+    unitCost,
+  ]);
 
   function switchComposerMode(mode: ComposerMode) {
     setComposerMode(mode);
@@ -853,7 +963,10 @@ export default function StudioPage({
   }
 
   useEffect(() => {
-    if (isMotionView && (composerMode === 'multi' || composerMode === 'ai')) {
+    if (
+      (isMotionView || isImageComposer) &&
+      (composerMode === 'multi' || composerMode === 'ai')
+    ) {
       setComposerMode('single');
       localStorage.setItem('studioComposerMode', 'single');
     }
@@ -861,7 +974,37 @@ export default function StudioPage({
       setComposerMode('single');
       localStorage.setItem('studioComposerMode', 'single');
     }
-  }, [isMotionView, isEditView, composerMode]);
+    if (
+      isMusicComposer &&
+      (composerMode === 'multi' || composerMode === 'ai' || composerMode === 'auto')
+    ) {
+      setComposerMode('single');
+      localStorage.setItem('studioComposerMode', 'single');
+    }
+  }, [isMotionView, isEditView, isImageComposer, isMusicComposer, composerMode]);
+
+  useEffect(() => {
+    if (!isMotionView || !motionVideoUrl) {
+      setMotionVideoDuration(0);
+      setMotionDurationLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setMotionDurationLoading(true);
+    probeVideoDurationFromUrl(motionVideoUrl)
+      .then((d) => {
+        if (!cancelled) setMotionVideoDuration(d > 0 ? d : 0);
+      })
+      .catch(() => {
+        if (!cancelled) setMotionVideoDuration(0);
+      })
+      .finally(() => {
+        if (!cancelled) setMotionDurationLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isMotionView, motionVideoUrl]);
 
   useEffect(() => {
     if (!schema?.fields.multiShots) {
@@ -1293,8 +1436,19 @@ export default function StudioPage({
     if (multiShotEnabled && schema.fields.multiShots && activeShots.length >= 2) {
       basePrompt = activeShots.map((s) => s.prompt.trim()).filter(Boolean).join(' · ');
     }
-    if (composerMode === 'ai' && !basePrompt.trim() && aiBrief.trim()) {
+    if (composerMode === 'ai' && !isVideoAgentView && !basePrompt.trim() && aiBrief.trim()) {
       basePrompt = expandBriefToPrompt(aiBrief, jobType);
+    }
+
+    if (isVideoAgentView) {
+      const hasAgentScript =
+        multiShotEnabled && schema.fields.multiShots && activeShots.length >= 2
+          ? true
+          : Boolean(basePrompt.trim());
+      if (!hasAgentScript) {
+        setError('Chat với Video Agent để có kịch bản / prompt trước khi tạo.');
+        return;
+      }
     }
 
     if (composerMode === 'multi') {
@@ -1519,13 +1673,13 @@ export default function StudioPage({
   const groupedResults = useMemo(() => {
     const map = new Map<string, HistoryEntry[]>();
     for (const e of displayedResults) {
-      const day = dateGroupLabel(e.createdAt);
+      const day = dateGroupLabel(e.createdAt, t);
       const list = map.get(day);
       if (list) list.push(e);
       else map.set(day, [e]);
     }
     return [...map.entries()];
-  }, [displayedResults]);
+  }, [displayedResults, t]);
 
   const visibleIds = useMemo(() => displayedResults.map((e) => e.id), [displayedResults]);
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
@@ -1683,6 +1837,53 @@ export default function StudioPage({
     setError('');
     const url = await handleUpload(file, kind);
     if (!url) return;
+    if (target === 'motionVideo' && kind === 'video') {
+      try {
+        const dur = await probeVideoDuration(file);
+        if (dur > 0) setMotionVideoDuration(dur);
+      } catch {
+        /* useEffect sẽ thử đọc từ URL */
+      }
+    }
+    if (target === 'component') addComponent(url, kind);
+    else if (target === 'frameStart') updateUrlList('images', 0, url);
+    else if (target === 'frameEnd') updateUrlList('images', 1, url);
+    else if (target === 'motionChar') updateUrlList('images', 0, url);
+    else if (target === 'motionVideo') setMotionVideoUrl(url);
+    else if (target === 'editVideo') setEditVideoUrl(url);
+  }
+
+  function ingestMediaUrl(
+    url: string,
+    target: 'component' | 'frameStart' | 'frameEnd' | 'motionChar' | 'motionVideo' | 'editVideo',
+  ) {
+    const expectedKind =
+      target === 'motionVideo' || target === 'editVideo'
+        ? 'video'
+        : target === 'component'
+          ? 'any'
+          : 'image';
+
+    const validationError = validateMediaUrl(url, expectedKind);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    const kind = mediaKindFromUrl(url) === 'video' ? 'video' : 'image';
+
+    if (target === 'component') {
+      if (kind === 'video' && !canAddComponentVideo) {
+        setError('Đã đạt giới hạn video tham chiếu.');
+        return;
+      }
+      if (kind === 'image' && !canAddComponentImage) {
+        setError('Đã đạt giới hạn ảnh tham chiếu.');
+        return;
+      }
+    }
+
+    setError('');
     if (target === 'component') addComponent(url, kind);
     else if (target === 'frameStart') updateUrlList('images', 0, url);
     else if (target === 'frameEnd') updateUrlList('images', 1, url);
@@ -1726,6 +1927,23 @@ export default function StudioPage({
       });
     }
   }
+
+  const handleAgentScript = useCallback(
+    (data: { prompt?: string; shots?: ComposerShot[] }) => {
+      if (data.shots && data.shots.length >= 2 && schema?.fields.multiShots) {
+        setMultiShotEnabled(true);
+        setSelections((s) => ({
+          ...s,
+          shots: data.shots,
+          prompt: data.shots!.map((x) => x.prompt.trim()).filter(Boolean).join(' · '),
+        }));
+      } else if (data.prompt?.trim()) {
+        setSelections((s) => ({ ...s, prompt: data.prompt!.trim() }));
+        if (!schema?.fields.multiShots) setMultiShotEnabled(false);
+      }
+    },
+    [schema],
+  );
 
   async function generateShotsFromBrief() {
     const source = aiBrief.trim() || selections.prompt?.trim() || '';
@@ -1821,7 +2039,7 @@ export default function StudioPage({
         style={{ gridTemplateColumns: `${sideWidth}px 6px 1fr` }}
       >
         <aside
-          className="composer-side"
+          className={`composer-side${isVideoAgentView ? ' composer-side-agent' : ''}`}
           onPaste={(e) => {
             const file = [...(e.clipboardData?.files ?? [])][0];
             if (!file) return;
@@ -1849,12 +2067,14 @@ export default function StudioPage({
             <button
               type="button"
               className="composer-back"
-              aria-label="Quay lại"
+              aria-label={t('composer.back')}
               onClick={() => navigate(-1)}
             >
               <ChevronLeft size={16} />
             </button>
-            <span className="composer-title">Tạo {jobTypeLabel(jobType)}</span>
+            <span className="composer-title">
+              {t('composer.create', { type: typeLabel() })}
+            </span>
           </div>
 
           {(jobType === 'video' && (hasMotionModels || hasEditModels)) && (
@@ -1865,7 +2085,7 @@ export default function StudioPage({
                 onClick={() => setVideoMode('create')}
               >
                 <Clapperboard size={14} />
-                Tạo Video
+                {t('composer.video.create')}
               </button>
               {hasMotionModels && (
                 <button
@@ -1874,7 +2094,7 @@ export default function StudioPage({
                   onClick={() => setVideoMode('motion')}
                 >
                   <PersonStanding size={14} />
-                  Motion
+                  {t('composer.video.motion')}
                 </button>
               )}
               {hasEditModels && (
@@ -1884,20 +2104,32 @@ export default function StudioPage({
                   onClick={() => setVideoMode('edit')}
                 >
                   <Film size={14} />
-                  Edit
+                  {t('composer.video.edit')}
                 </button>
               )}
             </div>
           )}
 
-          {isMotionView ? (
+          {isMusicComposer ? (
+            <div className="composer-mode-tabs composer-mode-tabs-2">
+              <button type="button" className="active">
+                {t('composer.music.create')}
+              </button>
+            </div>
+          ) : isEditView ? (
+            <div className="composer-mode-tabs composer-mode-tabs-2">
+              <button type="button" className="active">
+                {t('composer.tab.single')}
+              </button>
+            </div>
+          ) : isTwoTabComposer ? (
             <div className="composer-mode-tabs composer-mode-tabs-2">
               <button
                 type="button"
                 className={composerMode === 'single' ? 'active' : ''}
                 onClick={() => switchComposerMode('single')}
               >
-                Đơn
+                {t('composer.tab.single')}
               </button>
               <button
                 type="button"
@@ -1905,13 +2137,7 @@ export default function StudioPage({
                 onClick={() => switchComposerMode('auto')}
               >
                 <Sparkles size={13} />
-                Auto
-              </button>
-            </div>
-          ) : isEditView ? (
-            <div className="composer-mode-tabs composer-mode-tabs-2">
-              <button type="button" className="active">
-                Đơn
+                {t('composer.tab.auto')}
               </button>
             </div>
           ) : (
@@ -1921,21 +2147,21 @@ export default function StudioPage({
                 className={composerMode === 'single' ? 'active' : ''}
                 onClick={() => switchComposerMode('single')}
               >
-                Đơn
+                {t('composer.tab.single')}
               </button>
               <button
                 type="button"
                 className={composerMode === 'multi' ? 'active' : ''}
                 onClick={() => switchComposerMode('multi')}
               >
-                Multi
+                {t('composer.tab.multi')}
               </button>
               <button
                 type="button"
                 className={composerMode === 'auto' ? 'active' : ''}
                 onClick={() => switchComposerMode('auto')}
               >
-                Auto
+                {t('composer.tab.auto')}
               </button>
               <button
                 type="button"
@@ -1943,14 +2169,40 @@ export default function StudioPage({
                 onClick={() => switchComposerMode('ai')}
               >
                 <Bot size={13} />
-                AI
+                {t('composer.tab.ai')}
               </button>
             </div>
           )}
 
+          {isVideoAgentView ? (
+            <>
+              <div className="composer-field composer-agent-model">
+                <div className="composer-label-row">
+                  <span className="composer-label">{t('composer.model')}</span>
+                </div>
+                <ModelPicker
+                  models={pickerModels}
+                  value={selectedSlug}
+                  onChange={setSelectedSlug}
+                  loading={loadingModels}
+                  motionPricing={isMotionView}
+                  selectionMode={selections.mode || ''}
+                  selectionResolution={selections.resolution || ''}
+                />
+              </div>
+
+              <ComposerVideoAgentChat
+                maxShots={multiShotConfig.maxShots}
+                scriptCount={scriptCount}
+                disabled={submitting}
+                onScriptParsed={handleAgentScript}
+              />
+            </>
+          ) : (
+          <>
           <div className="composer-field">
             <div className="composer-label-row">
-              <span className="composer-label">Model</span>
+              <span className="composer-label">{t('composer.model')}</span>
               {composerMode === 'multi' && (
                 <span className="composer-ref-count">{selectedSlugs.length} đã chọn</span>
               )}
@@ -1970,6 +2222,9 @@ export default function StudioPage({
               multi={composerMode === 'multi'}
               multiValues={selectedSlugs}
               onMultiChange={setSelectedSlugs}
+              motionPricing={isMotionView}
+              selectionMode={selections.mode || ''}
+              selectionResolution={selections.resolution || ''}
             />
           </div>
 
@@ -1981,7 +2236,7 @@ export default function StudioPage({
             <div className="composer-selectors">
               {schema.fields.ratio && (
                 <div className="composer-mini-field">
-                  <span className="composer-label">Tỉ lệ</span>
+                  <span className="composer-label">{t('composer.ratio')}</span>
                   <OptionDropdown
                     icon={<Proportions size={14} />}
                     options={schema.options.ratios}
@@ -1992,7 +2247,7 @@ export default function StudioPage({
               )}
               {schema.fields.mode && (
                 <div className="composer-mini-field">
-                  <span className="composer-label">Chế độ</span>
+                  <span className="composer-label">{t('composer.mode')}</span>
                   <OptionDropdown
                     icon={<SlidersHorizontal size={14} />}
                     options={schema.options.modes}
@@ -2003,7 +2258,7 @@ export default function StudioPage({
               )}
               {schema.fields.resolution && (
                 <div className="composer-mini-field">
-                  <span className="composer-label">Phân giải</span>
+                  <span className="composer-label">{t('composer.resolution')}</span>
                   <OptionDropdown
                     icon={<Monitor size={14} />}
                     options={schema.options.resolutions}
@@ -2014,7 +2269,7 @@ export default function StudioPage({
               )}
               {schema.fields.duration && (
                 <div className="composer-mini-field">
-                  <span className="composer-label">Thời lượng</span>
+                  <span className="composer-label">{t('composer.duration')}</span>
                   <OptionDropdown
                     icon={<Clock size={14} />}
                     options={schema.options.durations}
@@ -2030,81 +2285,29 @@ export default function StudioPage({
             <div className="composer-motion">
               <div className="composer-motion-grid">
                 <div className="composer-motion-box">
-                  <span className="composer-label">Ảnh nhân vật</span>
-                  <label
-                    className="composer-motion-drop"
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const file = e.dataTransfer.files?.[0];
-                      if (file) void ingestMediaFile(file, 'motionChar');
-                    }}
-                  >
-                    <input
-                      type="file"
-                      accept="image/*"
-                      hidden
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) void ingestMediaFile(file, 'motionChar');
-                      }}
-                    />
-                    {selections.images?.[0] ? (
-                      <img
-                        className="composer-motion-preview"
-                        src={selections.images[0]}
-                        alt="nhân vật"
-                      />
-                    ) : (
-                      <>
-                        <span className="composer-dropzone-plus">
-                          <PersonStanding size={18} />
-                        </span>
-                        <span className="composer-dropzone-text">Tải ảnh nhân vật</span>
-                        <span className="composer-dropzone-hint">JPG / PNG, ≥ 1K</span>
-                      </>
-                    )}
-                  </label>
+                  <span className="composer-label">{t('composer.characterImage')}</span>
+                  <ComposerMediaSlot
+                    kind="image"
+                    value={selections.images?.[0]}
+                    onFile={(file) => ingestMediaFile(file, 'motionChar')}
+                    onUrl={(url) => ingestMediaUrl(url, 'motionChar')}
+                    emptyIcon={<PersonStanding size={18} />}
+                    emptyTitle="Tải ảnh nhân vật"
+                    emptyHint="JPG / PNG, ≥ 1K"
+                  />
                 </div>
 
                 <div className="composer-motion-box">
-                  <span className="composer-label">Video tham chiếu</span>
-                  <label
-                    className="composer-motion-drop"
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const file = e.dataTransfer.files?.[0];
-                      if (file) void ingestMediaFile(file, 'motionVideo');
-                    }}
-                  >
-                    <input
-                      type="file"
-                      accept="video/*"
-                      hidden
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) void ingestMediaFile(file, 'motionVideo');
-                      }}
-                    />
-                    {motionVideoUrl ? (
-                      <video
-                        className="composer-motion-preview"
-                        src={motionVideoUrl}
-                        muted
-                        loop
-                        playsInline
-                      />
-                    ) : (
-                      <>
-                        <span className="composer-dropzone-plus">
-                          <Video size={18} />
-                        </span>
-                        <span className="composer-dropzone-text">Tải video động tác</span>
-                        <span className="composer-dropzone-hint">≤ 30s / 50MB, 720p</span>
-                      </>
-                    )}
-                  </label>
+                  <span className="composer-label">{t('composer.refVideo')}</span>
+                  <ComposerMediaSlot
+                    kind="video"
+                    value={motionVideoUrl}
+                    onFile={(file) => ingestMediaFile(file, 'motionVideo')}
+                    onUrl={(url) => ingestMediaUrl(url, 'motionVideo')}
+                    emptyIcon={<Video size={18} />}
+                    emptyTitle="Tải video động tác"
+                    emptyHint="≤ 30s / 50MB, 720p"
+                  />
                 </div>
               </div>
 
@@ -2120,37 +2323,18 @@ export default function StudioPage({
 
           {isEditView && (
             <div className="composer-edit">
-              <span className="composer-label">Video cần sửa</span>
-              <label
+              <span className="composer-label">{t('composer.editVideo')}</span>
+              <ComposerMediaSlot
+                kind="video"
+                value={editVideoUrl}
                 className="composer-edit-drop"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const file = e.dataTransfer.files?.[0];
-                  if (file) void ingestMediaFile(file, 'editVideo');
-                }}
-              >
-                <input
-                  type="file"
-                  accept="video/*"
-                  hidden
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void ingestMediaFile(file, 'editVideo');
-                  }}
-                />
-                {editVideoUrl ? (
-                  <video className="composer-edit-preview" src={editVideoUrl} muted loop playsInline />
-                ) : (
-                  <>
-                    <span className="composer-dropzone-plus">
-                      <Film size={18} />
-                    </span>
-                    <span className="composer-dropzone-text">Tải video nguồn</span>
-                    <span className="composer-dropzone-hint">MP4 / WebM</span>
-                  </>
-                )}
-              </label>
+                previewClassName="composer-edit-preview"
+                onFile={(file) => ingestMediaFile(file, 'editVideo')}
+                onUrl={(url) => ingestMediaUrl(url, 'editVideo')}
+                emptyIcon={<Film size={18} />}
+                emptyTitle="Tải video nguồn"
+                emptyHint="MP4 / WebM"
+              />
               <p className="composer-mp-hint">Mô tả thay đổi bạn muốn (prompt) ở ô bên dưới.</p>
             </div>
           )}
@@ -2179,78 +2363,28 @@ export default function StudioPage({
               {inputView === 'frame' && (
                 <div className="composer-frame-grid">
                   <div className="composer-motion-box">
-                    <span className="composer-label">Ảnh đầu</span>
-                    <label
-                      className="composer-motion-drop"
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        const file = e.dataTransfer.files?.[0];
-                        if (file) void ingestMediaFile(file, 'frameStart');
-                      }}
-                    >
-                      <input
-                        type="file"
-                        accept="image/*"
-                        hidden
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) void ingestMediaFile(file, 'frameStart');
-                        }}
-                      />
-                      {selections.images?.[0] ? (
-                        <img
-                          className="composer-motion-preview"
-                          src={selections.images[0]}
-                          alt="ảnh đầu"
-                        />
-                      ) : (
-                        <>
-                          <span className="composer-dropzone-plus">
-                            <Plus size={18} />
-                          </span>
-                          <span className="composer-dropzone-text">Tự chọn</span>
-                        </>
-                      )}
-                    </label>
+                    <span className="composer-label">{t('composer.frameStart')}</span>
+                    <ComposerMediaSlot
+                      kind="image"
+                      value={selections.images?.[0]}
+                      onFile={(file) => ingestMediaFile(file, 'frameStart')}
+                      onUrl={(url) => ingestMediaUrl(url, 'frameStart')}
+                      emptyIcon={<Plus size={18} />}
+                      emptyTitle="Tự chọn"
+                    />
                   </div>
 
                   {schema?.fields.endFrame && (
                     <div className="composer-motion-box">
-                      <span className="composer-label">Ảnh cuối</span>
-                      <label
-                        className="composer-motion-drop"
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          const file = e.dataTransfer.files?.[0];
-                          if (file) void ingestMediaFile(file, 'frameEnd');
-                        }}
-                      >
-                        <input
-                          type="file"
-                          accept="image/*"
-                          hidden
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) void ingestMediaFile(file, 'frameEnd');
-                          }}
-                        />
-                        {selections.images?.[1] ? (
-                          <img
-                            className="composer-motion-preview"
-                            src={selections.images[1]}
-                            alt="ảnh cuối"
-                          />
-                        ) : (
-                          <>
-                            <span className="composer-dropzone-plus">
-                              <Plus size={18} />
-                            </span>
-                            <span className="composer-dropzone-text">Tự chọn</span>
-                          </>
-                        )}
-                      </label>
+                      <span className="composer-label">{t('composer.frameEnd')}</span>
+                      <ComposerMediaSlot
+                        kind="image"
+                        value={selections.images?.[1]}
+                        onFile={(file) => ingestMediaFile(file, 'frameEnd')}
+                        onUrl={(url) => ingestMediaUrl(url, 'frameEnd')}
+                        emptyIcon={<Plus size={18} />}
+                        emptyTitle="Tự chọn"
+                      />
                     </div>
                   )}
                 </div>
@@ -2260,7 +2394,9 @@ export default function StudioPage({
                 <>
                   <div className="composer-label-row composer-ref-row">
                     <span className="composer-label">
-                      {componentKey === 'references' ? 'Tham chiếu' : 'Nhân vật (subject)'}
+                      {componentKey === 'references'
+                        ? t('composer.references')
+                        : t('composer.subject')}
                     </span>
                     <span className="composer-ref-count">
                       {componentKey === 'references' ? (
@@ -2302,38 +2438,30 @@ export default function StudioPage({
                     >
                       <div className="composer-addmedia-btns">
                         {canAddComponentImage && (
-                          <label className="composer-addmedia-btn" title="Thêm ảnh">
-                            <input
-                              type="file"
-                              accept="image/*"
-                              hidden
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                e.target.value = '';
-                                if (file) void ingestMediaFile(file, 'component');
-                              }}
-                            />
+                          <ComposerMediaPickButton
+                            kind="image"
+                            className="composer-addmedia-btn"
+                            title="Thêm ảnh"
+                            onFile={(file) => ingestMediaFile(file, 'component')}
+                            onUrl={(url) => ingestMediaUrl(url, 'component')}
+                          >
                             <ImageIcon size={18} />
-                          </label>
+                          </ComposerMediaPickButton>
                         )}
                         {canAddComponentVideo && (
-                          <label className="composer-addmedia-btn" title="Thêm video">
-                            <input
-                              type="file"
-                              accept="video/*"
-                              hidden
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                e.target.value = '';
-                                if (file) void ingestMediaFile(file, 'component');
-                              }}
-                            />
+                          <ComposerMediaPickButton
+                            kind="video"
+                            className="composer-addmedia-btn"
+                            title="Thêm video"
+                            onFile={(file) => ingestMediaFile(file, 'component')}
+                            onUrl={(url) => ingestMediaUrl(url, 'component')}
+                          >
                             <Video size={18} />
-                          </label>
+                          </ComposerMediaPickButton>
                         )}
                       </div>
-                      <span className="composer-addmedia-text">Thêm media</span>
-                      <span className="composer-dropzone-hint">Nhấp / Kéo thả / Dán · Ảnh hoặc video</span>
+                      <span className="composer-addmedia-text">{t('composer.addMedia')}</span>
+                      <span className="composer-dropzone-hint">{t('composer.addMediaHint')}</span>
                     </div>
                   )}
 
@@ -2365,7 +2493,7 @@ export default function StudioPage({
           {schema?.fields.text && (
             <div className="composer-field">
               <div className="composer-label-row">
-                <span className="composer-label">Văn bản (TTS)</span>
+                <span className="composer-label">{t('composer.tts')}</span>
                 <div className="composer-desc-tools">
                   <button type="button" aria-label="Xóa" onClick={() => updateSelection('text', '')}>
                     <Trash2 size={14} />
@@ -2384,10 +2512,10 @@ export default function StudioPage({
 
           {schema?.fields.musicName && (
             <div className="composer-field">
-              <span className="composer-label">Tên bài hát</span>
+              <span className="composer-label">{t('composer.songName')}</span>
               <input
                 className="composer-select"
-                placeholder="Tên bài hát…"
+                placeholder={t('composer.songNamePlaceholder')}
                 value={selections.name || ''}
                 onChange={(e) => updateSelection('name', e.target.value)}
               />
@@ -2397,7 +2525,7 @@ export default function StudioPage({
           {composerMode === 'ai' && schema?.fields.prompt && (
             <div className="composer-ai-panel">
               <div className="composer-label-row">
-                <span className="composer-label">Ý tưởng AI</span>
+                <span className="composer-label">{t('composer.aiIdea')}</span>
                 <button
                   type="button"
                   className="composer-enhance"
@@ -2405,20 +2533,20 @@ export default function StudioPage({
                   onClick={() => void generateAiPrompt()}
                 >
                   <Sparkles size={13} />
-                  {enhancingPrompt ? 'Đang sinh…' : 'Sinh prompt'}
+                  {enhancingPrompt ? t('composer.aiGenerating') : t('composer.aiGenerate')}
                 </button>
               </div>
               <textarea
                 className="composer-textarea"
                 rows={3}
-                placeholder="Mô tả ngắn ý tưởng của bạn…"
+                placeholder={t('composer.aiBriefPlaceholder')}
                 value={aiBrief}
                 onChange={(e) => setAiBrief(e.target.value)}
               />
               <p className="composer-mp-hint">
                 {canUseComposerPromptAi()
-                  ? 'AI sẽ mở rộng thành prompt chi tiết (Gommo token hoặc tài khoản app).'
-                  : 'Đăng nhập để dùng AI; hiện dùng mẫu mở rộng cơ bản.'}
+                  ? t('composer.aiHintLoggedIn')
+                  : t('composer.aiHintGuest')}
               </p>
             </div>
           )}
@@ -2429,8 +2557,8 @@ export default function StudioPage({
                 <span className="composer-switch-text">
                   <Sparkles size={14} />
                   <span>
-                    <strong>Multi-Prompt</strong>
-                    <small>Tạo ảnh từ nhiều prompt con trong 1 prompt tổng.</small>
+                    <strong>{t('composer.multiPrompt.title')}</strong>
+                    <small>{t('composer.multiPrompt.desc')}</small>
                   </span>
                 </span>
                 <span className={`composer-switch ${multiPrompt ? 'on' : ''}`}>
@@ -2446,7 +2574,7 @@ export default function StudioPage({
               {multiPrompt && (
                 <div className="composer-multiprompt-body">
                   <div className="composer-mp-field">
-                    <span className="composer-label">Ký tự phân cách Prompt</span>
+                    <span className="composer-label">{t('composer.multiPrompt.separator')}</span>
                     <div className="composer-segment">
                       {['=====', '###', '---', '@@@'].map((sep) => (
                         <button
@@ -2462,16 +2590,17 @@ export default function StudioPage({
                   </div>
 
                   <p className="composer-mp-hint">
-                    Mỗi prompt con ở dưới 1 dòng, cách nhau bằng{' '}
-                    <code>{promptSeparator}</code>. Mỗi prompt tạo 1{' '}
-                    {jobTypeLabel(jobType).toLowerCase()}.
+                    {t('composer.multiPrompt.hint', {
+                      sep: promptSeparator,
+                      type: typeLabel().toLowerCase(),
+                    })}
                   </p>
 
                   <label className="composer-switch-row">
                     <span className="composer-switch-text">
                       <span>
-                        <strong>Mỗi prompt 1 tham chiếu</strong>
-                        <small>Chỉ dùng 1 ảnh tham chiếu cho mỗi prompt.</small>
+                        <strong>{t('composer.perPromptRef.title')}</strong>
+                        <small>{t('composer.perPromptRef.desc')}</small>
                       </span>
                     </span>
                     <span className={`composer-switch ${perPromptRef ? 'on' : ''}`}>
@@ -2487,12 +2616,12 @@ export default function StudioPage({
                   {perPromptRef && (
                     <>
                       <div className="composer-mp-field">
-                        <span className="composer-label">Quy cách chọn</span>
+                        <span className="composer-label">{t('composer.refSelect.label')}</span>
                         <div className="composer-segment">
                           {([
-                            ['fixed', 'Cố định 1'],
-                            ['sequential', 'Chọn theo thứ tự'],
-                            ['random', 'Chọn ngẫu nhiên'],
+                            ['fixed', t('composer.refSelect.fixed')],
+                            ['sequential', t('composer.refSelect.sequential')],
+                            ['random', t('composer.refSelect.random')],
                           ] as const).map(([val, label]) => (
                             <button
                               key={val}
@@ -2508,30 +2637,35 @@ export default function StudioPage({
 
                       <div className="composer-mp-field">
                         <div className="composer-label-row">
-                          <span className="composer-label">Ảnh tham chiếu: {multiRefs.length}</span>
-                          <label className="composer-mp-addref">
-                            <Plus size={13} /> Thêm ảnh
-                            <input
-                              type="file"
-                              accept="image/*"
-                              hidden
-                              multiple
-                              onChange={async (e) => {
-                                const files = Array.from(e.target.files || []);
-                                e.target.value = '';
-                                for (const f of files) {
-                                  const rules = getUploadRules(currentModel, 'referenceImage');
-                                  const err = await validateMediaFile(f, rules, 'image');
-                                  if (err) {
-                                    setError(err);
-                                    break;
-                                  }
-                                  const url = await handleUpload(f, 'image');
-                                  if (url) setMultiRefs((prev) => [...prev, url]);
-                                }
-                              }}
-                            />
-                          </label>
+                          <span className="composer-label">
+                            {t('composer.refImages', { count: multiRefs.length })}
+                          </span>
+                          <ComposerMediaPickButton
+                            kind="image"
+                            className="composer-mp-addref"
+                            multiple
+                            onFile={async (f) => {
+                              const rules = getUploadRules(currentModel, 'referenceImage');
+                              const err = await validateMediaFile(f, rules, 'image');
+                              if (err) {
+                                setError(err);
+                                return;
+                              }
+                              const url = await handleUpload(f, 'image');
+                              if (url) setMultiRefs((prev) => [...prev, url]);
+                            }}
+                            onUrl={(url) => {
+                              const err = validateMediaUrl(url, 'image');
+                              if (err) {
+                                setError(err);
+                                return;
+                              }
+                              setError('');
+                              setMultiRefs((prev) => [...prev, url.trim()]);
+                            }}
+                          >
+                            <Plus size={13} /> {t('composer.addImage')}
+                          </ComposerMediaPickButton>
                         </div>
                         <div className="composer-mp-refgrid">
                           {multiRefs.map((url, i) => (
@@ -2555,7 +2689,7 @@ export default function StudioPage({
 
                   <div className="composer-mp-field">
                     <div className="composer-label-row">
-                      <span className="composer-label">Giới hạn luồng tạo</span>
+                      <span className="composer-label">{t('composer.concurrency.label')}</span>
                       <div className="composer-qty">
                         <button
                           type="button"
@@ -2572,7 +2706,7 @@ export default function StudioPage({
                         </button>
                       </div>
                     </div>
-                    <p className="composer-mp-hint">Số ảnh tạo cùng lúc (giảm nếu mạng yếu).</p>
+                    <p className="composer-mp-hint">{t('composer.concurrency.hint')}</p>
                   </div>
                 </div>
               )}
@@ -2585,10 +2719,12 @@ export default function StudioPage({
                 <span className="composer-switch-text">
                   <Clapperboard size={14} />
                   <span>
-                    <strong>Multi-Shot</strong>
+                    <strong>{t('composer.multiShot.title')}</strong>
                     <small>
-                      Nhiều cảnh trong 1 video ({multiShotConfig.minShots}–{multiShotConfig.maxShots}{' '}
-                      cảnh).
+                      {t('composer.multiShot.desc', {
+                        min: multiShotConfig.minShots,
+                        max: multiShotConfig.maxShots,
+                      })}
                     </small>
                   </span>
                 </span>
@@ -2605,7 +2741,7 @@ export default function StudioPage({
               {multiShotEnabled && (
                 <div className="composer-shots-panel">
                   <div className="composer-label-row">
-                    <span className="composer-label">Kịch bản / cảnh</span>
+                    <span className="composer-label">{t('composer.shots.label')}</span>
                     <div className="composer-shots-tools">
                       <button
                         type="button"
@@ -2614,22 +2750,26 @@ export default function StudioPage({
                         onClick={() => void generateShotsFromBrief()}
                       >
                         <Sparkles size={13} />
-                        {enhancingPrompt ? 'Đang sinh…' : 'Sinh kịch bản'}
+                        {enhancingPrompt
+                          ? t('composer.shots.generating')
+                          : t('composer.shots.generate')}
                       </button>
                       {(selections.shots || []).length < multiShotConfig.maxShots && (
                         <button type="button" className="composer-shot-add" onClick={addShotRow}>
-                          <Plus size={14} /> Thêm cảnh
+                          <Plus size={14} /> {t('composer.shots.add')}
                         </button>
                       )}
                     </div>
                   </div>
                   {(selections.shots || []).map((shot, i) => (
                     <div key={shot.id} className="composer-shot-row">
-                      <span className="composer-shot-index">Cảnh {i + 1}</span>
+                      <span className="composer-shot-index">
+                        {t('composer.shot.index', { n: i + 1 })}
+                      </span>
                       <textarea
                         className="composer-textarea composer-shot-input"
                         rows={2}
-                        placeholder="Mô tả cảnh…"
+                        placeholder={t('composer.shot.placeholder')}
                         value={shot.prompt}
                         onChange={(e) => updateShot(shot.id, { prompt: e.target.value })}
                       />
@@ -2659,26 +2799,26 @@ export default function StudioPage({
                       <span className="composer-prompt-bar" />
                       PROMPT
                       <span className="composer-script-badge">
-                        {scriptCount} Kịch bản
+                        {t('composer.promptBadge', { count: scriptCount })}
                       </span>
                     </>
                   ) : schema.fields.musicName ? (
-                    'Phong cách / mô tả'
+                    t('composer.musicStyle')
                   ) : (
-                    'Mô tả'
+                    t('composer.prompt')
                   )}
                 </span>
                 <div className="composer-desc-tools">
                   <button
                     type="button"
-                    aria-label="Xóa mô tả"
+                    aria-label={t('composer.clearPrompt')}
                     onClick={() => updateSelection('prompt', '')}
                   >
                     <Trash2 size={14} />
                   </button>
                   <button
                     type="button"
-                    aria-label="Dán"
+                    aria-label={t('composer.paste')}
                     onClick={async () => {
                       try {
                         const text = await navigator.clipboard.readText();
@@ -2692,7 +2832,7 @@ export default function StudioPage({
                   </button>
                   <button
                     type="button"
-                    aria-label="Mở rộng"
+                    aria-label={t('composer.expand')}
                     onClick={() => setPromptModalOpen(true)}
                   >
                     <Maximize2 size={14} />
@@ -2724,12 +2864,12 @@ export default function StudioPage({
             </div>
           )}
 
-          {schema?.fields.prompt && (
+          {schema?.fields.prompt && !isMusicComposer && (
             <label className="composer-switch-row composer-normalize">
               <span className="composer-switch-text">
                 <Wand2 size={14} />
                 <span>
-                  <strong>Chuẩn hóa</strong>
+                  <strong>{t('composer.normalize')}</strong>
                   <small>
                     {canUseComposerPromptAi()
                       ? 'Tự động chuẩn hóa prompt bằng AI trước khi tạo.'
@@ -2747,12 +2887,59 @@ export default function StudioPage({
               </span>
             </label>
           )}
+          </>
+          )}
+
+          {isMotionView && (
+            <div className="composer-motion-breakdown">
+              <span className="composer-motion-breakdown-formula">
+                {t('composer.motion.formula', { count: scriptCount })}{' '}
+                {motionDurationLoading
+                  ? '…'
+                  : motionBilledSeconds > 0
+                    ? motionBilledSeconds
+                    : '—'}
+              </span>
+              {motionPromoPercent > 0 && (
+                <span className="composer-motion-promo">-{motionPromoPercent}%</span>
+              )}
+              <span className="composer-motion-breakdown-prices">
+                {motionGrossTotal > 0 && motionPromoPercent > 0 && (
+                  <span className="composer-motion-gross">
+                    {motionGrossTotal.toLocaleString('vi-VN')}
+                  </span>
+                )}
+                <span className="composer-motion-breakdown-total">
+                  {motionTotalCost > 0
+                    ? motionTotalCost.toLocaleString('vi-VN')
+                    : motionRatePerSec > 0
+                      ? '—'
+                      : '0'}
+                </span>
+              </span>
+              {motionVideoUrl && !motionDurationLoading && motionVideoDuration <= 0 && (
+                <p className="composer-mp-hint">Không đọc được thời lượng video — giá tổng có thể sai.</p>
+              )}
+              {!motionVideoUrl && motionRatePerSec > 0 && (
+                <p className="composer-mp-hint">
+                  Giá model: {motionRatePerSec.toLocaleString('vi-VN')}/s — tải video tham chiếu để tính tổng.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="composer-cost">
             <span className="composer-coin">
-              <Sparkles size={13} /> {composerMode === 'multi' ? submitTotalCost : composerCost || 0}
+              <Sparkles size={13} />
+              {isMotionView ? (
+                <>
+                  {motionRatePerSec > 0 ? `${motionRatePerSec.toLocaleString('vi-VN')}/s` : '0'}
+                </>
+              ) : (
+                composerMode === 'multi' ? submitTotalCost : composerCost || 0
+              )}
             </span>
-            {!isMotionView && !isEditView && composerMode !== 'multi' && (
+            {!isMotionView && !isEditView && !isMusicComposer && composerMode !== 'multi' && (
               <div className="composer-qty">
                 <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
                 <span>{qty}</span>
@@ -2760,7 +2947,14 @@ export default function StudioPage({
               </div>
             )}
             <span className="composer-total">
-              <Sparkles size={13} /> {submitTotalCost}
+              <Sparkles size={13} />{' '}
+              {isMotionView
+                ? motionTotalCost > 0
+                  ? submitTotalCost.toLocaleString('vi-VN')
+                  : motionGrossTotal > 0 && motionPromoPercent > 0
+                    ? motionGrossTotal.toLocaleString('vi-VN')
+                    : '—'
+                : submitTotalCost}
             </span>
           </div>
 
@@ -2774,7 +2968,9 @@ export default function StudioPage({
             onClick={(e) => void handleSubmit(e as unknown as FormEvent)}
           >
             <Wand2 size={16} />
-            {submitting ? 'Đang tạo…' : `Tạo ${jobTypeLabel(jobType)}`}
+            {submitting
+              ? t('composer.submitting')
+              : t('composer.submit', { type: typeLabel() })}
           </button>
         </aside>
 
@@ -2783,16 +2979,16 @@ export default function StudioPage({
           onPointerDown={startResize}
           role="separator"
           aria-orientation="vertical"
-          aria-label="Kéo để chỉnh độ rộng"
+          aria-label={t('composer.resizer')}
         />
 
         <section className="composer-main">
           <div className="composer-toolbar">
             <div className="composer-toolbar-tabs">
               {([
-                ['current', 'Hiện tại'],
-                ['history', 'Lịch sử'],
-                ['folder', 'Thư viện'],
+                ['current', t('composer.gallery.current')],
+                ['history', t('composer.gallery.history')],
+                ['folder', t('composer.gallery.folder')],
               ] as const).map(([key, label]) => (
                 <button
                   key={key}
@@ -2803,7 +2999,9 @@ export default function StudioPage({
                   {label}
                 </button>
               ))}
-              <span className="composer-toolbar-count">{displayedResults.length} tệp</span>
+              <span className="composer-toolbar-count">
+                {t('composer.gallery.files', { count: displayedResults.length })}
+              </span>
             </div>
             <div className="composer-toolbar-right">
               <label className="composer-select-all">
@@ -2813,7 +3011,7 @@ export default function StudioPage({
                   disabled={!visibleIds.length}
                   onChange={toggleSelectAll}
                 />
-                <span>Chọn tất cả các tệp</span>
+                <span>{t('composer.gallery.selectAll')}</span>
               </label>
               <label className="composer-zoom">
                 <input
@@ -2829,7 +3027,9 @@ export default function StudioPage({
 
           {selectedIds.size > 0 && (
             <div className="composer-batchbar">
-              <span className="composer-batch-count">Đã chọn {selectedIds.size}</span>
+              <span className="composer-batch-count">
+                {t('composer.batch.selected', { count: selectedIds.size })}
+              </span>
               <div className="composer-batch-actions">
                 {jobType === 'image' && (
                   <button
@@ -2839,7 +3039,7 @@ export default function StudioPage({
                       clearSelection();
                     }}
                   >
-                    <Clapperboard size={14} /> Tạo video auto mode
+                    <Clapperboard size={14} /> {t('composer.createVideoAuto')}
                   </button>
                 )}
                 <button type="button" onClick={downloadSelected}>
@@ -2861,7 +3061,7 @@ export default function StudioPage({
             <p className="muted composer-empty">
               {mainTab === 'folder'
                 ? 'Chưa có tệp nào được lưu vào thư viện.'
-                : `Chưa có kết quả. Tạo ${jobTypeLabel(jobType)} đầu tiên ở cột bên trái.`}
+                : t('composer.gallery.empty', { type: typeLabel() })}
             </p>
           ) : (
             <div className="composer-results">
@@ -3016,7 +3216,7 @@ export default function StudioPage({
     <div className="page">
       <div className="page-head">
         <p className="kicker">AI Studio</p>
-        <h1>Tạo {jobTypeLabel(jobType)}</h1>
+        <h1>{t('composer.create', { type: typeLabel() })}</h1>
         <p className="lead">
           {useBackend ? (
             <>Credit khả dụng: <strong>{credits.toLocaleString('vi-VN')}</strong></>
@@ -3210,8 +3410,10 @@ export default function StudioPage({
                 />
               )}
               <div className="actions">
-                <button type="submit" className="btn primary" disabled={submitting}>
-                  {submitting ? 'Đang chạy…' : `Tạo ${jobTypeLabel(jobType)}`}
+                <button type="submit" className="btn primary btn-job" disabled={submitting}>
+                  {submitting
+                    ? t('composer.submitting')
+                    : t('composer.submit', { type: typeLabel() })}
                 </button>
                 {submitting && (
                   <button type="button" className="btn secondary" onClick={() => abortRef.current?.abort()}>

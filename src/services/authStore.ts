@@ -1,6 +1,7 @@
 import { GommoClient } from './api';
 import { fetchUpstreamMe, type UpstreamMeResponse } from './upstreamMe';
-import { saveSettings } from './settingsStore';
+import { GOMMO_CHAT_CONFIG } from './gommoChatConfig';
+import { loadSettings, normalizeDomain, saveSettings } from './settingsStore';
 import { clearSession, isBackendLoggedIn, loadSession } from './session';
 
 const SESSION_KEY = 'gommo_session';
@@ -20,11 +21,34 @@ export interface DisplayUser {
   username: string | null;
 }
 
+function pickProjectId(id?: string | null): string | null {
+  const trimmed = id?.trim();
+  if (!trimmed || trimmed === DEFAULT_PROJECT_ID) return null;
+  return trimmed;
+}
+
+/** project_id thật — tránh gửi `default` lên Gommo audio API. */
+export function resolveProjectId(override?: string): string {
+  return (
+    pickProjectId(override) ||
+    pickProjectId(loadAuth()?.projectId) ||
+    pickProjectId(loadSettings().projectId) ||
+    pickProjectId(GOMMO_CHAT_CONFIG.projectId) ||
+    DEFAULT_PROJECT_ID
+  );
+}
+
 export function loadAuth(): AuthState | null {
   const raw = localStorage.getItem(SESSION_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as AuthState;
+    const state = JSON.parse(raw) as AuthState;
+    const domain = normalizeDomain(state.domain);
+    if (domain !== state.domain) {
+      state.domain = domain;
+      saveAuth(state);
+    }
+    return state;
   } catch {
     return null;
   }
@@ -100,11 +124,11 @@ export async function loginWithGommoToken(
   accessToken: string,
   domain: string,
 ): Promise<AuthState> {
-  const upstream_me = await fetchUpstreamMe(accessToken, domain);
+  const upstream_me = await fetchUpstreamMe(accessToken, normalizeDomain(domain));
   const state: AuthState = {
     access_token: accessToken.trim(),
-    domain: domain.trim(),
-    projectId: DEFAULT_PROJECT_ID,
+    domain: normalizeDomain(domain),
+    projectId: resolveProjectId(loadSettings().projectId),
     upstream_me,
   };
   saveAuth(state);

@@ -1,4 +1,5 @@
 import { getCreditsAi, getUpstreamMe } from '../../services/authStore';
+import { APP_SITE_URL } from '../../services/settingsStore';
 
 export default function AccountSubscriptionPage() {
   const me = getUpstreamMe();
@@ -20,7 +21,7 @@ export default function AccountSubscriptionPage() {
           <strong>{credits.toLocaleString('vi-VN')}</strong>
         </div>
         <a
-          href="https://79ai.net/pricing"
+          href={`${APP_SITE_URL}/pricing`}
           target="_blank"
           rel="noreferrer"
           className="btn primary profile-upgrade-btn"

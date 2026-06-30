@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { register } from '../services/backendApi';
 import { saveSession } from '../services/session';
 import { loginWithGommoToken } from '../services/authStore';
+import { DEFAULT_DOMAIN } from '../services/settingsStore';
 import GoogleSignInButton from '../components/GoogleSignInButton';
 
 export default function RegisterPage() {
@@ -28,11 +29,10 @@ export default function RegisterPage() {
         password,
         name: name.trim() || undefined,
         phone: phone.trim(),
-        domain: '79ai.net',
+        domain: DEFAULT_DOMAIN,
       });
       if (auth.access_token) {
-        // Đăng ký qua Gommo → lưu session Gommo để đọc thẳng tài khoản + credit upstream.
-        await loginWithGommoToken(auth.access_token, auth.domain || '79ai.net');
+        await loginWithGommoToken(auth.access_token, auth.domain || DEFAULT_DOMAIN);
       } else {
         saveSession({ token: auth.token, user: auth.user, balance: auth.balance });
       }

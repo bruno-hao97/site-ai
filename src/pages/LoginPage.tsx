@@ -5,6 +5,7 @@ import { login } from '../services/backendApi';
 import { saveSession } from '../services/session';
 import { loginWithGommoToken } from '../services/authStore';
 import { UpstreamMeError } from '../services/upstreamMe';
+import { APP_SITE_URL, DEFAULT_DOMAIN } from '../services/settingsStore';
 import GoogleSignInButton from '../components/GoogleSignInButton';
 
 type Step = 'menu' | 'account' | 'token';
@@ -19,7 +20,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   const [accessToken, setAccessToken] = useState('');
-  const [domain, setDomain] = useState('79ai.net');
   const [tokenLoading, setTokenLoading] = useState(false);
 
   function goStep(next: Step) {
@@ -32,12 +32,10 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      const auth = await login({ email, password, domain: '79ai.net' });
+      const auth = await login({ email, password, domain: DEFAULT_DOMAIN });
       if (auth.access_token) {
-        // Đăng nhập qua Gommo → lưu session Gommo để đọc thẳng tài khoản + credit upstream.
-        await loginWithGommoToken(auth.access_token, auth.domain || '79ai.net');
+        await loginWithGommoToken(auth.access_token, auth.domain || DEFAULT_DOMAIN);
       } else {
-        // Tài khoản local (fallback) → giữ session JWT backend.
         saveSession({ token: auth.token, user: auth.user, balance: auth.balance });
       }
       navigate('/home');
@@ -53,7 +51,7 @@ export default function LoginPage() {
     setTokenLoading(true);
     setError('');
     try {
-      await loginWithGommoToken(accessToken, domain.trim() || '79ai.net');
+      await loginWithGommoToken(accessToken, DEFAULT_DOMAIN);
       navigate('/home');
     } catch (err) {
       setError(err instanceof UpstreamMeError || err instanceof Error ? err.message : String(err));
@@ -186,13 +184,11 @@ export default function LoginPage() {
                   />
                 </span>
               </label>
-              <label className="field">
-                <span className="label">Domain</span>
-                <input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="79ai.net" />
-              </label>
               <p className="lead sm">
                 Lấy Access Token tại Account Settings trên{' '}
-                <a href="https://79ai.net/settings/tokens" target="_blank" rel="noreferrer">79ai.net</a>.
+                <a href={`${APP_SITE_URL}/settings/tokens`} target="_blank" rel="noreferrer">
+                  {DEFAULT_DOMAIN}
+                </a>.
               </p>
               {error && <p className="error">{error}</p>}
               <button type="submit" className="btn auth-submit" disabled={tokenLoading}>

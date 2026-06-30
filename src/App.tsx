@@ -27,6 +27,7 @@ import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import StudioPage from './pages/StudioPage';
+import AudioPage from './pages/AudioPage';
 import ProfilePage from './pages/ProfilePage';
 import SettingsPage from './pages/SettingsPage';
 import SettingsTokensPage from './pages/SettingsTokensPage';
@@ -42,22 +43,24 @@ import AccountPromoPage from './pages/account/AccountPromoPage';
 import AccountSubscriptionPage from './pages/account/AccountSubscriptionPage';
 import AccountTransferPage from './pages/account/AccountTransferPage';
 import AccountTransactionsPage from './pages/account/AccountTransactionsPage';
+import { useLocale } from './i18n';
+import type { TranslationKey } from './i18n';
+import { APP_SITE_URL } from './services/settingsStore';
 
-const MAIN_NAV = [
-  { to: '/home', label: 'Home' },
-  { to: '/explore', label: 'Explore' },
-  { to: '/projects', label: 'Dự án' },
-  { to: '/image', label: 'Image' },
-  { to: '/video', label: 'Video' },
-  { to: '/audio', label: 'Audio' },
-  { to: '/music', label: 'Music' },
-  { to: '/workflow', label: 'Workflow' },
-] as const;
+const MAIN_NAV: { to: string; labelKey: TranslationKey }[] = [
+  { to: '/home', labelKey: 'nav.home' },
+  { to: '/explore', labelKey: 'nav.explore' },
+  { to: '/projects', labelKey: 'nav.projects' },
+  { to: '/image', labelKey: 'nav.image' },
+  { to: '/video', labelKey: 'nav.video' },
+  { to: '/audio', labelKey: 'nav.audio' },
+  { to: '/music', labelKey: 'nav.music' },
+  { to: '/workflow', labelKey: 'nav.workflow' },
+];
 
 const STUDIO_NAV: Record<string, JobType> = {
   '/image': 'image',
   '/video': 'video',
-  '/audio': 'tts',
   '/music': 'music',
 };
 
@@ -67,6 +70,7 @@ function StudioHistoryRedirect() {
 }
 
 function AppHeader() {
+  const { t, locale, toggleLocale } = useLocale();
   const [credits, setCredits] = useState(getCreditsAi());
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const loggedIn = isLoggedIn();
@@ -112,7 +116,7 @@ function AppHeader() {
           <button
             type="button"
             className="nav-toggle"
-            aria-label="Mở menu"
+            aria-label={t('header.openMenu')}
             aria-expanded={mobileNavOpen}
             onClick={() => setMobileNavOpen((v) => !v)}
           >
@@ -129,7 +133,7 @@ function AppHeader() {
                   to={item.to}
                   className={({ isActive }) => `nav-main-link ${isActive ? 'active' : ''}`}
                 >
-                  {item.label}
+                  {t(item.labelKey)}
                 </NavLink>
               ))}
             </nav>
@@ -141,19 +145,24 @@ function AppHeader() {
               />
             )}
             <div className="header-meta">
-              <button type="button" className="lang-pill">
-                <Globe size={14} /> VI
+              <button
+                type="button"
+                className="lang-pill"
+                aria-label={t('header.switchLang')}
+                onClick={toggleLocale}
+              >
+                <Globe size={14} /> {locale === 'vi' ? 'VI' : 'EN'}
               </button>
               <a
-                href="https://79ai.net/pricing"
+                href={`${APP_SITE_URL}/pricing`}
                 target="_blank"
                 rel="noreferrer"
                 className="price-pill"
               >
-                <Coins size={15} /> Bảng giá
+                <Coins size={15} /> {t('header.pricing')}
               </a>
               <div className="header-balance">
-                <span className="header-balance-label">Số dư</span>
+                <span className="header-balance-label">{t('header.balance')}</span>
                 <span className="header-credit-pill">
                   {credits.toLocaleString('vi-VN')}
                 </span>
@@ -163,7 +172,7 @@ function AppHeader() {
           </>
         ) : (
           <nav className="nav">
-            <Link to="/login">Đăng nhập</Link>
+            <Link to="/login">{t('header.login')}</Link>
           </nav>
         )}
       </div>
@@ -176,7 +185,10 @@ function AppShell() {
   const BARE_PAGES = ['/', '/login', '/register', '/forgot-password', '/reset-password'];
   const isBarePage = BARE_PAGES.includes(location.pathname);
   const isWorkflow = location.pathname === '/workflow';
-  const isFullBleed = location.pathname in STUDIO_NAV || isWorkflow;
+  const isFullBleed =
+    location.pathname in STUDIO_NAV ||
+    location.pathname === '/audio' ||
+    isWorkflow;
   const hideHeader = isBarePage || isWorkflow;
   // Quick Chat: hiện trên mọi page sau đăng nhập, trừ bare pages và /workflow (đã có Workflow Agent).
   const showQuickChat = isLoggedIn() && !isBarePage && !isWorkflow;
@@ -198,6 +210,7 @@ function AppShell() {
             <Route path="/explore" element={<ExplorePage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/workflow" element={<WorkflowPage />} />
+            <Route path="/audio" element={<AudioPage />} />
             {Object.entries(STUDIO_NAV).map(([path, type]) => (
               <Route
                 key={path}
@@ -207,7 +220,7 @@ function AppShell() {
                 }
               />
             ))}
-            <Route path="/app" element={<StudioPage />} />
+            <Route path="/app" element={<Navigate to="/image" replace />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/playground" element={<ApiPlaygroundPage />} />
             <Route path="/settings" element={<SettingsPage />} />

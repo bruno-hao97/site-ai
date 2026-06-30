@@ -90,7 +90,7 @@ export function getUpstreamPublicInfo(userId: string): {
   };
 }
 
-const DOMAIN_CANDIDATES = ['vmedia.ai', '79ai.net', 'umm.ai.vn'];
+const DOMAIN_CANDIDATES = ['vmedia.ai', 'umm.ai.vn'];
 
 export async function resolveValidContext(
   accessToken: string,

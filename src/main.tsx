@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import App from './App';
+import { LanguageProvider } from './i18n';
 import './styles/tailwind.css';
 import './styles/app.css';
 import './services/themeStore';
@@ -13,7 +14,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <GoogleOAuthProvider clientId={googleClientId}>
       <BrowserRouter>
-        <App />
+        <LanguageProvider>
+          <App />
+        </LanguageProvider>
       </BrowserRouter>
     </GoogleOAuthProvider>
   </StrictMode>,

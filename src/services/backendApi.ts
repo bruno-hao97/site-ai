@@ -427,6 +427,9 @@ export interface DashboardStats {
     jobs_by_day: Array<{ date: string; jobs: number; success: number; failed: number }>;
     credits_by_day: Array<{ date: string; charged: number; refunded: number; net: number }>;
   };
+  /** Số ngày trung bình mỗi cột biểu đồ (10 cột cố định). */
+  chart_bucket_days?: number;
+  chart_column_count?: number;
   recent_jobs: Job[];
   recent_transactions: CreditTransaction[];
 }
@@ -461,5 +464,15 @@ export async function composerPromptViaBackend(
   return request('/composer/prompt', {
     method: 'POST',
     body: JSON.stringify({ action, text, jobType }),
+  });
+}
+
+export async function composerChatViaBackend(
+  message: string,
+  history: Array<{ role: 'user' | 'model'; text: string }>,
+): Promise<{ text: string }> {
+  return request('/composer/chat', {
+    method: 'POST',
+    body: JSON.stringify({ message, history }),
   });
 }

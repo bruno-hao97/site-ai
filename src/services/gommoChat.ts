@@ -1,4 +1,5 @@
 import { loadAuth } from './authStore';
+import { DEFAULT_DOMAIN } from './settingsStore';
 import { GOMMO_CHAT_CONFIG, type GommoChatConfig } from './gommoChatConfig';
 
 export interface ChatTurn {
@@ -84,7 +85,7 @@ export async function askGommo(userText: string, opts: AskOptions): Promise<stri
   }
   const cfg: GommoChatConfig = { ...GOMMO_CHAT_CONFIG, ...opts.config };
   const token = auth.access_token;
-  const domain = auth.domain || '79ai.net';
+  const domain = auth.domain || DEFAULT_DOMAIN;
 
   const userMessageId = uuid();
   const assistantMessageId = uuid();

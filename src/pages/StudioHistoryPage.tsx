@@ -12,7 +12,7 @@ import {
   type HistoryEntry,
   type HistoryType,
 } from '../services/historyStore';
-import { REUSABLE_JOB_TYPES } from '../constants/studioTypes';
+import { REUSABLE_JOB_TYPES, studioRouteForType } from '../constants/studioTypes';
 import type { JobType } from '../services/api';
 
 function formatTime(iso: string): string {
@@ -90,7 +90,7 @@ export default function StudioHistoryPage() {
   function applyReuse(entry: HistoryEntry) {
     const t = entry.type as JobType;
     if (!REUSABLE_JOB_TYPES.includes(t)) return;
-    navigate('/app', {
+    navigate(studioRouteForType(t), {
       state: {
         reuseHistory: {
           type: t,
@@ -146,7 +146,7 @@ export default function StudioHistoryPage() {
         <div className="hist-empty panel">
           <p>Chưa có lịch sử{activeType ? ` ${typeLabel(activeType)}` : ''}.</p>
           <p className="muted">
-            Tạo nội dung tại <Link to="/app">Studio</Link> — khi job thành công, kết quả lưu tự động.
+            Tạo nội dung tại <Link to="/image">Studio</Link> — khi job thành công, kết quả lưu tự động.
           </p>
         </div>
       ) : (
