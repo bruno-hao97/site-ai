@@ -1,6 +1,5 @@
 import type { Edge, Node } from '@xyflow/react';
-import { loadAuth } from './authStore';
-import { loadSession } from './session';
+import { authUserKey } from './authStore';
 import { loadWorkflow } from './workflowStore';
 
 export interface WorkflowTab {
@@ -21,12 +20,7 @@ export interface TabsState {
 const EVENT = 'wf-tabs:updated';
 
 function userKey(): string {
-  const auth = loadAuth();
-  const id = auth?.upstream_me?.userInfo?.id_base || auth?.upstream_me?.userInfo?.email;
-  if (id) return id;
-  const session = loadSession();
-  if (session?.user?.email) return session.user.email;
-  return 'anon';
+  return authUserKey();
 }
 
 function tabsKey(): string {

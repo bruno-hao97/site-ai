@@ -1,8 +1,6 @@
-import { composerChatViaBackend } from './backendApi';
 import { parseShotsFromText, type ComposerShot } from './composerShots';
 import { canUseComposerPromptAi } from './composerPromptAi';
 import { askGommo, isGommoChatConfigured, type ChatTurn } from './gommoChat';
-import { isBackendLoggedIn } from './session';
 
 export const VIDEO_AGENT_WELCOME =
   'Tôi là **Video Agent** (Gemini). Hãy mô tả ý tưởng video — tôi sẽ phân tích và soạn **kịch bản / prompt** (1 cảnh hoặc nhiều cảnh).\n\n' +
@@ -62,29 +60,20 @@ export async function askVideoAgent(
   const text = message.trim();
   if (!text) return '';
 
-  if (isGommoChatConfigured()) {
-    return askGommo(text, {
-      history,
-      firstTurn: opts.firstTurn ?? history.length === 0,
-      sessionId: opts.sessionId,
-      signal: opts.signal,
-      onDelta: opts.onDelta,
-      config: {
-        systemPrompt: VIDEO_AGENT_SYSTEM,
-        persistHistory: false,
-        timeoutMs: 120_000,
-      },
-    });
+  if (!isGommoChatConfigured()) {
+    throw new Error('Cần đăng nhập Gommo để dùng Video Agent.');
   }
 
-  if (isBackendLoggedIn()) {
-    const { text: reply } = await composerChatViaBackend(
-      text,
-      history.map((h) => ({ role: h.role, text: h.text })),
-    );
-    opts.onDelta?.(reply);
-    return reply;
-  }
-
-  throw new Error('Cần đăng nhập (Gommo token hoặc tài khoản app) để dùng Video Agent.');
+  return askGommo(text, {
+    history,
+    firstTurn: opts.firstTurn ?? history.length === 0,
+    sessionId: opts.sessionId,
+    signal: opts.signal,
+    onDelta: opts.onDelta,
+    config: {
+      systemPrompt: VIDEO_AGENT_SYSTEM,
+      persistHistory: false,
+      timeoutMs: 120_000,
+    },
+  });
 }

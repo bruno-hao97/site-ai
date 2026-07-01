@@ -1,8 +1,10 @@
 import { DEFAULT_DOMAIN } from './settingsStore';
+import { gommoDeviceFields } from './gommoDevice';
 
-export const BASE_URL = 'https://v2.api.gommo.net';
+/** Prefix /v2 = cùng origin → proxy server forward tới v2.api.gommo.net (che URL). */
+export const BASE_URL = '/v2';
 
-export type JobType = 'image' | 'video' | 'tts' | 'music' | 'avatar-lipsync';
+export type JobType = 'image' | 'video' | 'tts' | 'music' | 'avatar-lipsync' | 'image-upscale';
 export type PollMedia = 'image' | 'video' | 'music';
 
 export const POLL_MEDIA: Record<JobType, PollMedia | null> = {
@@ -11,6 +13,7 @@ export const POLL_MEDIA: Record<JobType, PollMedia | null> = {
   tts: null,
   music: 'music',
   'avatar-lipsync': 'video',
+  'image-upscale': 'image',
 };
 
 export interface GommoEnvelope<T = Record<string, unknown>> {
@@ -222,8 +225,9 @@ export class GommoClient {
 
   async fetchModels(type: JobType): Promise<GommoEnvelope> {
     const q = `type=${encodeURIComponent(type)}&domain=${encodeURIComponent(this.domain)}`;
+    const fields = { type, domain: this.domain, ...gommoDeviceFields() };
     try {
-      return await this.postForm(`/ai/models?${q}`, { type, domain: this.domain });
+      return await this.postForm(`/ai/models?${q}`, fields);
     } catch {
       return await this.request(`/ai/models?${q}`);
     }

@@ -1,12 +1,10 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronRight, KeyRound, KeySquare, Lock, User, X } from 'lucide-react';
-import { login } from '../services/backendApi';
-import { saveSession } from '../services/session';
 import { loginWithGommoToken } from '../services/authStore';
+import { gommoLoginWithPassword, GommoAuthError } from '../services/gommoAuth';
 import { UpstreamMeError } from '../services/upstreamMe';
 import { APP_SITE_URL, DEFAULT_DOMAIN } from '../services/settingsStore';
-import GoogleSignInButton from '../components/GoogleSignInButton';
 
 type Step = 'menu' | 'account' | 'token';
 
@@ -32,15 +30,11 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      const auth = await login({ email, password, domain: DEFAULT_DOMAIN });
-      if (auth.access_token) {
-        await loginWithGommoToken(auth.access_token, auth.domain || DEFAULT_DOMAIN);
-      } else {
-        saveSession({ token: auth.token, user: auth.user, balance: auth.balance });
-      }
+      const token = await gommoLoginWithPassword(email, password, DEFAULT_DOMAIN);
+      await loginWithGommoToken(token, DEFAULT_DOMAIN);
       navigate('/home');
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(err instanceof GommoAuthError || err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -59,16 +53,6 @@ export default function LoginPage() {
       setTokenLoading(false);
     }
   }
-
-  const footer = (
-    <>
-      <div className="auth-divider"><span>hoặc</span></div>
-      <GoogleSignInButton onSuccess={() => navigate('/home')} onError={setError} />
-      <p className="auth-register">
-        Chưa có tài khoản? <Link to="/register">Đăng ký ngay</Link>
-      </p>
-    </>
-  );
 
   return (
     <div className="page auth-page auth-login">
@@ -151,7 +135,6 @@ export default function LoginPage() {
                   />
                 </span>
               </label>
-              <Link to="/forgot-password" className="auth-forgot">Quên mật khẩu?</Link>
               {error && <p className="error">{error}</p>}
               <button type="submit" className="btn auth-submit" disabled={loading}>
                 {loading ? 'Đang đăng nhập…' : 'Đăng nhập'}
@@ -200,7 +183,9 @@ export default function LoginPage() {
 
         {step === 'menu' && error && <p className="error">{error}</p>}
 
-        {footer}
+        <p className="auth-register">
+          Chưa có tài khoản? <Link to="/register">Đăng ký ngay</Link>
+        </p>
       </div>
     </div>
   );

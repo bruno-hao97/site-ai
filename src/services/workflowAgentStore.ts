@@ -1,5 +1,4 @@
-import { loadAuth } from './authStore';
-import { loadSession } from './session';
+import { authUserKey } from './authStore';
 import type { WorkflowAgentAction } from './workflowAgentActions';
 
 export interface AgentMessage {
@@ -103,12 +102,7 @@ const DEFAULT_DIRECT: DirectCreateSettings = {
 };
 
 function userKey(): string {
-  const auth = loadAuth();
-  const id = auth?.upstream_me?.userInfo?.id_base || auth?.upstream_me?.userInfo?.email;
-  if (id) return id;
-  const session = loadSession();
-  if (session?.user?.email) return session.user.email;
-  return 'anon';
+  return authUserKey();
 }
 
 function storageKey(): string {

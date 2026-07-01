@@ -92,6 +92,8 @@ export type TranslationKey =
   | 'composer.gallery.folder'
   | 'composer.gallery.files'
   | 'composer.gallery.selectAll'
+  | 'composer.gallery.selectAllCount'
+  | 'composer.action.clearSelection'
   | 'composer.gallery.empty'
   | 'composer.resizer'
   | 'composer.batch.selected'

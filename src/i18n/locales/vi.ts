@@ -95,6 +95,8 @@ const vi: TranslationMap = {
   'composer.gallery.folder': 'Thư viện',
   'composer.gallery.files': '{{count}} tệp',
   'composer.gallery.selectAll': 'Chọn tất cả các tệp',
+  'composer.gallery.selectAllCount': 'Chọn tất cả {{count}} {{type}}',
+  'composer.action.clearSelection': 'Bỏ chọn',
   'composer.gallery.empty':
     'Chưa có kết quả. Tạo {{type}} đầu tiên ở cột bên trái.',
   'composer.resizer': 'Kéo để chỉnh độ rộng',

@@ -13,7 +13,7 @@ export interface GommoChatConfig {
 }
 
 export const GOMMO_CHAT_CONFIG: GommoChatConfig = {
-  baseUrl: 'https://api.gommo.net/api/v2',
+  baseUrl: '/api/v2',
   server: 'cursorai',
   model: 'composer-2.5-fast',
   agentId: 'd234b19ae119f741696eafa913d246cc',

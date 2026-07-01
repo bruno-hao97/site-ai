@@ -1,4 +1,4 @@
-import type { DashboardPeriod } from './backendApi';
+import type { DashboardPeriod } from './dashboardTypes';
 import type { TranslationKey } from '../i18n/types';
 
 export const MAX_CHART_COLUMNS = 10;

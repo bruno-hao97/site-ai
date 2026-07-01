@@ -14,26 +14,19 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@react-oauth/google": "^0.12.2",
     "@xyflow/react": "^12.11.1",
-    "bcryptjs": "^3.0.2",
-    "better-sqlite3": "^11.10.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "framer-motion": "^12.40.0",
-    "jsonwebtoken": "^9.0.2",
     "lucide-react": "^1.18.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.6.2"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/better-sqlite3": "^7.6.13",
     "@types/cors": "^2.8.18",
     "@types/express": "^5.0.2",
-    "@types/jsonwebtoken": "^9.0.9",
     "@types/node": "^22.15.29",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",

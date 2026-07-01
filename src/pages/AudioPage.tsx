@@ -26,12 +26,6 @@ import {
   notifyCreditsUpdated,
   refreshSession,
 } from '../services/authStore';
-import { isBackendLoggedIn } from '../services/session';
-import {
-  createStudioJob,
-  fetchModels as fetchModelsBackend,
-  pollJobUntilDone,
-} from '../services/backendApi';
 import {
   createAudio,
   getAudioLists,
@@ -50,7 +44,7 @@ import {
   formatCreditRate,
   formatSaleMultiplierLabel,
 } from '../services/audioPricing';
-import { modelSlug, parseModelsList, buildJobPayload } from '../services/modelSchema';
+import { modelSlug, parseModelsList } from '../services/modelSchema';
 import {
   addHistoryEntry,
   listHistory,
@@ -188,7 +182,6 @@ export default function AudioPage() {
   const { t, locale } = useLocale();
   const auth = loadAuth();
   const client = auth?.access_token ? getGommoClient() : null;
-  const useBackend = !client && isBackendLoggedIn();
 
   const [activeFeature, setActiveFeature] = useState<AudioFeature>('tts');
   const [navCollapsed, setNavCollapsed] = useState(false);
@@ -408,7 +401,7 @@ export default function AudioPage() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!client && !useBackend) {
+    if (!client) {
       setModels([]);
       setModelsLoading(false);
       return;
@@ -416,9 +409,7 @@ export default function AudioPage() {
     setModelsLoading(true);
     (async () => {
       try {
-        const list = client
-          ? parseModelsList(await client.fetchModels('tts'))
-          : parseModelsList(await fetchModelsBackend('tts'));
+        const list = parseModelsList(await client.fetchModels('tts'));
         if (!cancelled) {
           setModels(list.filter((m) => m.status?.toUpperCase() !== 'OFF'));
         }
@@ -431,7 +422,7 @@ export default function AudioPage() {
     return () => {
       cancelled = true;
     };
-  }, [client, useBackend]);
+  }, [client]);
 
   useEffect(() => {
     if (modelOptions.length) {
@@ -587,7 +578,7 @@ export default function AudioPage() {
       setError(t('audio.noModel'));
       return;
     }
-    if (!auth?.access_token && !useBackend) {
+    if (!auth?.access_token) {
       setError(t('audio.loginRequired'));
       return;
     }
@@ -596,32 +587,14 @@ export default function AudioPage() {
     setError('');
     setProgress(t('audio.generating'));
     try {
-      let url: string | null = null;
-      if (client) {
-        const result = await createAudio({
-          text,
-          voiceId: item.voice_id,
-          server,
-          model,
-          locale,
-        });
-        url = result.fileUrl;
-      } else if (useBackend) {
-        const modelEntry = modelsForProvider(models, server)[0];
-        if (!modelEntry) throw new Error(t('audio.noModel'));
-        const slug = modelSlug(modelEntry);
-        const { payload } = buildJobPayload(modelEntry, 'tts', {
-          text,
-          extra: {
-            voice_id: item.voice_id,
-            server,
-            model,
-          },
-        });
-        const created = await createStudioJob({ type: 'tts', model_id: slug, payload });
-        const job = await pollJobUntilDone(created.job.id, (j) => setProgress(j.status));
-        url = job.result_url;
-      }
+      const result = await createAudio({
+        text,
+        voiceId: item.voice_id,
+        server,
+        model,
+        locale,
+      });
+      const url = result.fileUrl;
 
       if (!url) throw new Error(t('audio.generateFailed'));
       setResultUrl(url);
@@ -678,11 +651,7 @@ export default function AudioPage() {
       setError(t('audio.noModel'));
       return;
     }
-    if (useBackend && !activeModel) {
-      setError(t('audio.noModel'));
-      return;
-    }
-    if (!auth?.access_token && !useBackend) {
+    if (!auth?.access_token) {
       setError(t('audio.loginRequired'));
       return;
     }
@@ -695,70 +664,11 @@ export default function AudioPage() {
     const slug = activeModel ? modelSlug(activeModel) : apiModelId;
 
     try {
-      let url: string | null = null;
-
-      if (client) {
-        const result = await createAudio({
-          text,
-          ...buildCreateAudioParams(apiModelId),
-        });
-        url = result.fileUrl;
-      } else if (useBackend) {
-        const createParams = buildCreateAudioParams(apiModelId);
-        const { payload } = buildJobPayload(activeModel, 'tts', {
-          text,
-          extra: {
-            voice_id: createParams.voiceId,
-            server: createParams.server,
-            model: createParams.model,
-            language: createParams.language,
-            ...('stability' in createParams && createParams.stability != null
-              ? { stability: createParams.stability }
-              : {}),
-            ...('similarityBoost' in createParams && createParams.similarityBoost != null
-              ? { similarity_boost: createParams.similarityBoost }
-              : {}),
-            ...('style' in createParams && createParams.style != null
-              ? { style: createParams.style }
-              : {}),
-            ...('useSpeakerBoost' in createParams && createParams.useSpeakerBoost != null
-              ? { use_speaker_boost: createParams.useSpeakerBoost }
-              : {}),
-            ...('speed' in createParams && createParams.speed != null
-              ? { speed: createParams.speed }
-              : {}),
-            ...('pitch' in createParams && createParams.pitch != null
-              ? { pitch: createParams.pitch }
-              : {}),
-            ...('volume' in createParams && createParams.volume != null
-              ? { volume: createParams.volume }
-              : {}),
-            ...('quality' in createParams && createParams.quality != null
-              ? { quality: createParams.quality }
-              : {}),
-            ...('styleGuide' in createParams && createParams.styleGuide
-              ? { style_guide: createParams.styleGuide }
-              : {}),
-            ...('denormalize' in createParams && createParams.denormalize != null
-              ? { denormalize: createParams.denormalize }
-              : {}),
-            ...('postProcess' in createParams && createParams.postProcess != null
-              ? { post_process: createParams.postProcess }
-              : {}),
-            ...('pitchOptimize' in createParams && createParams.pitchOptimize != null
-              ? { pitch_optimize: createParams.pitchOptimize }
-              : {}),
-          },
-        });
-        const created = await createStudioJob({ type: 'tts', model_id: slug, payload });
-        setProgress(t('audio.generating'));
-        const job = await pollJobUntilDone(created.job.id, (j) =>
-          setProgress(j.status),
-        );
-        url = job.result_url;
-      } else {
-        throw new Error(t('audio.loginRequired'));
-      }
+      const result = await createAudio({
+        text,
+        ...buildCreateAudioParams(apiModelId),
+      });
+      const url = result.fileUrl;
 
       if (!url) throw new Error(t('audio.generateFailed'));
 
@@ -874,7 +784,7 @@ export default function AudioPage() {
                   <button
                     type="button"
                     className="audio-generate-btn"
-                    disabled={submitting || (useBackend && modelsLoading)}
+                    disabled={submitting || modelsLoading}
                     onClick={() => void handleGenerate()}
                   >
                     {submitting ? <Loader2 size={16} className="spin" /> : <Mic size={16} />}

@@ -95,6 +95,8 @@ const en: TranslationMap = {
   'composer.gallery.folder': 'Gallery',
   'composer.gallery.files': '{{count}} files',
   'composer.gallery.selectAll': 'Select all files',
+  'composer.gallery.selectAllCount': 'Select all {{count}} {{type}}',
+  'composer.action.clearSelection': 'Clear selection',
   'composer.gallery.empty':
     'No results yet. Create your first {{type}} in the left panel.',
   'composer.resizer': 'Drag to resize',

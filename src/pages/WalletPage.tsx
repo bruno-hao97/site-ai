@@ -1,17 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  confirmMockTopup,
-  createTopupOrder,
-  fetchTopupPackages,
-  listTopupOrders,
-  listTransactions,
-  type CreditPackage,
-  type CreditTransaction,
-  type TopupOrder,
-} from '../services/backendApi';
 import { fetchGommoDashboardStats } from '../services/gommoDashboard';
-import { getCreditsAi, loadAuth } from '../services/authStore';
+import type { CreditTransaction } from '../services/dashboardTypes';
+import { getCreditsAi } from '../services/authStore';
 
 const TX_LABELS: Record<string, string> = {
   signup_bonus: 'Bonus đăng ký',
@@ -20,10 +11,6 @@ const TX_LABELS: Record<string, string> = {
   topup: 'Nạp tiền',
   promotion: 'Khuyến mãi',
 };
-
-function formatVnd(n: number) {
-  return new Intl.NumberFormat('vi-VN').format(n) + ' ₫';
-}
 
 function formatDate(iso: string) {
   try {
@@ -34,142 +21,53 @@ function formatDate(iso: string) {
 }
 
 export default function WalletPage() {
-  const isGommo = Boolean(loadAuth());
   const [balance, setBalance] = useState(getCreditsAi());
   const [consumed, setConsumed] = useState(0);
-  const [packages, setPackages] = useState<CreditPackage[]>([]);
-  const [mockEnabled, setMockEnabled] = useState(true);
-  const [bonusPercent, setBonusPercent] = useState(0);
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
-  const [orders, setOrders] = useState<TopupOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [payingId, setPayingId] = useState<string | null>(null);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
-
-  const syncBalance = (b: number) => {
-    setBalance(b);
-  };
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      if (isGommo) {
-        // User Gommo: số dư + lịch sử chi tiêu thật từ Gommo (chưa có endpoint nạp).
-        const stats = await fetchGommoDashboardStats('all');
-        setBalance(stats.balance);
-        setConsumed(stats.credits.consumed_net);
-        setTransactions(stats.recent_transactions);
-        setPackages([]);
-        setOrders([]);
-        return;
-      }
-      const [pkgData, txData, orderData] = await Promise.all([
-        fetchTopupPackages(),
-        listTransactions(),
-        listTopupOrders(),
-      ]);
-      setPackages(pkgData.packages);
-      setMockEnabled(pkgData.mockEnabled);
-      setBonusPercent(pkgData.firstTopupBonusPercent);
-      setTransactions(txData.transactions);
-      syncBalance(txData.balance);
-      setOrders(orderData.orders);
+      const stats = await fetchGommoDashboardStats('all');
+      setBalance(stats.balance);
+      setConsumed(stats.credits.consumed_net);
+      setTransactions(stats.recent_transactions);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
-  }, [isGommo]);
+  }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  async function handleTopup(pkg: CreditPackage) {
-    setPayingId(pkg.id);
-    setError('');
-    setNotice('');
-    try {
-      const { order, mockEnabled: mock } = await createTopupOrder(pkg.id);
-      if (!mock) {
-        setNotice(`Đơn ${order.id.slice(0, 8)}… đã tạo — chờ tích hợp cổng thanh toán.`);
-        await load();
-        return;
-      }
-      const result = await confirmMockTopup(order.id);
-      syncBalance(result.balance);
-      setNotice(`Nạp thành công +${result.credits_added} credit!`);
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setPayingId(null);
-    }
-  }
-
   return (
     <div className="page wallet-page">
       <div className="page-head">
         <p className="kicker">Ví credit</p>
-        <h1>{isGommo ? 'Ví credit' : 'Nạp tiền'}</h1>
+        <h1>Ví credit</h1>
         <p className="lead">
           Số dư: <strong>{balance} credit</strong>
-          {isGommo ? (
-            <> · Đã tiêu: <strong>{consumed} credit</strong></>
-          ) : (
-            bonusPercent > 0 && (
-              <> · Lần nạp đầu: <strong>+{bonusPercent}%</strong> bonus</>
-            )
-          )}
+          <> · Đã tiêu: <strong>{consumed} credit</strong></>
         </p>
       </div>
 
-      {isGommo && (
-        <div className="banner warn">
-          Tài khoản Gommo — số dư &amp; lịch sử chi tiêu lấy trực tiếp từ Gommo. Nạp credit thực
-          hiện trên hệ thống Gommo.
-        </div>
-      )}
-
-      {!isGommo && mockEnabled && (
-        <div className="banner warn">
-          Chế độ <strong>mock payment</strong> (dev) — bấm nạp sẽ cộng credit ngay, không trừ tiền thật.
-          Production: tắt <code>ALLOW_MOCK_TOPUP=false</code> và gắn VNPay/Momo.
-        </div>
-      )}
+      <div className="banner warn">
+        Số dư &amp; lịch sử chi tiêu lấy trực tiếp từ Gommo. Nạp credit thực hiện trên hệ thống Gommo.
+      </div>
 
       {loading && <p className="muted">Đang tải…</p>}
       {error && <p className="error">{error}</p>}
-      {notice && <p className="notice">{notice}</p>}
-
-      {!isGommo && (
-      <section className="packages-grid">
-        {packages.map((pkg) => (
-          <div key={pkg.id} className={`package-card panel ${pkg.popular ? 'popular' : ''}`}>
-            {pkg.popular && <span className="package-badge">Phổ biến</span>}
-            <h3>{pkg.name}</h3>
-            <p className="package-credits">{pkg.credits} credit</p>
-            <p className="package-price">{formatVnd(pkg.priceVnd)}</p>
-            {pkg.bonusHint && <p className="package-hint">{pkg.bonusHint}</p>}
-            <button
-              type="button"
-              className="btn primary"
-              disabled={payingId != null}
-              onClick={() => handleTopup(pkg)}
-            >
-              {payingId === pkg.id ? 'Đang xử lý…' : mockEnabled ? 'Nạp (mock)' : 'Tạo đơn nạp'}
-            </button>
-          </div>
-        ))}
-      </section>
-      )}
 
       <div className="tables-grid wallet-tables">
         <section className="panel">
           <div className="panel-head">
-            <h2>{isGommo ? 'Lịch sử chi tiêu' : 'Lịch sử giao dịch'}</h2>
+            <h2>Lịch sử chi tiêu</h2>
             <Link to="/dashboard" className="btn ghost sm">Dashboard →</Link>
           </div>
           {transactions.length === 0 ? (
@@ -199,43 +97,6 @@ export default function WalletPage() {
             </table>
           )}
         </section>
-
-        {!isGommo && (
-        <section className="panel">
-          <h2>Đơn nạp</h2>
-          {orders.length === 0 ? (
-            <p className="muted">Chưa có đơn nạp.</p>
-          ) : (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Gói</th>
-                  <th>Credit</th>
-                  <th>Giá</th>
-                  <th>Trạng thái</th>
-                  <th>Ngày</th>
-                </tr>
-              </thead>
-              <tbody>
-                {orders.map((o) => (
-                  <tr key={o.id}>
-                    <td>{o.package_id}</td>
-                    <td>
-                      {o.total_credits}
-                      {o.bonus_credits > 0 && (
-                        <span className="bonus-tag"> (+{o.bonus_credits} bonus)</span>
-                      )}
-                    </td>
-                    <td>{formatVnd(o.amount_vnd)}</td>
-                    <td><span className={`badge ${o.status}`}>{o.status}</span></td>
-                    <td>{formatDate(o.created_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
-        )}
       </div>
     </div>
   );

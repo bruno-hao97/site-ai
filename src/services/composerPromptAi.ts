@@ -1,7 +1,5 @@
 import type { JobType } from './api';
-import { composerPromptViaBackend } from './backendApi';
 import { askGommo, isGommoChatConfigured } from './gommoChat';
-import { isBackendLoggedIn } from './session';
 import { parseShotsFromText, type ComposerShot } from './composerShots';
 
 const ENHANCE_SYSTEM =
@@ -36,47 +34,40 @@ async function callComposerAi(
   jobType: JobType,
   opts?: { signal?: AbortSignal },
 ): Promise<string> {
-  if (isGommoChatConfigured()) {
-    const system =
-      action === 'normalize'
-        ? NORMALIZE_SYSTEM
-        : action === 'shots'
-          ? 'You write multi-shot storyboards. Output ONLY JSON array [{"prompt":"..."}, ...].'
-          : ENHANCE_SYSTEM;
-    const userMsg =
-      action === 'normalize'
-        ? `Normalize this ${mediaLabel(jobType)} generation prompt:\n\n${text}`
-        : action === 'shots'
-          ? `Create a ${mediaLabel(jobType)} storyboard from:\n\n${text}`
-          : `Enhance this ${mediaLabel(jobType)} generation brief into a production-ready prompt:\n\n${text}`;
-    const reply = await askGommo(userMsg, {
-      history: [],
-      firstTurn: true,
-      sessionId: crypto.randomUUID(),
-      signal: opts?.signal,
-      config: {
-        systemPrompt: system,
-        persistHistory: false,
-        timeoutMs: action === 'shots' ? 120_000 : 90_000,
-      },
-    });
-    return stripAiReply(reply);
+  if (!isGommoChatConfigured()) {
+    throw new Error('Cần đăng nhập Gommo và cấu hình chat để dùng AI.');
   }
 
-  if (isBackendLoggedIn()) {
-    const { text: out } = await composerPromptViaBackend(action, text, jobType);
-    return stripAiReply(out);
-  }
-
-  throw new Error('Cần đăng nhập (Gommo token hoặc tài khoản app) để dùng AI.');
+  const system =
+    action === 'normalize'
+      ? NORMALIZE_SYSTEM
+      : action === 'shots'
+        ? 'You write multi-shot storyboards. Output ONLY JSON array [{"prompt":"..."}, ...].'
+        : ENHANCE_SYSTEM;
+  const userMsg =
+    action === 'normalize'
+      ? `Normalize this ${mediaLabel(jobType)} generation prompt:\n\n${text}`
+      : action === 'shots'
+        ? `Create a ${mediaLabel(jobType)} storyboard from:\n\n${text}`
+        : `Enhance this ${mediaLabel(jobType)} generation brief into a production-ready prompt:\n\n${text}`;
+  const reply = await askGommo(userMsg, {
+    history: [],
+    firstTurn: true,
+    sessionId: crypto.randomUUID(),
+    signal: opts?.signal,
+    config: {
+      systemPrompt: system,
+      persistHistory: false,
+      timeoutMs: action === 'shots' ? 120_000 : 90_000,
+    },
+  });
+  return stripAiReply(reply);
 }
 
-/** Có thể gọi AI nâng cao/chuẩn hóa/sinh kịch bản. */
 export function canUseComposerPromptAi(): boolean {
-  return isGommoChatConfigured() || isBackendLoggedIn();
+  return isGommoChatConfigured();
 }
 
-/** Mở rộng ý tưởng ngắn → prompt chi tiết (tiếng Anh, tối ưu cho model). */
 export async function enhancePromptWithAi(
   text: string,
   jobType: JobType,
@@ -87,7 +78,6 @@ export async function enhancePromptWithAi(
   return callComposerAi('enhance', brief, jobType, opts);
 }
 
-/** Chuẩn hóa prompt trước khi gửi job (giữ ngôn ngữ gốc). */
 export async function normalizePromptWithAi(
   text: string,
   jobType: JobType,
@@ -98,7 +88,6 @@ export async function normalizePromptWithAi(
   return callComposerAi('normalize', raw, jobType, opts);
 }
 
-/** Sinh danh sách cảnh (multi-shot) từ ý tưởng ngắn. */
 export async function generateShotsWithAi(
   text: string,
   jobType: JobType,

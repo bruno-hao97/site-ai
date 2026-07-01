@@ -9,7 +9,7 @@ import type {
   DashboardPeriod,
   DashboardStats,
   Job,
-} from './backendApi';
+} from './dashboardTypes';
 import { buildChartBuckets } from './dashboardChartBuckets';
 
 const PAGE_LIMIT = 50;

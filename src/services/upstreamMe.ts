@@ -1,4 +1,5 @@
-export const GOMMO_AUTH_BASE = 'https://api.gommo.net';
+/** Rỗng = cùng origin → request đi qua proxy server tới api.gommo.net (che URL). */
+export const GOMMO_AUTH_BASE = '';
 export const GOMMO_AUTH_PATH = '/api/apps/go-mmo';
 
 export interface UpstreamUserInfo {

@@ -30,7 +30,6 @@ import {
   Search,
   SlidersHorizontal,
   Sparkles,
-  Star,
   Trash2,
   Wand2,
   Bot,
@@ -42,6 +41,12 @@ import {
 } from '../services/api';
 import StudioGallery, { type SessionItem } from '../components/StudioGallery';
 import ComposerHistory from '../components/ComposerHistory';
+import ComposerLibrary from '../components/ComposerLibrary';
+import ComposerLibraryItem from '../components/ComposerLibraryItem';
+import ComposerLibraryPreviewModal, {
+  type ComposerPreviewHandlers,
+} from '../components/ComposerLibraryPreviewModal';
+import ComposerSelectCircle from '../components/ComposerSelectCircle';
 import UrlField from '../components/UrlField';
 import {
   defaultSelectionsForType,
@@ -57,17 +62,7 @@ import {
   notifyCreditsUpdated,
   refreshSession,
 } from '../services/authStore';
-import {
-  createStudioJob,
-  fetchJobCosts,
-  fetchModels as fetchModelsBackend,
-  pollJobUntilDone,
-  uploadMediaBackend,
-  type JobCosts,
-} from '../services/backendApi';
-import { isBackendLoggedIn } from '../services/session';
 
-const BACKEND_JOB_TYPES: JobType[] = ['image', 'video', 'tts', 'music', 'avatar-lipsync'];
 import {
   addLocalJob,
   listLocalJobs,
@@ -89,11 +84,19 @@ import {
   addHistoryEntry,
   isMediaUrl,
   listHistory,
-  loadFavorites,
   removeHistoryEntry,
-  toggleFavorite,
   type HistoryEntry,
 } from '../services/historyStore';
+import { deleteFeedPost, feedMediaUrl, feedThumb } from '../services/feedApi';
+import type { FeedItem } from '../services/feedApi';
+import {
+  historyComposerMediaKind,
+  historyEntriesToFeedItems,
+  historyEntryToFeedItem,
+  historyJobUsesClibLayout,
+  isClibHistoryEntry,
+} from '../utils/historyFeedAdapter';
+import { feedItemToHistoryEntry } from '../utils/feedItemReuse';
 import { useHistoryUpdated } from '../hooks/useHistoryUpdated';
 import { extractPollSnapshot } from '../services/mediaGenerationStatus';
 import {
@@ -135,6 +138,7 @@ interface PendingJob {
   id: string;
   prompt: string;
   status: 'processing' | 'failed';
+  progress?: number;
 }
 
 type ComposerMode = 'single' | 'multi' | 'auto' | 'ai';
@@ -791,11 +795,19 @@ export default function StudioPage({
   const [pendingJobs, setPendingJobs] = useState<PendingJob[]>([]);
   const [zoom, setZoom] = useState(200);
   const [mainTab, setMainTab] = useState<'current' | 'history' | 'folder'>('current');
+  const [libraryCount, setLibraryCount] = useState(0);
+  const [historyCount, setHistoryCount] = useState(0);
+  const [libraryVisibleIds, setLibraryVisibleIds] = useState<string[]>([]);
+  const [historyVisibleIds, setHistoryVisibleIds] = useState<string[]>([]);
+  const [libraryUrlMap, setLibraryUrlMap] = useState<Record<string, string>>({});
+  const [historyUrlMap, setHistoryUrlMap] = useState<Record<string, string>>({});
   const [historyTick, setHistoryTick] = useState(0);
   useHistoryUpdated(() => setHistoryTick((n) => n + 1));
   const abortRef = useRef<AbortController | null>(null);
   const sessionStartRef = useRef(Date.now());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [currentPreviewIndex, setCurrentPreviewIndex] = useState<number | null>(null);
+  const [currentDeletingId, setCurrentDeletingId] = useState('');
   // Bề rộng sidebar (kéo chỉnh được), nhớ qua localStorage.
   const composerRef = useRef<HTMLDivElement | null>(null);
   const [sideWidth, setSideWidth] = useState(() => {
@@ -807,9 +819,6 @@ export default function StudioPage({
 
   const client = useMemo(() => (loadAuth() ? getGommoClient() : null), []);
   const auth = loadAuth();
-  // User JWT (đăng nhập email/Google) không có Gommo client → tạo job qua backend.
-  const useBackend = !client && isBackendLoggedIn();
-  const [backendCosts, setBackendCosts] = useState<JobCosts | null>(null);
   // Chỉ /video mới có chế độ Motion; tab chỉ hiện khi list có ít nhất 1 model motion.
   const hasMotionModels = useMemo(
     () => jobType === 'video' && models.some(isMotionModel),
@@ -853,8 +862,7 @@ export default function StudioPage({
   );
   const scriptCount = multiShotEnabled && schema?.fields.multiShots ? activeShots.length : 1;
   const modelPrice = currentModel?.price ?? 0;
-  // User JWT trừ credit theo cấu hình backend; user Gommo token theo giá model upstream.
-  const unitCost = useBackend ? backendCosts?.[jobType] ?? 0 : modelPrice;
+  const unitCost = modelPrice;
   const motionRatePerSec = useMemo(
     () =>
       isMotionView && currentModel
@@ -1014,13 +1022,11 @@ export default function StudioPage({
 
   const loadModelsList = useCallback(
     async (type: JobType) => {
-      if (!client && !useBackend) return;
+      if (!client) return;
       setLoadingModels(true);
       setError('');
       try {
-        const list = client
-          ? parseModelsList(await client.fetchModels(type))
-          : parseModelsList(await fetchModelsBackend(type));
+        const list = parseModelsList(await client.fetchModels(type));
         setModels(list);
         if (!list.length) setError(`Không có model ${type}.`);
       } catch (err) {
@@ -1030,7 +1036,7 @@ export default function StudioPage({
         setLoadingModels(false);
       }
     },
-    [client, useBackend],
+    [client],
   );
 
   const loadRecentJobs = useCallback(() => {
@@ -1040,13 +1046,6 @@ export default function StudioPage({
   useEffect(() => {
     loadRecentJobs();
   }, [loadRecentJobs]);
-
-  useEffect(() => {
-    if (!useBackend) return;
-    fetchJobCosts()
-      .then(setBackendCosts)
-      .catch(() => {});
-  }, [useBackend]);
 
   const applyReuse = useCallback((entry: HistoryEntry) => {
     const t = entry.type as JobType;
@@ -1065,6 +1064,63 @@ export default function StudioPage({
       duration: entry.meta?.duration || '',
     });
   }, []);
+
+  const buildPreviewHandlers = useCallback(
+    (
+      item: FeedItem,
+      mediaUrl: string,
+      onClosePreview: () => void,
+      onDelete?: () => void,
+    ): ComposerPreviewHandlers => {
+      const entry = feedItemToHistoryEntry(item, jobType, mediaUrl);
+      return {
+        onRegenerate: () => {
+          applyReuse(entry);
+          onClosePreview();
+        },
+        onCreateVideo:
+          jobType === 'image' && mediaUrl
+            ? () => {
+                switchJobType('video');
+                setSelections({
+                  ...defaultSelectionsForType('video'),
+                  prompt: item.prompt || '',
+                  references: [mediaUrl],
+                });
+                onClosePreview();
+              }
+            : undefined,
+        onEdit: mediaUrl
+          ? () => {
+              switchJobType('image');
+              setSelections({
+                ...defaultSelectionsForType('image'),
+                prompt: item.prompt || '',
+                references: [mediaUrl],
+              });
+              onClosePreview();
+            }
+          : undefined,
+        onDelete,
+        onUpscaleDone: (resultUrl) => {
+          addHistoryEntry({
+            type: 'image',
+            resultUrl,
+            prompt: item.prompt ? `${item.prompt} (upscale)` : 'Upscale ảnh',
+            modelSlug: 'generative_upscale_v2',
+            modelName: 'Nâng cấp ảnh AI',
+            meta: {
+              resolution: item.resolution || '',
+              ratio: item.ratio || '',
+            },
+          });
+          setHistoryTick((n) => n + 1);
+          onClosePreview();
+        },
+      };
+    },
+    [applyReuse, jobType],
+  );
 
   useEffect(() => {
     const reuse = (location.state as { reuseHistory?: {
@@ -1141,16 +1197,12 @@ export default function StudioPage({
   }, [currentModel, jobType]);
 
   async function handleUpload(file: File, kind: 'image' | 'video') {
-    if (!client && !useBackend) return null;
+    if (!client) return null;
     setError('');
     try {
-      if (client) {
-        const { url } = kind === 'image'
-          ? await client.uploadImage(file)
-          : await client.uploadVideo(file);
-        return url;
-      }
-      const { url } = await uploadMediaBackend(kind, file);
+      const { url } = kind === 'image'
+        ? await client.uploadImage(file)
+        : await client.uploadVideo(file);
       return url;
     } catch (err) {
       setError(err instanceof GommoApiError || err instanceof Error ? err.message : String(err));
@@ -1168,6 +1220,16 @@ export default function StudioPage({
       list[index] = value;
       return { ...s, [key]: list };
     });
+  }
+
+  function bumpPendingProgress(pendingId: string, progress: number) {
+    setPendingJobs((prev) =>
+      prev.map((p) =>
+        p.id === pendingId
+          ? { ...p, progress: Math.min(99, Math.max(p.progress ?? 5, progress)) }
+          : p,
+      ),
+    );
   }
 
   function recordSuccess(
@@ -1243,9 +1305,7 @@ export default function StudioPage({
     loadRecentJobs();
 
     try {
-      const finalUrl = client
-        ? await generateViaGommo(slug, payload)
-        : await generateViaBackend(slug, payload);
+      const finalUrl = await generateViaGommo(slug, payload, pendingId);
 
       if (finalUrl) {
         setResultUrl(finalUrl);
@@ -1277,12 +1337,8 @@ export default function StudioPage({
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if ((!client && !useBackend) || !currentModel || !schema) {
+    if (!client || !currentModel || !schema) {
       setError('Chọn model trước.');
-      return;
-    }
-    if (useBackend && !BACKEND_JOB_TYPES.includes(jobType)) {
-      setError('Loại job này cần đăng nhập bằng Access Token.');
       return;
     }
 
@@ -1355,6 +1411,7 @@ export default function StudioPage({
             id: t.pendingId,
             prompt: t.prompt,
             status: 'processing' as const,
+            progress: 5,
           })),
           ...prev.filter((p) => p.status === 'processing'),
         ]);
@@ -1406,7 +1463,7 @@ export default function StudioPage({
       const slug = modelSlug(currentModel);
       const pendingId = crypto.randomUUID();
       setPendingJobs((prev) => [
-        { id: pendingId, prompt: editPrompt, status: 'processing' },
+        { id: pendingId, prompt: editPrompt, status: 'processing', progress: 5 },
         ...prev.filter((p) => p.status === 'processing'),
       ]);
 
@@ -1543,6 +1600,7 @@ export default function StudioPage({
       id: t.pendingId,
       prompt: t.prompt,
       status: 'processing' as const,
+      progress: 5,
     }));
     setPendingJobs((prev) => [...newPending, ...prev.filter((p) => p.status === 'processing')]);
 
@@ -1572,16 +1630,11 @@ export default function StudioPage({
   }
 
   async function refreshCreditsAfterJob() {
-    if (client) {
-      try {
-        const refreshed = await refreshSession();
-        setCredits(refreshed.upstream_me.balancesInfo?.credits_ai ?? credits);
-      } catch {
-        /* ignore */
-      }
-    } else {
-      // Backend tự cập nhật balance vào session sau create/poll.
-      setCredits(getCreditsAi());
+    try {
+      const refreshed = await refreshSession();
+      setCredits(refreshed.upstream_me.balancesInfo?.credits_ai ?? credits);
+    } catch {
+      /* ignore */
     }
     notifyCreditsUpdated();
   }
@@ -1589,6 +1642,7 @@ export default function StudioPage({
   async function generateViaGommo(
     slug: string,
     payload: Record<string, unknown>,
+    pendingId?: string,
   ): Promise<string | null> {
     const { pollResult, resultUrl: url, createEnvelope } = await createJobAndPoll(
       client!,
@@ -1598,10 +1652,12 @@ export default function StudioPage({
       (p) => {
         if ('phase' in p && p.phase === 'creating') {
           setProgress('Đang gửi request tạo job…');
+          if (pendingId) bumpPendingProgress(pendingId, 10);
           return;
         }
         const prog = p as PollProgress;
         setProgress(`Poll #${prog.attempt}: ${prog.status || prog.phase}`);
+        if (pendingId) bumpPendingProgress(pendingId, 12 + prog.attempt * 3);
         if (prog.resultUrl) setResultUrl(prog.resultUrl);
       },
       abortRef.current!.signal,
@@ -1611,28 +1667,6 @@ export default function StudioPage({
     const finalUrl = url ?? snap.resultUrl;
     if (finalUrl) return finalUrl;
     throw new Error(pollResult?.error || 'Job thất bại');
-  }
-
-  async function generateViaBackend(
-    slug: string,
-    payload: Record<string, unknown>,
-  ): Promise<string | null> {
-    setProgress('Đang gửi request tạo job…');
-    const created = await createStudioJob({
-      type: jobType,
-      model_id: slug,
-      payload,
-    });
-
-    setProgress('Đang xử lý…');
-    const job = await pollJobUntilDone(
-      created.job.id,
-      (j) => setProgress(`Trạng thái: ${j.status}`),
-      abortRef.current!.signal,
-    );
-
-    if (job.status === 'success' && job.result_url) return job.result_url;
-    throw new Error(job.error || 'Job thất bại');
   }
 
   const processingJobs = recentJobs.filter((j) => j.type === jobType && j.status === 'processing');
@@ -1658,7 +1692,7 @@ export default function StudioPage({
     [jobType, historyTick, resultUrl],
   );
 
-  const favorites = useMemo(() => loadFavorites(), [historyTick]);
+  const useClibLayout = historyJobUsesClibLayout(jobType);
 
   const displayedResults = useMemo(() => {
     if (mainTab === 'current') {
@@ -1666,9 +1700,15 @@ export default function StudioPage({
         (e) => new Date(e.createdAt).getTime() >= sessionStartRef.current,
       );
     }
-    if (mainTab === 'folder') return composerResults.filter((e) => favorites.has(e.id));
     return composerResults;
-  }, [mainTab, composerResults, favorites]);
+  }, [mainTab, composerResults]);
+
+  const toolbarCount =
+    mainTab === 'folder'
+      ? libraryCount
+      : mainTab === 'history'
+        ? historyCount
+        : displayedResults.length;
 
   const groupedResults = useMemo(() => {
     const map = new Map<string, HistoryEntry[]>();
@@ -1682,17 +1722,45 @@ export default function StudioPage({
   }, [displayedResults, t]);
 
   const visibleIds = useMemo(() => displayedResults.map((e) => e.id), [displayedResults]);
-  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+
+  const currentPreviewItems = useMemo(
+    () => historyEntriesToFeedItems(displayedResults, jobType),
+    [displayedResults, jobType],
+  );
+
+  const currentPreviewIndexById = useMemo(() => {
+    const map = new Map<string, number>();
+    currentPreviewItems.forEach((item, index) => {
+      map.set(item.id_base, index);
+    });
+    return map;
+  }, [currentPreviewItems]);
+
+  const selectableIds = useMemo(() => {
+    if (mainTab === 'folder') return libraryVisibleIds;
+    if (mainTab === 'history') return historyVisibleIds;
+    if (mainTab === 'current') return visibleIds;
+    return [];
+  }, [mainTab, libraryVisibleIds, historyVisibleIds, visibleIds]);
+
+  const allSelected =
+    selectableIds.length > 0 && selectableIds.every((id) => selectedIds.has(id));
+  const selectionCount = selectedIds.size;
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+    setCurrentPreviewIndex(null);
+  }, [mainTab, jobType]);
 
   // Bỏ chọn các id không còn hiển thị (đổi tab/loại job).
   useEffect(() => {
     setSelectedIds((prev) => {
       if (!prev.size) return prev;
-      const visible = new Set(visibleIds);
+      const visible = new Set(selectableIds);
       const next = new Set([...prev].filter((id) => visible.has(id)));
       return next.size === prev.size ? prev : next;
     });
-  }, [visibleIds]);
+  }, [selectableIds]);
 
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
@@ -1704,7 +1772,7 @@ export default function StudioPage({
   }
 
   function toggleSelectAll() {
-    setSelectedIds(allSelected ? new Set() : new Set(visibleIds));
+    setSelectedIds(allSelected ? new Set() : new Set(selectableIds));
   }
 
   function clearSelection() {
@@ -1713,10 +1781,15 @@ export default function StudioPage({
 
   function downloadSelected() {
     for (const id of selectedIds) {
-      const entry = displayedResults.find((e) => e.id === id);
-      if (!entry?.resultUrl) continue;
+      const url =
+        mainTab === 'folder'
+          ? libraryUrlMap[id]
+          : mainTab === 'history'
+            ? historyUrlMap[id]
+            : displayedResults.find((e) => e.id === id)?.resultUrl;
+      if (!url) continue;
       const a = document.createElement('a');
-      a.href = entry.resultUrl;
+      a.href = url;
       a.target = '_blank';
       a.rel = 'noreferrer';
       a.download = '';
@@ -1727,8 +1800,54 @@ export default function StudioPage({
   }
 
   function deleteSelected() {
+    if (mainTab === 'folder' || mainTab === 'history') {
+      if (!selectedIds.size) return;
+      const label = mainTab === 'folder' ? 'thư viện' : 'lịch sử';
+      if (!window.confirm(`Xóa ${selectedIds.size} mục đã chọn khỏi ${label}?`)) return;
+      void (async () => {
+        setError('');
+        try {
+          for (const id of selectedIds) {
+            await deleteFeedPost(id);
+          }
+          setHistoryTick((n) => n + 1);
+          clearSelection();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+      })();
+      return;
+    }
     for (const id of selectedIds) removeHistoryEntry(id);
     clearSelection();
+  }
+
+  function handleFeedItemDeleted(id: string) {
+    setHistoryTick((n) => n + 1);
+    setSelectedIds((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  function handleCurrentDelete(entry: HistoryEntry) {
+    if (!window.confirm('Xóa mục này khỏi phiên hiện tại?')) return;
+    setCurrentDeletingId(entry.id);
+    try {
+      removeHistoryEntry(entry.id);
+      setCurrentPreviewIndex((prev) => {
+        if (prev == null) return null;
+        const deletedIndex = currentPreviewIndexById.get(entry.id);
+        if (deletedIndex == null || deletedIndex < 0) return prev;
+        if (prev === deletedIndex) return null;
+        if (prev > deletedIndex) return prev - 1;
+        return prev;
+      });
+    } finally {
+      setCurrentDeletingId('');
+    }
   }
 
   function startResize(e: ReactPointerEvent<HTMLDivElement>) {
@@ -3000,19 +3119,62 @@ export default function StudioPage({
                 </button>
               ))}
               <span className="composer-toolbar-count">
-                {t('composer.gallery.files', { count: displayedResults.length })}
+                {t('composer.gallery.files', { count: toolbarCount })}
               </span>
+              {selectionCount === 0 && selectableIds.length > 0 && (
+                <button
+                  type="button"
+                  className="composer-select-all-link"
+                  onClick={toggleSelectAll}
+                >
+                  {t('composer.gallery.selectAllCount', {
+                    count: selectableIds.length,
+                    type: typeLabel().toLowerCase(),
+                  })}
+                </button>
+              )}
             </div>
             <div className="composer-toolbar-right">
-              <label className="composer-select-all">
-                <input
-                  type="checkbox"
-                  checked={allSelected}
-                  disabled={!visibleIds.length}
-                  onChange={toggleSelectAll}
-                />
-                <span>{t('composer.gallery.selectAll')}</span>
-              </label>
+              {selectionCount > 0 && (
+                <div className="composer-toolbar-actions">
+                  {jobType === 'image' && (
+                    <button
+                      type="button"
+                      className="composer-toolbar-action"
+                      onClick={() => {
+                        switchJobType('video');
+                        clearSelection();
+                      }}
+                    >
+                      <Clapperboard size={14} />
+                      {t('composer.createVideoAuto')} ({selectionCount})
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="composer-toolbar-action"
+                    onClick={downloadSelected}
+                  >
+                    <Download size={14} />
+                    Download ({selectionCount})
+                  </button>
+                  <button
+                    type="button"
+                    className="composer-toolbar-action danger"
+                    onClick={deleteSelected}
+                  >
+                    <Trash2 size={14} />
+                    Xóa ({selectionCount})
+                  </button>
+                  <button
+                    type="button"
+                    className="composer-toolbar-action ghost"
+                    onClick={clearSelection}
+                  >
+                    {t('composer.action.clearSelection')}
+                  </button>
+                </div>
+              )}
               <label className="composer-zoom">
                 <input
                   type="range"
@@ -3025,109 +3187,153 @@ export default function StudioPage({
             </div>
           </div>
 
-          {selectedIds.size > 0 && (
-            <div className="composer-batchbar">
-              <span className="composer-batch-count">
-                {t('composer.batch.selected', { count: selectedIds.size })}
-              </span>
-              <div className="composer-batch-actions">
-                {jobType === 'image' && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      switchJobType('video');
-                      clearSelection();
-                    }}
-                  >
-                    <Clapperboard size={14} /> {t('composer.createVideoAuto')}
-                  </button>
-                )}
-                <button type="button" onClick={downloadSelected}>
-                  <Download size={14} /> Download
-                </button>
-                <button type="button" className="danger" onClick={deleteSelected}>
-                  <Trash2 size={14} /> Xóa
-                </button>
-              </div>
-              <button type="button" className="composer-batch-clear" onClick={clearSelection}>
-                Bỏ chọn
-              </button>
-            </div>
-          )}
-
           {mainTab === 'history' ? (
-            <ComposerHistory jobType={jobType} zoom={zoom} />
+            <ComposerHistory
+              jobType={jobType}
+              zoom={zoom}
+              pendingJobs={pendingJobs}
+              refreshKey={historyTick}
+              onItemDeleted={handleFeedItemDeleted}
+              onCountChange={setHistoryCount}
+              onVisibleIdsChange={setHistoryVisibleIds}
+              onUrlMapChange={setHistoryUrlMap}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
+              onClearSelection={clearSelection}
+            />
+          ) : mainTab === 'folder' ? (
+            <ComposerLibrary
+              jobType={jobType}
+              zoom={zoom}
+              refreshKey={historyTick}
+              onCountChange={setLibraryCount}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
+              onVisibleIdsChange={setLibraryVisibleIds}
+              onUrlMapChange={setLibraryUrlMap}
+              onItemDeleted={handleFeedItemDeleted}
+              buildPreviewHandlers={buildPreviewHandlers}
+            />
           ) : displayedResults.length === 0 && !(mainTab === 'current' && pendingJobs.length > 0) ? (
             <p className="muted composer-empty">
-              {mainTab === 'folder'
-                ? 'Chưa có tệp nào được lưu vào thư viện.'
-                : t('composer.gallery.empty', { type: typeLabel() })}
+              {t('composer.gallery.empty', { type: typeLabel() })}
             </p>
           ) : (
-            <div className="composer-results">
+            <div className={useClibLayout ? 'clib-wrap' : 'composer-results'}>
               {mainTab === 'current' && pendingJobs.length > 0 && (
-                <div className="composer-day-group">
-                  <h3 className="composer-day">Đang tạo</h3>
-                  <div className="composer-grid" style={{ ['--thumb' as string]: `${zoom}px` }}>
+                <section className={useClibLayout ? 'clib-group' : 'composer-day-group'}>
+                  {useClibLayout ? (
+                    <header className="clib-group-head">
+                      <span className="clib-group-label">Đang tạo</span>
+                      <span className="clib-count">({pendingJobs.length})</span>
+                    </header>
+                  ) : (
+                    <h3 className="composer-day">Đang tạo</h3>
+                  )}
+                  <div
+                    className={useClibLayout ? 'clib-grid' : 'composer-grid'}
+                    style={
+                      useClibLayout
+                        ? { ['--clib-thumb' as string]: `${zoom}px` }
+                        : { ['--thumb' as string]: `${zoom}px` }
+                    }
+                  >
                     {pendingJobs.map((p) => (
-                      <article key={p.id} className={`hist-card hist-card-pending ${p.status}`}>
-                        <div className="hist-card-thumb-wrap">
-                          <div className="hist-card-thumb pending-thumb">
-                            {p.status === 'processing' ? (
-                              <span className="pending-spinner" aria-label="Đang tạo" />
-                            ) : (
-                              <span className="pending-failed-icon">!</span>
-                            )}
-                          </div>
+                      <article
+                        key={p.id}
+                        className={`hist-card hist-card-pending-vmedia ${p.status}`}
+                      >
+                        <div className="pending-vmedia-body">
+                          {p.status === 'processing' ? (
+                            <>
+                              <span className="pending-spinner-lg" aria-hidden />
+                              <span className="pending-vmedia-label">ĐANG TẠO</span>
+                              <div
+                                className="pending-vmedia-bar"
+                                role="progressbar"
+                                aria-valuenow={p.progress ?? 12}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-label="Tiến độ tạo"
+                              >
+                                <div
+                                  className="pending-vmedia-bar-fill"
+                                  style={{ width: `${p.progress ?? 12}%` }}
+                                />
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <span className="pending-failed-icon-lg">!</span>
+                              <span className="pending-vmedia-label failed">THẤT BẠI</span>
+                            </>
+                          )}
                         </div>
-                        <div className="hist-card-body">
-                          <p className="hist-card-prompt" title={p.prompt}>
-                            {p.prompt || '—'}
+                        {p.prompt ? (
+                          <p className="pending-vmedia-prompt" title={p.prompt}>
+                            {p.prompt}
                           </p>
-                          <p className="hist-card-meta">
-                            {p.status === 'processing' ? 'Đang tạo…' : 'Thất bại'}
-                          </p>
-                        </div>
+                        ) : null}
                       </article>
                     ))}
                   </div>
-                </div>
+                </section>
               )}
               {groupedResults.map(([day, entries]) => (
-                <div key={day} className="composer-day-group">
-                  <h3 className="composer-day">{day}</h3>
+                <section key={day} className={useClibLayout ? 'clib-group' : 'composer-day-group'}>
+                  {useClibLayout ? (
+                    <header className="clib-group-head">
+                      <span className="clib-group-label">{day}</span>
+                      <span className="clib-count">({entries.length})</span>
+                    </header>
+                  ) : (
+                    <h3 className="composer-day">{day}</h3>
+                  )}
                   <div
-                    className="composer-grid"
-                    style={{ ['--thumb' as string]: `${zoom}px` }}
+                    className={useClibLayout ? 'clib-grid' : 'composer-grid'}
+                    style={
+                      useClibLayout
+                        ? { ['--clib-thumb' as string]: `${zoom}px` }
+                        : { ['--thumb' as string]: `${zoom}px` }
+                    }
                   >
                     {entries.map((entry) => {
+                      if (useClibLayout && isClibHistoryEntry(entry, jobType)) {
+                        const feedItem = historyEntryToFeedItem(entry);
+                        const flatIndex = currentPreviewIndexById.get(entry.id) ?? 0;
+                        return (
+                          <ComposerLibraryItem
+                            key={entry.id}
+                            item={feedItem}
+                            kind={historyComposerMediaKind(jobType)}
+                            selected={selectedIds.has(entry.id)}
+                            onToggleSelect={() => toggleSelect(entry.id)}
+                            onPreview={() => setCurrentPreviewIndex(flatIndex)}
+                            onDelete={() => handleCurrentDelete(entry)}
+                            deleting={currentDeletingId === entry.id}
+                            extraMenuItems={[
+                              {
+                                label: 'Dùng lại',
+                                icon: <Clipboard size={14} />,
+                                onClick: () => applyReuse(entry),
+                              },
+                            ]}
+                          />
+                        );
+                      }
+
                       const kind = isMediaUrl(entry.resultUrl, entry.type);
                       const selected = selectedIds.has(entry.id);
-                      const faved = favorites.has(entry.id);
                       return (
                         <article
                           key={entry.id}
                           className={`hist-card ${selected ? 'selected' : ''}`}
                         >
                           <div className="hist-card-thumb-wrap">
-                            <label
-                              className="hist-card-check"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selected}
-                                onChange={() => toggleSelect(entry.id)}
-                              />
-                            </label>
-                            <button
-                              type="button"
-                              className={`hist-card-fav ${faved ? 'active' : ''}`}
-                              aria-label={faved ? 'Bỏ lưu' : 'Lưu vào thư viện'}
-                              onClick={() => toggleFavorite(entry.id)}
-                            >
-                              <Star size={15} fill={faved ? 'currentColor' : 'none'} />
-                            </button>
+                            <ComposerSelectCircle
+                              selected={selected}
+                              onToggle={() => toggleSelect(entry.id)}
+                            />
                             <a
                               className="hist-card-thumb"
                               href={entry.resultUrl}
@@ -3176,8 +3382,40 @@ export default function StudioPage({
                       );
                     })}
                   </div>
-                </div>
+                </section>
               ))}
+
+              {useClibLayout && currentPreviewIndex != null && currentPreviewItems.length > 0 && (
+                <ComposerLibraryPreviewModal
+                  items={currentPreviewItems}
+                  index={Math.min(currentPreviewIndex, currentPreviewItems.length - 1)}
+                  kind={historyComposerMediaKind(jobType)}
+                  onClose={() => setCurrentPreviewIndex(null)}
+                  onNavigate={setCurrentPreviewIndex}
+                  handlers={buildPreviewHandlers(
+                    currentPreviewItems[
+                      Math.min(currentPreviewIndex, currentPreviewItems.length - 1)
+                    ],
+                    feedMediaUrl(currentPreviewItems[
+                      Math.min(currentPreviewIndex, currentPreviewItems.length - 1)
+                    ]) ||
+                      feedThumb(currentPreviewItems[
+                        Math.min(currentPreviewIndex, currentPreviewItems.length - 1)
+                      ]) ||
+                      '',
+                    () => setCurrentPreviewIndex(null),
+                    () => {
+                      const item = currentPreviewItems[currentPreviewIndex];
+                      const entry = displayedResults.find((e) => e.id === item?.id_base);
+                      if (entry) handleCurrentDelete(entry);
+                    },
+                  )}
+                  deleting={Boolean(
+                    currentPreviewItems[currentPreviewIndex]?.id_base &&
+                      currentDeletingId === currentPreviewItems[currentPreviewIndex]?.id_base,
+                  )}
+                />
+              )}
             </div>
           )}
         </section>
@@ -3218,14 +3456,8 @@ export default function StudioPage({
         <p className="kicker">AI Studio</p>
         <h1>{t('composer.create', { type: typeLabel() })}</h1>
         <p className="lead">
-          {useBackend ? (
-            <>Credit khả dụng: <strong>{credits.toLocaleString('vi-VN')}</strong></>
-          ) : (
-            <>
-              Gọi thẳng <strong>v2.api.gommo.net</strong> — credit upstream:{' '}
-              <strong>{credits.toLocaleString('vi-VN')}</strong>
-            </>
-          )}
+          Gọi thẳng <strong>v2.api.gommo.net</strong> — credit upstream:{' '}
+          <strong>{credits.toLocaleString('vi-VN')}</strong>
           {unitCost > 0 && <> · Chi phí ~{unitCost} credit</>}
         </p>
       </div>

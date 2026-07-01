@@ -2,7 +2,6 @@ import { GommoClient } from './api';
 import { fetchUpstreamMe, type UpstreamMeResponse } from './upstreamMe';
 import { GOMMO_CHAT_CONFIG } from './gommoChatConfig';
 import { loadSettings, normalizeDomain, saveSettings } from './settingsStore';
-import { clearSession, isBackendLoggedIn, loadSession } from './session';
 
 const SESSION_KEY = 'gommo_session';
 export const DEFAULT_PROJECT_ID = 'default';
@@ -65,12 +64,18 @@ export function saveAuth(state: AuthState): void {
 
 export function clearAuth(): void {
   localStorage.removeItem(SESSION_KEY);
-  clearSession();
   saveSettings({ accessToken: '' });
 }
 
 export function isLoggedIn(): boolean {
-  return Boolean(loadAuth()?.access_token?.trim()) || isBackendLoggedIn();
+  return Boolean(loadAuth()?.access_token?.trim());
+}
+
+/** Khóa localStorage theo user Gommo. */
+export function authUserKey(): string {
+  const auth = loadAuth();
+  const id = auth?.upstream_me?.userInfo?.id_base || auth?.upstream_me?.userInfo?.email;
+  return id || 'anon';
 }
 
 export function getGommoClient(): GommoClient {
@@ -93,22 +98,11 @@ export function getDisplayUser(): DisplayUser {
       username: u.username || null,
     };
   }
-  const session = loadSession();
-  if (session) {
-    return {
-      name: session.user.name?.trim() || null,
-      email: session.user.email || '',
-      avatar: null,
-      username: null,
-    };
-  }
   return { name: null, email: '', avatar: null, username: null };
 }
 
 export function getCreditsAi(): number {
-  const auth = loadAuth();
-  if (auth?.upstream_me) return auth.upstream_me.balancesInfo?.credits_ai ?? 0;
-  return loadSession()?.balance ?? 0;
+  return loadAuth()?.upstream_me?.balancesInfo?.credits_ai ?? 0;
 }
 
 /** Thông báo số dư credit vừa thay đổi (vd sau khi tạo job) để header tự refresh. */
@@ -144,11 +138,6 @@ export async function refreshSession(): Promise<AuthState> {
   return next;
 }
 
-/** @deprecated dùng getCreditsAi — giữ cho code cũ tạm thời */
 export function getToken(): string | null {
   return loadAuth()?.access_token ?? null;
-}
-
-export function updateBalance(_balance: number): void {
-  /* credit upstream — refreshSession() để cập nhật */
 }

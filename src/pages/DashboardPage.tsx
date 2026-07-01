@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  fetchDashboardStats,
   type DashboardPeriod,
   type DashboardStats,
   type Job,
-} from '../services/backendApi';
+} from '../services/dashboardTypes';
 import { fetchGommoDashboardStats } from '../services/gommoDashboard';
-import { loadAuth } from '../services/authStore';
 import {
-  buildChartBucketsFromSeries,
   formatBucketStepLabel,
   MAX_CHART_COLUMNS,
 } from '../services/dashboardChartBuckets';
@@ -30,14 +27,6 @@ const ACTIVITY_TAB_KEYS: { id: ActivityTab; key: TranslationKey }[] = [
   { id: 'audio', key: 'dashboard.activity.tab.audio' },
   { id: 'music', key: 'dashboard.activity.tab.music' },
 ];
-
-const TX_KEYS: Record<string, TranslationKey> = {
-  signup_bonus: 'dashboard.tx.signup_bonus',
-  job_charge: 'dashboard.tx.job_charge',
-  job_refund: 'dashboard.tx.job_refund',
-  topup: 'dashboard.tx.topup',
-  promotion: 'dashboard.tx.promotion',
-};
 
 const ACTIVITY_PAGE_SIZE = 30;
 
@@ -101,28 +90,8 @@ function jobToRow(job: Job, t: TranslateFn): ActivityRow {
   };
 }
 
-function buildActivityRows(stats: DashboardStats, isGommo: boolean, t: TranslateFn): ActivityRow[] {
-  const jobRows = stats.recent_jobs.map((job) => jobToRow(job, t));
-
-  if (isGommo) return jobRows;
-
-  const jobIds = new Set(stats.recent_jobs.map((j) => j.id));
-  const extraRows: ActivityRow[] = stats.recent_transactions
-    .filter((tx) => tx.type !== 'job_charge' || !tx.job_id || !jobIds.has(tx.job_id))
-    .map((tx) => ({
-      id: tx.id,
-      model: tx.description || (TX_KEYS[tx.type] ? t(TX_KEYS[tx.type]) : tx.type),
-      typeLabel: TX_KEYS[tx.type] ? t(TX_KEYS[tx.type]) : tx.type,
-      category: 'other' as const,
-      status: '—',
-      statusClass: '',
-      cost: tx.amount,
-      created_at: tx.created_at,
-    }));
-
-  return [...jobRows, ...extraRows].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-  );
+function buildActivityRows(stats: DashboardStats, t: TranslateFn): ActivityRow[] {
+  return stats.recent_jobs.map((job) => jobToRow(job, t));
 }
 
 function filterActivityRows(rows: ActivityRow[], tab: ActivityTab): ActivityRow[] {
@@ -182,12 +151,11 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const isGommo = Boolean(loadAuth());
   const numberLocale = dateLocale(locale);
 
   const activityRows = useMemo(
-    () => (stats ? buildActivityRows(stats, isGommo, t) : []),
-    [stats, isGommo, t],
+    () => (stats ? buildActivityRows(stats, t) : []),
+    [stats, t],
   );
   const filteredRows = useMemo(
     () => filterActivityRows(activityRows, activityTab),
@@ -215,28 +183,8 @@ export default function DashboardPage() {
     setLoading(true);
     setError('');
     try {
-      const raw = loadAuth()
-        ? await fetchGommoDashboardStats(period)
-        : await fetchDashboardStats(period);
-
-      if (!loadAuth()) {
-        const rebucketed = buildChartBucketsFromSeries(
-          period,
-          raw.charts.jobs_by_day,
-          raw.charts.credits_by_day,
-        );
-        setStats({
-          ...raw,
-          charts: {
-            jobs_by_day: rebucketed.jobs_by_day,
-            credits_by_day: rebucketed.credits_by_day,
-          },
-          chart_bucket_days: rebucketed.bucket_days,
-          chart_column_count: rebucketed.column_count,
-        });
-      } else {
-        setStats(raw);
-      }
+      const raw = await fetchGommoDashboardStats(period);
+      setStats(raw);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

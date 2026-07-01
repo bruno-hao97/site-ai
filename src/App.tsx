@@ -8,8 +8,6 @@ import {
   loadAuth,
   refreshSession,
 } from './services/authStore';
-import { fetchMe } from './services/backendApi';
-import { isBackendLoggedIn, setSessionUser } from './services/session';
 import { UpstreamMeError } from './services/upstreamMe';
 import { useCreditsUpdated } from './hooks/useCreditsUpdated';
 import type { JobType } from './services/api';
@@ -24,8 +22,6 @@ import ProjectsPage from './pages/ProjectsPage';
 import WorkflowPage from './pages/WorkflowPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
-import ForgotPasswordPage from './pages/ForgotPasswordPage';
-import ResetPasswordPage from './pages/ResetPasswordPage';
 import StudioPage from './pages/StudioPage';
 import AudioPage from './pages/AudioPage';
 import ProfilePage from './pages/ProfilePage';
@@ -36,7 +32,6 @@ import StudioHistoryPage from './pages/StudioHistoryPage';
 import ApiPlaygroundPage from './pages/ApiPlaygroundPage';
 import DashboardPage from './pages/DashboardPage';
 import WalletPage from './pages/WalletPage';
-import ApiKeysPage from './pages/ApiKeysPage';
 import AccountLayout from './pages/account/AccountLayout';
 import AccountSettingsPage from './pages/account/AccountSettingsPage';
 import AccountPromoPage from './pages/account/AccountPromoPage';
@@ -81,21 +76,15 @@ function AppHeader() {
   }, [location.pathname]);
 
   function refreshCredits() {
-    if (loadAuth()) {
-      refreshSession()
-        .then((s) => setCredits(s.upstream_me.balancesInfo?.credits_ai ?? 0))
-        .catch((err) => {
-          // Token Gommo hết hạn / bị thu hồi → đăng xuất, về trang login.
-          if (err instanceof UpstreamMeError && (err.status === 401 || err.status === 403)) {
-            clearAuth();
-            window.location.href = '/login';
-          }
-        });
-    } else if (isBackendLoggedIn()) {
-      fetchMe()
-        .then((d) => setCredits(d.balance))
-        .catch(() => {});
-    }
+    if (!loadAuth()) return;
+    refreshSession()
+      .then((s) => setCredits(s.upstream_me.balancesInfo?.credits_ai ?? 0))
+      .catch((err) => {
+        if (err instanceof UpstreamMeError && (err.status === 401 || err.status === 403)) {
+          clearAuth();
+          window.location.href = '/login';
+        }
+      });
   }
 
   useEffect(() => {
@@ -104,7 +93,6 @@ function AppHeader() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loggedIn]);
 
-  // Tạo job xong → StudioPage bắn 'credits:updated' → header refresh số dư.
   useCreditsUpdated(() => {
     if (loggedIn) refreshCredits();
   });
@@ -182,7 +170,7 @@ function AppHeader() {
 
 function AppShell() {
   const location = useLocation();
-  const BARE_PAGES = ['/', '/login', '/register', '/forgot-password', '/reset-password'];
+  const BARE_PAGES = ['/', '/login', '/register'];
   const isBarePage = BARE_PAGES.includes(location.pathname);
   const isWorkflow = location.pathname === '/workflow';
   const isFullBleed =
@@ -190,7 +178,6 @@ function AppShell() {
     location.pathname === '/audio' ||
     isWorkflow;
   const hideHeader = isBarePage || isWorkflow;
-  // Quick Chat: hiện trên mọi page sau đăng nhập, trừ bare pages và /workflow (đã có Workflow Agent).
   const showQuickChat = isLoggedIn() && !isBarePage && !isWorkflow;
 
   return (
@@ -203,8 +190,6 @@ function AppShell() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={isLoggedIn() ? <Navigate to="/home" /> : <LoginPage />} />
           <Route path="/register" element={isLoggedIn() ? <Navigate to="/home" /> : <RegisterPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/home" element={<HomePage />} />
             <Route path="/explore" element={<ExplorePage />} />
@@ -240,10 +225,6 @@ function AppShell() {
             </Route>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/wallet" element={<WalletPage />} />
-            <Route
-              path="/api-keys"
-              element={loadAuth() ? <Navigate to="/settings/tokens" replace /> : <ApiKeysPage />}
-            />
           </Route>
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
@@ -254,15 +235,5 @@ function AppShell() {
 }
 
 export default function App() {
-  useEffect(() => {
-    if (isBackendLoggedIn() && !loadAuth()) {
-      fetchMe()
-        .then((d) => setSessionUser(d.user, d.balance))
-        .catch(() => {
-          /* 401 trong fetchMe đã tự xử lý đăng xuất ở backendApi */
-        });
-    }
-  }, []);
-
   return <AppShell />;
 }

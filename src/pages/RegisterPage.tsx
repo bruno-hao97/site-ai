@@ -1,10 +1,8 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { register } from '../services/backendApi';
-import { saveSession } from '../services/session';
 import { loginWithGommoToken } from '../services/authStore';
+import { gommoRegisterWithPassword, GommoAuthError } from '../services/gommoAuth';
 import { DEFAULT_DOMAIN } from '../services/settingsStore';
-import GoogleSignInButton from '../components/GoogleSignInButton';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -24,21 +22,17 @@ export default function RegisterPage() {
     setLoading(true);
     setError('');
     try {
-      const auth = await register({
+      const token = await gommoRegisterWithPassword({
         email,
         password,
         name: name.trim() || undefined,
         phone: phone.trim(),
         domain: DEFAULT_DOMAIN,
       });
-      if (auth.access_token) {
-        await loginWithGommoToken(auth.access_token, auth.domain || DEFAULT_DOMAIN);
-      } else {
-        saveSession({ token: auth.token, user: auth.user, balance: auth.balance });
-      }
+      await loginWithGommoToken(token, DEFAULT_DOMAIN);
       navigate('/home');
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(err instanceof GommoAuthError || err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -49,10 +43,6 @@ export default function RegisterPage() {
       <div className="auth-card panel">
         <h1>Đăng ký</h1>
         <p className="lead">Tạo tài khoản AI Center miễn phí.</p>
-
-        <GoogleSignInButton onSuccess={() => navigate('/home')} onError={setError} />
-
-        <div className="auth-divider"><span>hoặc</span></div>
 
         <form onSubmit={handleSubmit} className="form">
           <label className="field">

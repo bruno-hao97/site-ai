@@ -1,6 +1,5 @@
 import type { Edge, Node } from '@xyflow/react';
-import { loadAuth } from './authStore';
-import { loadSession } from './session';
+import { authUserKey } from './authStore';
 
 export interface WorkflowGroup {
   id: string;
@@ -41,12 +40,7 @@ export const WORKFLOW_GROUP_COLORS = [
 const EVENT = 'wf-library:updated';
 
 function userKey(): string {
-  const auth = loadAuth();
-  const id = auth?.upstream_me?.userInfo?.id_base || auth?.upstream_me?.userInfo?.email;
-  if (id) return id;
-  const session = loadSession();
-  if (session?.user?.email) return session.user.email;
-  return 'anon';
+  return authUserKey();
 }
 
 function groupsKey(): string {

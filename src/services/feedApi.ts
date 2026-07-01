@@ -1,26 +1,12 @@
 import { GOMMO_AUTH_BASE, GOMMO_AUTH_PATH, UpstreamMeError } from './upstreamMe';
-import { getSessionToken } from './session';
-import { clearAuth, loadAuth } from './authStore';
+import { clearAuth, loadAuth, resolveProjectId } from './authStore';
+import { GOMMO_CHAT_CONFIG } from './gommoChatConfig';
+import { buildDeviceInfo } from './audioVoices';
 
-/**
- * Gọi feed/explore qua backend proxy nếu có phiên JWT (backend dùng token chung),
- * ngược lại gọi thẳng Gommo bằng access token của user (đăng nhập bằng token).
- */
 async function feedRequest<T extends { success?: boolean; message?: string }>(
-  backendPath: string,
   gommoUrl: string,
   fields: Record<string, string>,
 ): Promise<T> {
-  const token = getSessionToken();
-  if (token) {
-    const res = await fetch(`/api/feed${backendPath}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(fields),
-    });
-    return parseFeedRes<T>(res);
-  }
-
   const auth = loadAuth();
   if (!auth?.access_token) throw new UpstreamMeError('Chưa đăng nhập', 401);
   const body = new URLSearchParams({
@@ -62,6 +48,11 @@ export interface FeedResolution {
   status?: string;
   id_base?: string;
   url?: string;
+  name?: string;
+  value?: string;
+  width?: number;
+  height?: number;
+  ratio?: string;
 }
 
 export interface FeedImageRef {
@@ -108,6 +99,7 @@ export interface FeedItem {
   created_time?: string | number;
   author?: FeedAuthor;
   isMe?: boolean;
+  file_size?: number;
 }
 
 export interface FeedPage {
@@ -151,7 +143,6 @@ export async function fetchNewsfeed(params: FetchFeedParams = {}): Promise<FeedP
   if (afterImageId) fields.after_image_id = afterImageId;
 
   const parsed = await feedRequest<FeedResponse>(
-    '/newsfeed',
     `${GOMMO_AUTH_BASE}/ai/newfeeds`,
     fields,
   );
@@ -199,7 +190,6 @@ export async function fetchPublicVideos(params: FetchPublicVideosParams = {}): P
   if (afterId) fields.after_id = afterId;
 
   const parsed = await feedRequest<PublicVideosResponse>(
-    '/public-videos',
     `${GOMMO_AUTH_BASE}${GOMMO_AUTH_PATH}/ai/public-videos`,
     fields,
   );
@@ -228,6 +218,14 @@ interface MineVideosResponse {
   next_after_id?: string;
 }
 
+interface MyImageResolution {
+  name?: string;
+  value?: string;
+  width?: number;
+  height?: number;
+  ratio?: string;
+}
+
 interface MyImageItem {
   id_base: string;
   url?: string;
@@ -239,6 +237,27 @@ interface MyImageItem {
   status?: string;
   created_at?: number | string;
   isMe?: boolean;
+  resolutions?: MyImageResolution[];
+  server_ai?: string;
+  category_name?: string;
+  file_size?: number;
+}
+
+function gommoDeviceFields(): Record<string, string> {
+  return {
+    device_id: GOMMO_CHAT_CONFIG.deviceId,
+    device_name: GOMMO_CHAT_CONFIG.deviceName,
+    device_info: buildDeviceInfo('vi'),
+  };
+}
+
+function mineFields(extra: Record<string, string>): Record<string, string> {
+  const fields = { ...extra, ...gommoDeviceFields() };
+  const projectId = resolveProjectId();
+  if (projectId && projectId !== 'default') {
+    fields.project_id = projectId;
+  }
+  return fields;
 }
 
 interface MineImagesResponse {
@@ -249,32 +268,44 @@ interface MineImagesResponse {
 }
 
 function mapImageToFeedItem(img: MyImageItem): FeedItem {
+  const resolutions = img.resolutions?.map((r) => ({
+    type: r.name || r.value || 'image',
+    name: r.name,
+    value: r.value,
+    width: r.width,
+    height: r.height,
+    ratio: r.ratio,
+    status: 'FINISH',
+    url: img.url,
+  }));
+  const resolutionName = img.resolutions?.[0]?.name || img.resolutions?.[0]?.value;
   return {
     id_base: img.id_base,
     type: 'image',
     status: img.status || 'SUCCESS',
     prompt: img.prompt,
     model: img.model,
-    ratio: img.ratio,
-    resolution: img.resolution,
+    ratio: img.ratio || img.resolutions?.[0]?.ratio,
+    resolution: resolutionName || img.resolution,
+    resolutions,
     thumbnail_url: img.url_preview || img.url,
     download_url: img.url,
     created_time: img.created_at,
     isMe: img.isMe,
+    file_size: img.file_size,
   };
 }
 
 export async function fetchMyVideos(params: FetchMineParams = {}): Promise<MinePage> {
   const { limit = 30, afterId = '' } = params;
-  const fields: Record<string, string> = {
+  const fields = mineFields({
     limit: String(limit),
     order_by: 'index',
     sort_by: 'desc',
-  };
+  });
   if (afterId) fields.after_id = afterId;
 
   const parsed = await feedRequest<MineVideosResponse>(
-    '/my-videos',
     `${GOMMO_AUTH_BASE}/ai/videos`,
     fields,
   );
@@ -286,15 +317,14 @@ export async function fetchMyVideos(params: FetchMineParams = {}): Promise<MineP
 
 export async function fetchMyImages(params: FetchMineParams = {}): Promise<MinePage> {
   const { limit = 30, afterId = '' } = params;
-  const fields: Record<string, string> = {
+  const fields = mineFields({
     limit: String(limit),
     order_by: 'index',
     sort_by: 'desc',
-  };
+  });
   if (afterId) fields.after_id = afterId;
 
   const parsed = await feedRequest<MineImagesResponse>(
-    '/my-images',
     `${GOMMO_AUTH_BASE}/ai/images`,
     fields,
   );
@@ -341,5 +371,20 @@ export function formatFeedTime(value: string | number | undefined): string {
     });
   } catch {
     return '';
+  }
+}
+
+/** Xóa ảnh/video trên Gommo (POST /api/apps/go-mmo/ai/post-delete). */
+export async function deleteFeedPost(idBase: string): Promise<void> {
+  const id = idBase.trim();
+  if (!id) throw new UpstreamMeError('Thiếu id_base', 400);
+
+  const fields = { id_base: id, ...gommoDeviceFields() };
+  const parsed = await feedRequest<{ success?: boolean; message?: string }>(
+    `${GOMMO_AUTH_BASE}${GOMMO_AUTH_PATH}/ai/post-delete`,
+    fields,
+  );
+  if (parsed.success === false) {
+    throw new UpstreamMeError(parsed.message || 'Xóa thất bại');
   }
 }
