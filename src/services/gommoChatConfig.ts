@@ -14,8 +14,8 @@ export interface GommoChatConfig {
 
 export const GOMMO_CHAT_CONFIG: GommoChatConfig = {
   baseUrl: '/api/v2',
-  server: 'cursorai',
-  model: 'composer-2.5-fast',
+  server: 'cheap',
+  model: 'gpt-5.5::cheap',
   agentId: 'd234b19ae119f741696eafa913d246cc',
   projectId: '55004151b482b646',
   deviceId: 'd991c6e9-5f3a-4d52-8065-728e3c260e11',

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, FolderOpen, Play, Plus, Save, Search, Settings2, Trash2, X } from 'lucide-react';
+import { Check, FolderOpen, Play, Plus, Save, Search, Settings2, Trash2, Upload, X } from 'lucide-react';
 import {
   assignTemplateToGroup,
   countByGroup,
@@ -17,6 +17,7 @@ import {
   type TemplateGraph,
   type WorkflowGroup,
 } from '../services/workflowLibraryStore';
+import { parseWflFile } from '../services/wflImport';
 
 interface Props {
   open: boolean;
@@ -31,6 +32,8 @@ export default function WorkflowLibrary({ open, currentGraph, onOpenTemplate, on
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
   const [newName, setNewName] = useState('');
+  const [importError, setImportError] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => onLibraryUpdated(() => setTick((t) => t + 1)), []);
 
@@ -55,6 +58,25 @@ export default function WorkflowLibrary({ open, currentGraph, onOpenTemplate, on
     const name = newName.trim() || `Workflow ${new Date().toLocaleString('vi-VN')}`;
     saveTemplate(name, graph, activeGroup);
     setNewName('');
+  };
+
+  const handleImportFile = async (file: File | undefined) => {
+    if (!file) return;
+    setImportError('');
+    try {
+      const raw = await file.text();
+      const { name, graph } = parseWflFile(raw);
+      if (!graph.nodes.length) {
+        setImportError('File không có node nào.');
+        return;
+      }
+      const baseName = name || file.name.replace(/\.(wfl|json)$/i, '');
+      saveTemplate(baseName, graph, activeGroup);
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (fileRef.current) fileRef.current.value = '';
+    }
   };
 
   return createPortal(
@@ -105,7 +127,24 @@ export default function WorkflowLibrary({ open, currentGraph, onOpenTemplate, on
           <button type="button" className="wflib-save-btn" onClick={handleSaveCurrent}>
             <Save size={15} /> Lưu workflow hiện tại
           </button>
+          <button
+            type="button"
+            className="wflib-import-btn"
+            onClick={() => fileRef.current?.click()}
+            title="Import file .wfl / .json"
+          >
+            <Upload size={15} /> Import file
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".wfl,.json,application/json"
+            className="sr-only"
+            onChange={(e) => void handleImportFile(e.target.files?.[0])}
+          />
         </div>
+
+        {importError && <div className="wflib-import-error">{importError}</div>}
 
         <div className="wflib-tabs">
           <button

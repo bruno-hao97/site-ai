@@ -83,6 +83,7 @@ import { clearWorkflow, saveWorkflow } from '../services/workflowStore';
 import WorkflowLibrary from '../components/WorkflowLibrary';
 import WorkflowTopBar from '../components/WorkflowTopBar';
 import WorkflowAgentPanel from '../components/workflow/WorkflowAgentPanel';
+import WorkflowMediaInputModal from '../components/workflow/WorkflowMediaInputModal';
 import {
   loadTemplates,
   onLibraryUpdated,
@@ -97,6 +98,15 @@ import {
 } from '../services/workflowTabsStore';
 import ProjectPicker from '../components/ProjectPicker';
 import type { ProjectItemType } from '../services/projectStore';
+import {
+  defaultMediaInputDraft,
+  draftFromNodeData,
+  extractVideoFirstFrame,
+  MEDIA_INPUT_PORTS,
+  resolveMediaInputUrls,
+  type MediaInputDraft,
+  type MediaInputKind,
+} from '../services/workflowMediaInput';
 
 type WFStatus = 'idle' | 'running' | 'done' | 'error';
 
@@ -113,6 +123,7 @@ interface NodeData {
   status?: WFStatus;
   statusText?: string;
   resultUrl?: string;
+  fileName?: string;
   error?: string;
   [key: string]: unknown;
 }
@@ -121,9 +132,13 @@ type WFNode = Node<NodeData>;
 
 interface WorkflowCtxValue {
   updateNode: (id: string, patch: Partial<NodeData>) => void;
+  openMediaInputModal: (nodeId: string) => void;
 }
 
-const WorkflowCtx = createContext<WorkflowCtxValue>({ updateNode: () => {} });
+const WorkflowCtx = createContext<WorkflowCtxValue>({
+  updateNode: () => {},
+  openMediaInputModal: () => {},
+});
 
 function useUpdateNode(id: string) {
   const { updateNode } = useContext(WorkflowCtx);
@@ -280,6 +295,49 @@ function TextNode({ id, data }: NodeProps<WFNode>) {
   );
 }
 
+function CompactMediaInputNode({
+  id,
+  data,
+  kind,
+}: NodeProps<WFNode> & { kind: MediaInputKind }) {
+  const { openMediaInputModal } = useContext(WorkflowCtx);
+  const ports = MEDIA_INPUT_PORTS[kind];
+  const title = kind === 'image' ? 'Nhập ảnh' : 'Nhập Video';
+  const Icon = kind === 'image' ? Image : Video;
+  const count = Array.isArray(data.mediaUrls) ? data.mediaUrls.length : 0;
+
+  return (
+    <div
+      className={`wf-node wf-node-media-compact status-${data.status || 'idle'}`}
+      onDoubleClick={() => openMediaInputModal(id)}
+      title="Double-click để chỉnh sửa"
+    >
+      <NodeHead id={id} icon={<Icon size={14} />} title={title} status={data.status} />
+      {count > 0 && (
+        <p className="wf-node-media-count">
+          {count} {kind === 'image' ? 'ảnh' : 'video'}
+        </p>
+      )}
+      <div className="wf-node-media-ports">
+        {ports.in.map((p) => (
+          <Port key={p.id} side="in" label={p.label} color={p.color} handleId={p.id} />
+        ))}
+        {ports.out.map((p) => (
+          <Port key={p.id} side="out" label={p.label} color={p.color} handleId={p.id} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function InputImageNode(props: NodeProps<WFNode>) {
+  return <CompactMediaInputNode {...props} kind="image" />;
+}
+
+function InputVideoNode(props: NodeProps<WFNode>) {
+  return <CompactMediaInputNode {...props} kind="video" />;
+}
+
 function ImageNode({ id, data }: NodeProps<WFNode>) {
   const update = useUpdateNode(id);
   return (
@@ -429,6 +487,22 @@ function EndNode({ id, data }: NodeProps<WFNode>) {
       <p className="wf-node-empty">
         {data.status === 'done' ? 'Quy trình hoàn tất.' : 'Điểm kết thúc quy trình.'}
       </p>
+    </div>
+  );
+}
+
+function RenderNode({ id, data }: NodeProps<WFNode>) {
+  return (
+    <div className={`wf-node status-${data.status || 'idle'}`}>
+      <NodeHead id={id} icon={<Film size={14} />} title="Render Video" status={data.status} />
+      <Port side="in" label="Video" color="#60a5fa" handleId="video" />
+      <p className="wf-node-empty">
+        Ghép các video đầu vào{data.exportMode ? ` · ${String(data.exportMode)}` : ''}
+        {data.resolution ? ` · ${String(data.resolution)}` : ''}
+      </p>
+      {data.statusText && <p className="wf-node-status">{data.statusText}</p>}
+      {data.error && <p className="wf-node-error">{data.error}</p>}
+      <Port side="out" label="Video" color="#60a5fa" handleId="video" />
     </div>
   );
 }
@@ -590,6 +664,8 @@ function NotifyNode({ id, data }: NodeProps<WFNode>) {
 const nodeTypes = {
   start: StartNode,
   text: TextNode,
+  'input-image': InputImageNode,
+  'input-video': InputVideoNode,
   image: ImageNode,
   video: VideoNode,
   tts: TtsNode,
@@ -603,6 +679,7 @@ const nodeTypes = {
   note: NoteNode,
   output: OutputNode,
   end: EndNode,
+  render: RenderNode,
 };
 
 function WfEdge({
@@ -757,8 +834,8 @@ const NODE_GROUPS: NodeGroup[] = [
     nodes: [
       soon('agent', 'Tác Nhân AI', Bot),
       { key: 'text', label: 'Nhập văn bản', icon: Type, implemented: true },
-      soon('input-image', 'Nhập ảnh', Image),
-      soon('input-video', 'Nhập Video', Video),
+      { key: 'input-image', label: 'Nhập ảnh', icon: Image, implemented: true },
+      { key: 'input-video', label: 'Nhập Video', icon: Video, implemented: true },
       { key: 'output', label: 'Đầu ra', icon: Package, implemented: true },
       soon('merge', 'Gộp dữ liệu', Combine),
       { key: 'note', label: 'Ghi chú', icon: StickyNote, implemented: true },
@@ -1133,8 +1210,15 @@ function Flow() {
   const [paletteOpen, setPaletteOpen] = useState(true);
   const [newOpen, setNewOpen] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
+  const [mediaModal, setMediaModal] = useState<{
+    nodeId: string;
+    kind: MediaInputKind;
+    draft: MediaInputDraft;
+    isNew: boolean;
+    position: { x: number; y: number };
+  } | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const { screenToFlowPosition, fitView } = useReactFlow();
+  const { screenToFlowPosition, fitView, deleteElements } = useReactFlow();
 
   useEffect(() => onLibraryUpdated(() => setLibCount(loadTemplates().length)), []);
 
@@ -1232,7 +1316,27 @@ function Flow() {
     [setNodes],
   );
 
-  const ctx = useMemo<WorkflowCtxValue>(() => ({ updateNode }), [updateNode]);
+  const isMediaNodeType = (type: string) => type === 'input-image' || type === 'input-video';
+
+  const openMediaInputModal = useCallback(
+    (nodeId: string) => {
+      const node = nodes.find((n) => n.id === nodeId);
+      if (!node?.type || !isMediaNodeType(node.type)) return;
+      setMediaModal({
+        nodeId,
+        kind: node.type === 'input-image' ? 'image' : 'video',
+        draft: draftFromNodeData(node.data as Record<string, unknown>),
+        isNew: false,
+        position: node.position,
+      });
+    },
+    [nodes],
+  );
+
+  const ctx = useMemo<WorkflowCtxValue>(
+    () => ({ updateNode, openMediaInputModal }),
+    [updateNode, openMediaInputModal],
+  );
 
   const onConnect = useCallback(
     (c: Connection) => setEdges((eds) => addEdge({ ...c, type: 'wf' }, eds)),
@@ -1242,6 +1346,17 @@ function Flow() {
   const addNodeAt = useCallback(
     (type: string, position: { x: number; y: number }) => {
       if (!(type in nodeTypes)) return;
+      if (isMediaNodeType(type)) {
+        const id = `${type}-${nodeCounter++}`;
+        setMediaModal({
+          nodeId: id,
+          kind: type === 'input-image' ? 'image' : 'video',
+          draft: defaultMediaInputDraft(),
+          isNew: true,
+          position,
+        });
+        return;
+      }
       const id = `${type}-${nodeCounter++}`;
       const node: WFNode = { id, type, position, data: {} };
       setNodes((nds) => [...nds, node]);
@@ -1311,6 +1426,37 @@ function Flow() {
     setRunning(false);
   };
 
+  const saveMediaModal = (draft: MediaInputDraft) => {
+    if (!mediaModal) return;
+    const data: Partial<NodeData> = {
+      ...draft,
+      configured: true,
+      resultUrl: draft.mediaUrls[0] || '',
+    };
+    if (mediaModal.isNew) {
+      setNodes((nds) => [
+        ...nds,
+        {
+          id: mediaModal.nodeId,
+          type: mediaModal.kind === 'image' ? 'input-image' : 'input-video',
+          position: mediaModal.position,
+          data,
+        },
+      ]);
+    } else {
+      updateNode(mediaModal.nodeId, data);
+    }
+    setMediaModal(null);
+  };
+
+  const deleteMediaModalNode = () => {
+    if (!mediaModal) return;
+    if (!mediaModal.isNew) {
+      deleteElements({ nodes: [{ id: mediaModal.nodeId }] });
+    }
+    setMediaModal(null);
+  };
+
   async function runWorkflow() {
     setError('');
 
@@ -1337,11 +1483,23 @@ function Flow() {
     );
 
     const outputs: Record<string, string> = {};
+    const outputByHandle: Record<string, Record<string, string>> = {};
+    const usedMediaUrls = new Set<string>();
     const incoming = (id: string) => edges.filter((e) => e.target === id).map((e) => e.source);
+
+    const resolveEdgeOutput = (edge: Edge): string | undefined => {
+      const byHandle = outputByHandle[edge.source];
+      if (edge.sourceHandle && byHandle?.[edge.sourceHandle]) {
+        return byHandle[edge.sourceHandle];
+      }
+      return outputs[edge.source];
+    };
+
     const getInputs = (id: string) => {
-      const ups = incoming(id)
-        .map((sid) => outputs[sid])
-        .filter(Boolean);
+      const ins = edges.filter((e) => e.target === id);
+      const ups = ins
+        .map((e) => resolveEdgeOutput(e))
+        .filter((u): u is string => Boolean(u));
       return {
         upText: ups.find((u) => !/^https?:\/\//i.test(u)),
         upUrl: ups.find((u) => /^https?:\/\//i.test(u)),
@@ -1390,6 +1548,57 @@ function Flow() {
         case 'text':
           updateNode(node.id, { status: 'done' });
           return { output: String(node.data.prompt || '') };
+        case 'input-image':
+        case 'input-video': {
+          const draft = draftFromNodeData(node.data as Record<string, unknown>);
+          const resolved = resolveMediaInputUrls(
+            node.id,
+            node.data as Record<string, unknown>,
+            edges,
+            outputs,
+            usedMediaUrls,
+          );
+          let primary = resolved.primary;
+          let frameUrl = resolved.firstFrame;
+
+          if (node.type === 'input-video' && primary) {
+            updateNode(node.id, { status: 'running', statusText: 'Trích frame…' });
+            frameUrl = await extractVideoFirstFrame(primary);
+          }
+
+          if (!primary && draft.required) {
+            updateNode(node.id, { status: 'error', error: 'Chưa có ảnh/video (bắt buộc)' });
+            throw new Error('Chưa có ảnh/video');
+          }
+
+          if (!primary && !draft.required) {
+            updateNode(node.id, { status: 'done', statusText: 'Bỏ qua (không bắt buộc)' });
+            outputByHandle[node.id] = { done: 'ok', 'media-out': '', all: '[]', 'first-frame': '' };
+            return { output: '' };
+          }
+
+          outputByHandle[node.id] =
+            node.type === 'input-image'
+              ? {
+                  done: primary,
+                  'media-out': primary,
+                  all: JSON.stringify(resolved.all),
+                }
+              : {
+                  done: primary,
+                  'media-out': primary,
+                  'first-frame': frameUrl || primary,
+                };
+
+          outputs[node.id] = primary;
+          updateNode(node.id, {
+            status: 'done',
+            resultUrl: primary,
+            statusText: undefined,
+            error: undefined,
+          });
+          return { output: primary };
+        }
         case 'api': {
           const url = String(node.data.url || '').trim();
           if (!url) {
@@ -1427,6 +1636,14 @@ function Flow() {
             status: upUrl ? 'done' : 'error',
             error: upUrl ? undefined : 'Không có đầu vào',
           });
+          return { output: upUrl };
+        }
+        case 'render': {
+          if (!upUrl) {
+            updateNode(node.id, { status: 'error', error: 'Không có video đầu vào' });
+            throw new Error('Render: không có video đầu vào');
+          }
+          updateNode(node.id, { status: 'done', statusText: 'Đã ghép (pass-through)' });
           return { output: upUrl };
         }
         default: {
@@ -1581,9 +1798,15 @@ function Flow() {
           <ReactFlow
             nodes={nodes}
             edges={edges}
+            minZoom={0.1}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onNodeDoubleClick={(_, node) => {
+              if (node.type && isMediaNodeType(node.type)) {
+                openMediaInputModal(node.id);
+              }
+            }}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             defaultEdgeOptions={{ type: 'wf' }}
@@ -1630,6 +1853,18 @@ function Flow() {
       />
 
       <NewWorkflowModal open={newOpen} onCreate={newTab} onClose={() => setNewOpen(false)} />
+
+      {mediaModal && (
+        <WorkflowMediaInputModal
+          open
+          kind={mediaModal.kind}
+          draft={mediaModal.draft}
+          isNew={mediaModal.isNew}
+          onSave={saveMediaModal}
+          onDelete={deleteMediaModalNode}
+          onClose={() => setMediaModal(null)}
+        />
+      )}
     </WorkflowCtx.Provider>
   );
 }

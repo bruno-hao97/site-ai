@@ -72,6 +72,9 @@ const VALID_NODE_TYPES = new Set([
   'note',
   'output',
   'end',
+  'input-image',
+  'input-video',
+  'render',
 ]);
 
 const NODE_TYPE_ALIASES: Record<string, string> = {
@@ -99,6 +102,12 @@ const NODE_TYPE_ALIASES: Record<string, string> = {
   clone: 'clone',
   notify: 'notify',
   note: 'note',
+  'input-image': 'input-image',
+  'input-video': 'input-video',
+  'nhap-anh': 'input-image',
+  'nhap-video': 'input-video',
+  'import-image': 'input-image',
+  'import-video': 'input-video',
 };
 
 const DELETE_ALL_RE =

@@ -9437,6 +9437,34 @@ body.qc-dock-active .quick-chat-fab {
   filter: brightness(1.06);
 }
 
+.wflib-import-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.9rem;
+  border: 1px solid var(--brand, #2dd4bf);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--brand, #2dd4bf);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.wflib-import-btn:hover {
+  background: rgba(45, 212, 191, 0.12);
+}
+
+.wflib-import-error {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+  font-size: 0.8rem;
+}
+
 .wflib-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -9791,6 +9819,492 @@ body.qc-dock-active .quick-chat-fab {
   margin: 0;
   font-size: 0.76rem;
   color: var(--muted, #8b8f98);
+}
+
+.wf-node-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.65rem;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.15);
+  text-align: center;
+}
+
+.wf-node-upload p {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted, #8b8f98);
+}
+
+.wf-node-upload.has-file {
+  border-style: solid;
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
+.wf-node-upload-btn {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  cursor: pointer;
+}
+
+.wf-node-upload-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.wf-node-upload-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.wf-node-upload-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  font-size: 0.75rem;
+}
+
+.wf-node-upload-file span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wf-node-upload-clear {
+  flex-shrink: 0;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.7rem;
+  border-radius: 4px;
+  border: none;
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  cursor: pointer;
+}
+
+/* Compact media input nodes (Nhập ảnh / Nhập Video) */
+.wf-node-media-compact {
+  min-width: 168px;
+  cursor: default;
+}
+
+.wf-node-media-count {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  color: #9aa0ab;
+  text-align: center;
+}
+
+.wf-node-media-ports {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.wf-node-media-ports .wf-port--in {
+  padding-left: 0.55rem;
+}
+
+.wf-node-media-ports .wf-port--out {
+  padding-right: 0.55rem;
+}
+
+/* Media input config modal */
+.wf-media-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(6, 8, 12, 0.72);
+}
+
+.wf-media-modal {
+  width: min(560px, 100%);
+  max-height: min(92vh, 780px);
+  overflow-y: auto;
+  background: #12151c;
+  border: 1px solid #2a2f3a;
+  border-radius: 14px;
+  padding: 1.1rem 1.2rem 1rem;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+
+.wf-media-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.wf-media-modal-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.wf-media-modal-title h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #e7e8ea;
+}
+
+.wf-media-modal-x {
+  border: none;
+  background: transparent;
+  color: #8b8f98;
+  cursor: pointer;
+}
+
+.wf-media-modal-desc {
+  margin: 0 0 0.85rem;
+  font-size: 0.78rem;
+  color: #8b8f98;
+  line-height: 1.45;
+}
+
+.wf-media-modal-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.85rem;
+}
+
+.wf-media-modal-tabs button {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.78rem;
+  border-radius: 8px;
+  border: 1px solid #2a2f3a;
+  background: #1a1e27;
+  color: #c5c9d1;
+  cursor: pointer;
+}
+
+.wf-media-modal-tabs button.active {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+}
+
+.wf-media-modal-body {
+  margin-bottom: 0.85rem;
+}
+
+.wf-media-modal-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 1rem;
+  border: 1px dashed #3a4150;
+  border-radius: 10px;
+  color: #9aa0ab;
+}
+
+.wf-media-modal-upload p {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.wf-media-modal-upload-btn {
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #3a4150;
+  background: #1f2430;
+  color: inherit;
+  cursor: pointer;
+}
+
+.wf-media-modal-url {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.wf-media-modal-url input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid #2a2f3a;
+  background: #0f1218;
+  color: inherit;
+  font-size: 0.82rem;
+}
+
+.wf-media-modal-url button {
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+  border: none;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+}
+
+.wf-media-modal-library {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.wf-media-modal-library-search {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid #2a2f3a;
+  background: #0f1218;
+  color: #8b8f98;
+}
+
+.wf-media-modal-library-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 0.8rem;
+  outline: none;
+}
+
+.wf-media-modal-library-scroll {
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.wf-media-modal-library-day {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.wf-media-modal-library-date {
+  font-size: 0.68rem;
+  color: #6b7280;
+  letter-spacing: 0.04em;
+}
+
+.wf-media-modal-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 0.45rem;
+}
+
+.wf-media-modal-library-more {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid #3a4150;
+  background: #1f2430;
+  color: inherit;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.wf-media-modal-library-more:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.wf-media-modal-library-hint {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #6b7280;
+  text-align: center;
+}
+
+.wf-media-lib-item {
+  aspect-ratio: 1;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  background: #0f1218;
+}
+
+.wf-media-lib-item.selected {
+  border-color: #3b82f6;
+}
+
+.wf-media-lib-item img,
+.wf-media-lib-item video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wf-media-modal-list {
+  margin: 0.65rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.wf-media-modal-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  background: #1a1e27;
+  font-size: 0.76rem;
+}
+
+.wf-media-modal-list li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wf-media-modal-list li button {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: #f87171;
+  cursor: pointer;
+  font-size: 0.72rem;
+}
+
+.wf-media-modal-empty {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #8b8f98;
+}
+
+.wf-media-modal-error {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  color: #f87171;
+}
+
+.wf-media-modal-settings h4,
+.wf-media-modal-ports h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  color: #6b7280;
+}
+
+.wf-media-toggle {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  margin-bottom: 0.55rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.wf-media-toggle strong {
+  display: block;
+  color: #e5e7eb;
+}
+
+.wf-media-toggle small {
+  display: block;
+  color: #8b8f98;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.wf-media-modal-ports {
+  margin: 0.85rem 0;
+}
+
+.wf-media-modal-ports-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.wf-media-ports-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.72rem;
+  color: #9aa0ab;
+}
+
+.wf-media-port-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.76rem;
+  color: #c5c9d1;
+  margin-bottom: 0.25rem;
+}
+
+.wf-media-port-row code {
+  margin-left: auto;
+  font-size: 0.65rem;
+  color: #6b7280;
+}
+
+.wf-media-port-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.wf-media-modal-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #2a2f3a;
+}
+
+.wf-media-modal-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.1);
+  color: #fca5a5;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.wf-media-modal-required {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: #9aa0ab;
+  cursor: pointer;
+}
+
+.wf-media-modal-done {
+  padding: 0.5rem 1.25rem;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .wf-node-out-actions {

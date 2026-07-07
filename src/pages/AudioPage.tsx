@@ -181,7 +181,10 @@ function isVoiceProvider(value: string | undefined): value is VoiceProvider {
 export default function AudioPage() {
   const { t, locale } = useLocale();
   const auth = loadAuth();
-  const client = auth?.access_token ? getGommoClient() : null;
+  const client = useMemo(
+    () => (auth?.access_token ? getGommoClient() : null),
+    [auth?.access_token],
+  );
 
   const [activeFeature, setActiveFeature] = useState<AudioFeature>('tts');
   const [navCollapsed, setNavCollapsed] = useState(false);
