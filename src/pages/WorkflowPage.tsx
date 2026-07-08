@@ -304,7 +304,24 @@ function CompactMediaInputNode({
   const ports = MEDIA_INPUT_PORTS[kind];
   const title = kind === 'image' ? 'Nhập ảnh' : 'Nhập Video';
   const Icon = kind === 'image' ? Image : Video;
-  const count = Array.isArray(data.mediaUrls) ? data.mediaUrls.length : 0;
+
+  const mediaUrls: string[] = Array.isArray(data.mediaUrls)
+    ? (data.mediaUrls as string[])
+    : data.resultUrl
+      ? [data.resultUrl as string]
+      : [];
+
+  const count = mediaUrls.length;
+
+  const [page, setPage] = useState(0);
+  const COLS = 2;
+  const ROWS = 2;
+  const PER_PAGE = COLS * ROWS;
+  const totalPages = Math.max(1, Math.ceil(count / PER_PAGE));
+  const safePage = Math.min(page, totalPages - 1);
+  const pageUrls = mediaUrls.slice(safePage * PER_PAGE, safePage * PER_PAGE + PER_PAGE);
+  const globalIndex = (localIndex: number) => safePage * PER_PAGE + localIndex + 1;
+  const noun = kind === 'image' ? 'image' : 'video';
 
   return (
     <div
@@ -313,11 +330,7 @@ function CompactMediaInputNode({
       title="Double-click để chỉnh sửa"
     >
       <NodeHead id={id} icon={<Icon size={14} />} title={title} status={data.status} />
-      {count > 0 && (
-        <p className="wf-node-media-count">
-          {count} {kind === 'image' ? 'ảnh' : 'video'}
-        </p>
-      )}
+
       <div className="wf-node-media-ports">
         {ports.in.map((p) => (
           <Port key={p.id} side="in" label={p.label} color={p.color} handleId={p.id} />
@@ -326,6 +339,69 @@ function CompactMediaInputNode({
           <Port key={p.id} side="out" label={p.label} color={p.color} handleId={p.id} />
         ))}
       </div>
+
+      {count > 0 ? (
+        <div className="wf-media-thumb-area nodrag">
+          <div
+            className="wf-media-thumb-grid"
+            style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)` }}
+          >
+            {pageUrls.map((url, i) => (
+              <div key={`${url}-${i}`} className="wf-media-thumb-cell">
+                {kind === 'image' ? (
+                  <img
+                    src={url}
+                    alt={`@${noun}${globalIndex(i)}`}
+                    className="wf-media-thumb-img"
+                  />
+                ) : (
+                  <video src={url} className="wf-media-thumb-img" muted preload="metadata" />
+                )}
+                <span className="wf-media-thumb-label">
+                  @{noun}
+                  {globalIndex(i)}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {totalPages > 1 && (
+            <div className="wf-media-thumb-pagination">
+              <button
+                type="button"
+                className="wf-media-thumb-page-btn"
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={safePage === 0}
+              >
+                ‹
+              </button>
+              {Array.from({ length: Math.min(totalPages, 6) }, (_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className={`wf-media-thumb-page-dot${safePage === i ? ' active' : ''}`}
+                  onClick={() => setPage(i)}
+                >
+                  {i + 1}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="wf-media-thumb-page-btn"
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={safePage === totalPages - 1}
+              >
+                ›
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="wf-media-thumb-empty nodrag" onClick={() => openMediaInputModal(id)}>
+          <Icon size={20} className="wf-media-thumb-empty-icon" />
+          <span>Double-click để thêm {kind === 'image' ? 'ảnh' : 'video'}</span>
+        </div>
+      )}
     </div>
   );
 }
