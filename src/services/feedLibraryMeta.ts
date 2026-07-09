@@ -43,6 +43,17 @@ export function feedRatioLabel(item: FeedItem): string {
   return r;
 }
 
+export function feedSourceLabel(item: FeedItem): string {
+  const sa = item.server_ai?.trim();
+  if (sa) return sa;
+  if (item.isMe) return 'Của tôi';
+  return 'Tạo AI';
+}
+
+export function feedCategoryLabel(item: FeedItem): string {
+  return item.category_name?.trim() || '';
+}
+
 export function feedCreatedDateLabel(item: FeedItem): string {
   if (item.created_time == null) return '';
   let ts = typeof item.created_time === 'string' ? Number(item.created_time) : item.created_time;

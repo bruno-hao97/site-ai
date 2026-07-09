@@ -9,6 +9,9 @@ export interface MediaInputDraft {
   mediaUrls: string[];
   fileNames: string[];
   randomOutput: boolean;
+  /** Chỉ số 1-based (vmedia): random trong [randomMin, randomMax]. */
+  randomMin?: number;
+  randomMax?: number;
   useOnce: boolean;
   required: boolean;
 }
@@ -19,6 +22,8 @@ export function defaultMediaInputDraft(): MediaInputDraft {
     mediaUrls: [],
     fileNames: [],
     randomOutput: false,
+    randomMin: 1,
+    randomMax: 1,
     useOnce: false,
     required: false,
   };
@@ -37,9 +42,22 @@ export function draftFromNodeData(data: Record<string, unknown>): MediaInputDraf
     mediaUrls: urls,
     fileNames: names,
     randomOutput: Boolean(data.randomOutput),
+    randomMin: Number(data.randomMin) || 1,
+    randomMax: Number(data.randomMax) || urls.length || 1,
     useOnce: Boolean(data.useOnce),
     required: Boolean(data.required),
   };
+}
+
+export function clampRandomRange(
+  count: number,
+  min?: number,
+  max?: number,
+): { randomMin: number; randomMax: number } {
+  if (count <= 0) return { randomMin: 1, randomMax: 1 };
+  const randomMin = Math.min(Math.max(1, min ?? 1), count);
+  const randomMax = Math.min(Math.max(randomMin, max ?? count), count);
+  return { randomMin, randomMax };
 }
 
 export function isHttpUrl(value: string): boolean {
@@ -51,11 +69,22 @@ export function pickMediaUrl(
   randomOutput: boolean,
   useOnce: boolean,
   usedSet: Set<string>,
+  randomMin = 1,
+  randomMax?: number,
 ): string {
   let pool = urls.filter((u) => u.trim());
   if (useOnce) pool = pool.filter((u) => !usedSet.has(u));
   if (!pool.length) return '';
-  const picked = randomOutput ? pool[Math.floor(Math.random() * pool.length)] : pool[0];
+
+  let picked: string;
+  if (randomOutput && pool.length > 1) {
+    const { randomMin: min, randomMax: max } = clampRandomRange(pool.length, randomMin, randomMax);
+    const slice = pool.slice(min - 1, max);
+    picked = slice[Math.floor(Math.random() * slice.length)] ?? pool[0];
+  } else {
+    picked = pool[0];
+  }
+
   if (useOnce && picked) usedSet.add(picked);
   return picked;
 }
@@ -85,7 +114,14 @@ export function resolveMediaInputUrls(
   urls.push(...collectInboundMediaUrls(nodeId, edges, outputs, 'merge'));
 
   const unique = [...new Set(urls)];
-  const primary = pickMediaUrl(unique, draft.randomOutput, draft.useOnce, usedSet);
+  const primary = pickMediaUrl(
+    unique,
+    draft.randomOutput,
+    draft.useOnce,
+    usedSet,
+    draft.randomMin ?? 1,
+    draft.randomMax ?? unique.length,
+  );
 
   return {
     primary,

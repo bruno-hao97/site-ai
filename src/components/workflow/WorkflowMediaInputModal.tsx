@@ -1,32 +1,31 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, Loader2, Search, Trash2, Upload, Video, X } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  Image,
+  LayoutGrid,
+  Link as LinkIcon,
+  Loader2,
+  Sparkles,
+  Trash2,
+  Upload,
+  Video,
+  X,
+} from 'lucide-react';
 import { getGommoClient, loadAuth } from '../../services/authStore';
 import {
-  feedMediaUrl,
-  feedModelLabel,
-  feedThumb,
-  fetchMyImages,
-  fetchMyVideos,
-  type FeedItem,
-} from '../../services/feedApi';
-import {
+  clampRandomRange,
   MEDIA_INPUT_PORTS,
   type MediaInputDraft,
   type MediaInputKind,
   type MediaSourceTab,
 } from '../../services/workflowMediaInput';
+import WorkflowMediaLibraryPicker from './WorkflowMediaLibraryPicker';
 
-function tsToDate(value: string | number | undefined): Date | null {
-  if (value == null) return null;
-  let ts = typeof value === 'string' ? Number(value) : value;
-  if (!Number.isFinite(ts) || ts <= 0) return null;
-  if (ts < 1e12) ts *= 1000;
-  return new Date(ts);
-}
-
-function dayLabel(d: Date): string {
-  return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
+const TAB_ICONS: Record<MediaSourceTab, ReactNode> = {
+  upload: <Upload size={13} />,
+  library: <LayoutGrid size={13} />,
+  extra: <Sparkles size={13} />,
+  url: <LinkIcon size={13} />,
+};
 
 interface Props {
   open: boolean;
@@ -46,7 +45,7 @@ const IMAGE_TABS: { id: MediaSourceTab; label: string }[] = [
 ];
 
 const VIDEO_TABS: { id: MediaSourceTab; label: string }[] = [
-  { id: 'upload', label: 'Chọn file' },
+  { id: 'upload', label: 'Tải lên' },
   { id: 'library', label: 'Thư viện' },
   { id: 'url', label: 'URL' },
 ];
@@ -63,65 +62,32 @@ export default function WorkflowMediaInputModal({
   const [draft, setDraft] = useState<MediaInputDraft>(initialDraft);
   const [urlInput, setUrlInput] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(
+    null,
+  );
   const [error, setError] = useState('');
+  const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-
-  const [libraryItems, setLibraryItems] = useState<FeedItem[]>([]);
-  const [libraryLoading, setLibraryLoading] = useState(false);
-  const [libraryError, setLibraryError] = useState('');
-  const [libraryQuery, setLibraryQuery] = useState('');
-  const [libraryAfterId, setLibraryAfterId] = useState('');
-  const [libraryHasMore, setLibraryHasMore] = useState(true);
-  const libraryLoadingRef = useRef(false);
 
   useEffect(() => {
     if (open) {
       setDraft(initialDraft);
       setUrlInput('');
       setError('');
-      setLibraryQuery('');
+      setUploadProgress(null);
+      setLibraryPickerOpen(false);
     }
   }, [open, initialDraft]);
 
-  const loadLibrary = useCallback(
-    async (after: string, reset: boolean) => {
-      if (!loadAuth()?.access_token) {
-        setLibraryError('Cần đăng nhập để xem thư viện.');
-        setLibraryItems([]);
-        setLibraryHasMore(false);
-        return;
-      }
-      if (libraryLoadingRef.current) return;
-      libraryLoadingRef.current = true;
-      setLibraryLoading(true);
-      if (reset) setLibraryError('');
-      try {
-        const fetcher = kind === 'image' ? fetchMyImages : fetchMyVideos;
-        const page = await fetcher({ limit: 30, afterId: after });
-        setLibraryItems((prev) => (reset ? page.items : [...prev, ...page.items]));
-        setLibraryAfterId(page.nextAfterId);
-        setLibraryHasMore(Boolean(page.nextAfterId) && page.items.length > 0);
-      } catch (err) {
-        setLibraryError(err instanceof Error ? err.message : String(err));
-        if (reset) {
-          setLibraryItems([]);
-          setLibraryHasMore(false);
-        }
-      } finally {
-        libraryLoadingRef.current = false;
-        setLibraryLoading(false);
-      }
-    },
-    [kind],
-  );
-
   useEffect(() => {
-    if (!open || draft.sourceTab !== 'library') return;
-    setLibraryItems([]);
-    setLibraryAfterId('');
-    setLibraryHasMore(true);
-    void loadLibrary('', true);
-  }, [open, draft.sourceTab, kind, loadLibrary]);
+    const n = draft.mediaUrls.length;
+    if (n === 0) return;
+    setDraft((d) => {
+      const { randomMin, randomMax } = clampRandomRange(n, d.randomMin, d.randomMax);
+      if (randomMin === d.randomMin && randomMax === d.randomMax) return d;
+      return { ...d, randomMin, randomMax };
+    });
+  }, [draft.mediaUrls.length]);
 
   if (!open) return null;
 
@@ -135,86 +101,85 @@ export default function WorkflowMediaInputModal({
 
   const accept = kind === 'image' ? 'image/*' : 'video/*';
 
-  const filteredLibrary = libraryItems.filter((item) => {
-    const url = feedMediaUrl(item);
-    if (!url) return false;
-    const q = libraryQuery.trim().toLowerCase();
-    if (!q) return true;
-    return [item.prompt, feedModelLabel(item), item.id_base]
-      .filter(Boolean)
-      .some((v) => String(v).toLowerCase().includes(q));
-  });
-
-  const libraryGroups = (() => {
-    const map = new Map<string, FeedItem[]>();
-    for (const item of filteredLibrary) {
-      const d = tsToDate(item.created_time);
-      const label = d ? dayLabel(d) : 'Khác';
-      const list = map.get(label) ?? [];
-      list.push(item);
-      map.set(label, list);
-    }
-    return [...map.entries()];
-  })();
-
   const addUrl = (url: string, label?: string) => {
     const trimmed = url.trim();
     if (!trimmed) return;
     setDraft((d) => {
       if (d.mediaUrls.includes(trimmed)) return d;
+      const nextUrls = [...d.mediaUrls, trimmed];
+      const range = clampRandomRange(nextUrls.length, d.randomMin, d.randomMax);
       return {
         ...d,
-        mediaUrls: [...d.mediaUrls, trimmed],
+        mediaUrls: nextUrls,
         fileNames: [...d.fileNames, label || trimmed],
+        ...range,
       };
     });
     setUrlInput('');
   };
 
-  const addLibraryItem = (item: FeedItem) => {
-    const url = feedMediaUrl(item);
-    if (!url) return;
-    const label = item.prompt?.trim() || feedModelLabel(item) || item.id_base || url;
-    addUrl(url, label);
-  };
-
   const removeUrl = (index: number) => {
-    setDraft((d) => ({
-      ...d,
-      mediaUrls: d.mediaUrls.filter((_, i) => i !== index),
-      fileNames: d.fileNames.filter((_, i) => i !== index),
-    }));
+    setDraft((d) => {
+      const nextUrls = d.mediaUrls.filter((_, i) => i !== index);
+      const range = clampRandomRange(nextUrls.length, d.randomMin, d.randomMax);
+      return {
+        ...d,
+        mediaUrls: nextUrls,
+        fileNames: d.fileNames.filter((_, i) => i !== index),
+        ...range,
+      };
+    });
   };
 
-  const handleUpload = async (file: File | undefined) => {
-    if (!file) return;
+  const clearAllMedia = () => {
+    setDraft((d) => ({ ...d, mediaUrls: [], fileNames: [], randomMin: 1, randomMax: 1 }));
+  };
+
+  const uploadSingleFile = async (file: File): Promise<boolean> => {
     const valid =
       kind === 'image'
         ? file.type.startsWith('image/')
         : file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v)$/i.test(file.name);
     if (!valid) {
       setError(kind === 'image' ? 'Chỉ chấp nhận file ảnh' : 'Chỉ chấp nhận file video');
-      return;
+      return false;
     }
     if (!loadAuth()?.access_token) {
       setError('Cần đăng nhập để upload');
-      return;
+      return false;
     }
+    const client = getGommoClient();
+    const { url } =
+      kind === 'image' ? await client.uploadImage(file) : await client.uploadVideo(file);
+    setDraft((d) => {
+      const nextUrls = [...d.mediaUrls, url];
+      const range = clampRandomRange(nextUrls.length, d.randomMin, d.randomMax);
+      return {
+        ...d,
+        mediaUrls: nextUrls,
+        fileNames: [...d.fileNames, file.name],
+        ...range,
+      };
+    });
+    return true;
+  };
+
+  const handleUploadMany = async (files: FileList | File[] | null | undefined) => {
+    const list = files ? Array.from(files) : [];
+    if (!list.length) return;
     setUploading(true);
     setError('');
+    setUploadProgress({ current: 0, total: list.length });
     try {
-      const client = getGommoClient();
-      const { url } =
-        kind === 'image' ? await client.uploadImage(file) : await client.uploadVideo(file);
-      setDraft((d) => ({
-        ...d,
-        mediaUrls: [...d.mediaUrls, url],
-        fileNames: [...d.fileNames, file.name],
-      }));
+      for (let i = 0; i < list.length; i++) {
+        setUploadProgress({ current: i + 1, total: list.length });
+        await uploadSingleFile(list[i]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setUploading(false);
+      setUploadProgress(null);
       if (fileRef.current) fileRef.current.value = '';
     }
   };
@@ -227,144 +192,112 @@ export default function WorkflowMediaInputModal({
     onSave(draft);
   };
 
+  const mediaCount = draft.mediaUrls.length;
+  const randomRange = clampRandomRange(mediaCount, draft.randomMin, draft.randomMax);
+
+  const selectTab = (tabId: MediaSourceTab) => {
+    if (tabId === 'upload') {
+      setDraft((d) => ({ ...d, sourceTab: tabId }));
+      window.setTimeout(() => fileRef.current?.click(), 0);
+      return;
+    }
+    if (tabId === 'library') {
+      setDraft((d) => ({ ...d, sourceTab: tabId }));
+      setLibraryPickerOpen(true);
+      return;
+    }
+    setDraft((d) => ({ ...d, sourceTab: tabId }));
+  };
+
+  const handleLibraryConfirm = (urls: string[], fileNames: string[]) => {
+    setDraft((d) => {
+      const range = clampRandomRange(urls.length, d.randomMin, d.randomMax);
+      return { ...d, mediaUrls: urls, fileNames, ...range };
+    });
+    setLibraryPickerOpen(false);
+  };
+
+  const showBody =
+    draft.sourceTab === 'url' ||
+    (draft.sourceTab === 'extra' && kind === 'image') ||
+    Boolean(error);
+
   return (
     <div className="wf-media-modal-overlay" onClick={onClose}>
       <div className="wf-media-modal" onClick={(e) => e.stopPropagation()}>
         <header className="wf-media-modal-head">
           <div className="wf-media-modal-title">
-            {kind === 'image' ? <Image size={18} /> : <Video size={18} />}
-            <h3>{title}</h3>
+            <span className="wf-media-modal-icon">
+              {kind === 'image' ? <Image size={16} /> : <Video size={16} />}
+            </span>
+            <div>
+              <h3 className="wf-media-modal-h3">{title}</h3>
+              <p className="wf-media-modal-desc">{desc}</p>
+            </div>
           </div>
           <button type="button" className="wf-media-modal-x" onClick={onClose} aria-label="Đóng">
-            <X size={18} />
+            <X size={16} />
           </button>
         </header>
 
-        <p className="wf-media-modal-desc">{desc}</p>
+        <input
+          ref={fileRef}
+          type="file"
+          accept={accept}
+          multiple
+          className="sr-only"
+          onChange={(e) => void handleUploadMany(e.target.files)}
+        />
 
-        <div className="wf-media-modal-tabs">
+        <div
+          className="wf-media-modal-tabs"
+          style={{ ['--tab-count' as string]: tabs.length }}
+        >
           {tabs.map((t) => (
             <button
               key={t.id}
               type="button"
-              className={draft.sourceTab === t.id ? 'active' : ''}
-              onClick={() => setDraft((d) => ({ ...d, sourceTab: t.id }))}
+              className={`wf-media-tab-btn${draft.sourceTab === t.id ? ' active' : ''}`}
+              onClick={() => selectTab(t.id)}
             >
-              {t.label}
+              {TAB_ICONS[t.id]}
+              <span>{t.label}</span>
             </button>
           ))}
         </div>
 
-        <div className="wf-media-modal-body">
-          {draft.sourceTab === 'upload' && (
-            <div
-              className="wf-media-modal-upload"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                void handleUpload(e.dataTransfer.files[0]);
-              }}
-            >
-              <Upload size={22} />
-              <p>Kéo thả hoặc chọn file</p>
-              <button
-                type="button"
-                className="wf-media-modal-upload-btn"
-                disabled={uploading}
-                onClick={() => fileRef.current?.click()}
-              >
-                {uploading ? 'Đang tải…' : tabs[0].label}
-              </button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept={accept}
-                multiple
-                className="sr-only"
-                onChange={(e) => void handleUpload(e.target.files?.[0])}
-              />
-            </div>
-          )}
+        {uploading && uploadProgress ? (
+          <p className="wf-media-modal-status">
+            <Loader2 size={14} className="wf-spin" /> Đang tải {uploadProgress.current}/
+            {uploadProgress.total}…
+          </p>
+        ) : null}
 
-          {draft.sourceTab === 'library' && (
-            <div className="wf-media-modal-library">
-              <div className="wf-media-modal-library-search">
-                <Search size={14} />
-                <input
-                  type="text"
-                  value={libraryQuery}
-                  onChange={(e) => setLibraryQuery(e.target.value)}
-                  placeholder="Tìm kiếm theo prompt…"
-                />
-              </div>
-
-              {libraryError && <p className="wf-media-modal-error">{libraryError}</p>}
-
-              {libraryLoading && libraryItems.length === 0 ? (
-                <p className="wf-media-modal-empty">
-                  <Loader2 size={16} className="wf-spin" /> Đang tải thư viện…
-                </p>
-              ) : filteredLibrary.length === 0 ? (
-                <p className="wf-media-modal-empty">
-                  {libraryQuery.trim()
-                    ? 'Không tìm thấy kết quả.'
-                    : `Chưa có ${kind === 'image' ? 'ảnh' : 'video'} trong thư viện.`}
-                </p>
-              ) : (
-                <div className="wf-media-modal-library-scroll">
-                  {libraryGroups.map(([date, items]) => (
-                    <div key={date} className="wf-media-modal-library-day">
-                      <span className="wf-media-modal-library-date">{date}</span>
-                      <div className="wf-media-modal-library-grid">
-                        {items.map((item) => {
-                          const url = feedMediaUrl(item)!;
-                          const thumb = feedThumb(item) || url;
-                          const selected = draft.mediaUrls.includes(url);
-                          return (
-                            <button
-                              key={item.id_base}
-                              type="button"
-                              className={`wf-media-lib-item${selected ? ' selected' : ''}`}
-                              onClick={() => addLibraryItem(item)}
-                              title={item.prompt || feedModelLabel(item) || url}
-                            >
-                              {kind === 'image' ? (
-                                <img src={thumb} alt="" />
-                              ) : (
-                                <video src={thumb} muted preload="metadata" />
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {libraryHasMore && filteredLibrary.length > 0 && (
-                <button
-                  type="button"
-                  className="wf-media-modal-library-more"
-                  disabled={libraryLoading}
-                  onClick={() => void loadLibrary(libraryAfterId, false)}
-                >
-                  {libraryLoading ? (
-                    <>
-                      <Loader2 size={14} className="wf-spin" /> Đang tải…
-                    </>
+        {mediaCount > 0 ? (
+          <section className="wf-media-modal-preview-grid-wrap">
+            <div className="wf-media-modal-preview-grid">
+              {draft.mediaUrls.map((url, i) => (
+                <div key={`${url}-${i}`} className="wf-media-modal-preview-cell">
+                  {kind === 'image' ? (
+                    <img src={url} alt="" />
                   ) : (
-                    'Tải thêm'
+                    <video src={url} muted preload="metadata" playsInline />
                   )}
-                </button>
-              )}
-
-              <p className="wf-media-modal-library-hint">
-                Click vào {kind === 'image' ? 'ảnh' : 'video'} để chọn
-              </p>
+                  <button
+                    type="button"
+                    className="wf-media-modal-preview-remove"
+                    onClick={() => removeUrl(i)}
+                    title="Xóa"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
             </div>
-          )}
+          </section>
+        ) : null}
 
+        <div className={`wf-media-modal-body${showBody ? '' : ' is-empty'}`}>
           {draft.sourceTab === 'extra' && kind === 'image' && (
             <div className="wf-media-modal-extra">
               <p className="wf-media-modal-empty">
@@ -393,76 +326,136 @@ export default function WorkflowMediaInputModal({
             </div>
           )}
 
-          {draft.mediaUrls.length > 0 && (
-            <ul className="wf-media-modal-list">
-              {draft.mediaUrls.map((url, i) => (
-                <li key={`${url}-${i}`}>
-                  <span title={url}>{draft.fileNames[i] || url}</span>
-                  <button type="button" onClick={() => removeUrl(i)}>
-                    Xóa
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-
           {error && <p className="wf-media-modal-error">{error}</p>}
         </div>
 
         <section className="wf-media-modal-settings">
-          <h4>SETTINGS</h4>
-          <label className="wf-media-toggle">
-            <input
-              type="checkbox"
-              checked={draft.randomOutput}
-              onChange={(e) => setDraft((d) => ({ ...d, randomOutput: e.target.checked }))}
-            />
-            <span>
+          <h4 className="wf-media-settings-title">
+            <span className="wf-media-settings-dot" />
+            SETTINGS
+          </h4>
+
+          <div className="wf-media-toggle-row">
+            <div className="wf-media-toggle-info">
               <strong>Random Output</strong>
               <small>
                 {kind === 'image'
                   ? 'Mỗi lần chạy sẽ random chọn ảnh trong khoảng đã chọn.'
                   : 'Mỗi lần chạy sẽ random chọn video trong khoảng đã chọn.'}
               </small>
-            </span>
-          </label>
-          <label className="wf-media-toggle">
-            <input
-              type="checkbox"
-              checked={draft.useOnce}
-              onChange={(e) => setDraft((d) => ({ ...d, useOnce: e.target.checked }))}
-            />
-            <span>
+            </div>
+            <label className="wf-media-switch">
+              <input
+                type="checkbox"
+                checked={draft.randomOutput}
+                onChange={(e) =>
+                  setDraft((d) => {
+                    const range = clampRandomRange(
+                      d.mediaUrls.length || 1,
+                      1,
+                      d.mediaUrls.length || 1,
+                    );
+                    return {
+                      ...d,
+                      randomOutput: e.target.checked,
+                      randomMin: range.randomMin,
+                      randomMax: range.randomMax,
+                    };
+                  })
+                }
+              />
+              <span className="wf-media-switch-track" />
+            </label>
+          </div>
+
+          {draft.randomOutput && (
+            <div className="wf-media-random-range">
+              <label className="wf-media-random-field">
+                <span>Min</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={Math.max(1, randomRange.randomMax)}
+                  value={randomRange.randomMin}
+                  disabled={mediaCount === 0}
+                  onChange={(e) => {
+                    const min = Number(e.target.value) || 1;
+                    setDraft((d) => {
+                      const range = clampRandomRange(mediaCount || 1, min, d.randomMax);
+                      return { ...d, ...range };
+                    });
+                  }}
+                />
+              </label>
+              <span className="wf-media-random-dash" aria-hidden>
+                —
+              </span>
+              <label className="wf-media-random-field">
+                <span>Max</span>
+                <input
+                  type="number"
+                  min={randomRange.randomMin}
+                  max={Math.max(1, mediaCount)}
+                  value={randomRange.randomMax}
+                  disabled={mediaCount === 0}
+                  onChange={(e) => {
+                    const max = Number(e.target.value) || Math.max(1, mediaCount);
+                    setDraft((d) => {
+                      const range = clampRandomRange(mediaCount || 1, d.randomMin, max);
+                      return { ...d, ...range };
+                    });
+                  }}
+                />
+              </label>
+              <span className="wf-media-random-total">
+                Total <strong>{mediaCount}</strong>
+              </span>
+            </div>
+          )}
+
+          <div className="wf-media-toggle-row">
+            <div className="wf-media-toggle-info">
               <strong>Chỉ dùng 1 lần</strong>
               <small>
                 {kind === 'image'
                   ? 'Mỗi ảnh chỉ được dùng 1 lần, sau khi dùng sẽ bị khóa.'
                   : 'Mỗi video chỉ được dùng 1 lần, sau khi dùng sẽ bị khóa.'}
               </small>
-            </span>
-          </label>
+            </div>
+            <label className="wf-media-switch">
+              <input
+                type="checkbox"
+                checked={draft.useOnce}
+                onChange={(e) => setDraft((d) => ({ ...d, useOnce: e.target.checked }))}
+              />
+              <span className="wf-media-switch-track" />
+            </label>
+          </div>
         </section>
 
         <section className="wf-media-modal-ports">
-          <h4>CỔNG KẾT NỐI</h4>
-          <div className="wf-media-modal-ports-grid">
-            <div>
-              <span className="wf-media-ports-label">Đầu vào</span>
+          <h4 className="wf-media-settings-title">
+            <span className="wf-media-settings-dot" />
+            CỔNG KẾT NỐI
+          </h4>
+          <div className="wf-media-ports-grid-v2">
+            <div className="wf-media-ports-col">
+              <span className="wf-media-ports-col-label">Đầu vào</span>
               {ports.in.map((p) => (
-                <div key={p.id} className="wf-media-port-row">
-                  <span className="wf-media-port-dot" style={{ background: p.color }} />
-                  {p.label}
-                  <code>{p.id}</code>
+                <div key={p.id} className="wf-media-port-row-v2">
+                  <span className="wf-media-port-dot-v2" style={{ background: p.color }} />
+                  <span className="wf-media-port-name">{p.label}</span>
+                  <code className="wf-media-port-badge">{p.id}</code>
                 </div>
               ))}
             </div>
-            <div>
-              <span className="wf-media-ports-label">Đầu ra</span>
+            <div className="wf-media-ports-col">
+              <span className="wf-media-ports-col-label">Đầu ra</span>
               {ports.out.map((p) => (
-                <div key={p.id} className="wf-media-port-row">
-                  <span className="wf-media-port-dot" style={{ background: p.color }} />
-                  {p.label}
-                  <code>{p.id}</code>
+                <div key={p.id} className="wf-media-port-row-v2">
+                  <span className="wf-media-port-dot-v2" style={{ background: p.color }} />
+                  <span className="wf-media-port-name">{p.label}</span>
+                  <code className="wf-media-port-badge">{p.id}</code>
                 </div>
               ))}
             </div>
@@ -470,24 +463,39 @@ export default function WorkflowMediaInputModal({
         </section>
 
         <footer className="wf-media-modal-foot">
-          {!isNew && (
-            <button type="button" className="wf-media-modal-delete" onClick={onDelete}>
-              <Trash2 size={14} />
-              Xóa Node
-            </button>
-          )}
-          <label className="wf-media-modal-required">
-            <input
-              type="checkbox"
-              checked={draft.required}
-              onChange={(e) => setDraft((d) => ({ ...d, required: e.target.checked }))}
-            />
-            Bắt buộc
-          </label>
+          <div className="wf-media-foot-left">
+            {!isNew && (
+              <button type="button" className="wf-media-modal-delete" onClick={onDelete}>
+                <Trash2 size={13} />
+                Xóa Node
+              </button>
+            )}
+            {draft.mediaUrls.length > 0 && (
+              <button type="button" className="wf-media-modal-clear" onClick={clearAllMedia}>
+                Xóa tất cả
+              </button>
+            )}
+            <label className="wf-media-modal-required">
+              <input
+                type="checkbox"
+                checked={draft.required}
+                onChange={(e) => setDraft((d) => ({ ...d, required: e.target.checked }))}
+              />
+              <span>Bắt buộc</span>
+            </label>
+          </div>
           <button type="button" className="wf-media-modal-done" onClick={handleDone}>
             Xong
           </button>
         </footer>
+
+        <WorkflowMediaLibraryPicker
+          open={libraryPickerOpen}
+          kind={kind}
+          initialUrls={draft.mediaUrls}
+          onConfirm={handleLibraryConfirm}
+          onCancel={() => setLibraryPickerOpen(false)}
+        />
       </div>
     </div>
   );

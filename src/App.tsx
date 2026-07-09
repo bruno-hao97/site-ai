@@ -32,6 +32,7 @@ import StudioHistoryPage from './pages/StudioHistoryPage';
 import ApiPlaygroundPage from './pages/ApiPlaygroundPage';
 import DashboardPage from './pages/DashboardPage';
 import WalletPage from './pages/WalletPage';
+import PricingPage from './pages/PricingPage';
 import AccountLayout from './pages/account/AccountLayout';
 import AccountSettingsPage from './pages/account/AccountSettingsPage';
 import AccountPromoPage from './pages/account/AccountPromoPage';
@@ -40,7 +41,6 @@ import AccountTransferPage from './pages/account/AccountTransferPage';
 import AccountTransactionsPage from './pages/account/AccountTransactionsPage';
 import { useLocale } from './i18n';
 import type { TranslationKey } from './i18n';
-import { APP_SITE_URL } from './services/settingsStore';
 
 const MAIN_NAV: { to: string; labelKey: TranslationKey }[] = [
   { to: '/home', labelKey: 'nav.home' },
@@ -141,14 +141,9 @@ function AppHeader() {
               >
                 <Globe size={14} /> {locale === 'vi' ? 'VI' : 'EN'}
               </button>
-              <a
-                href={`${APP_SITE_URL}/pricing`}
-                target="_blank"
-                rel="noreferrer"
-                className="price-pill"
-              >
+              <Link to="/pricing" className="price-pill">
                 <Coins size={15} /> {t('header.pricing')}
-              </a>
+              </Link>
               <div className="header-balance">
                 <span className="header-balance-label">{t('header.balance')}</span>
                 <span className="header-credit-pill">
@@ -225,6 +220,7 @@ function AppShell() {
             </Route>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/wallet" element={<WalletPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

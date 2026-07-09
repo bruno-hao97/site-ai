@@ -40,7 +40,25 @@ const NODE_TYPE_MAP: Record<string, string> = {
   'generate-video': 'video',
   'generate-tts': 'tts',
   'generate-music': 'music',
+  'text-input': 'text',
+  text: 'text',
   'render-video': 'render',
+  'upscale-image': 'upscale-image',
+  lipsync: 'lipsync',
+  'avatar-lipsync': 'lipsync',
+  merge: 'merge',
+  'merge-data': 'merge',
+  'extract-media': 'extract-media',
+  agent: 'agent',
+  'ai-agent': 'agent',
+  'remove-bg': 'remove-bg',
+  'upscale-video': 'upscale-video',
+  vfx: 'vfx',
+  subtitle: 'subtitle',
+  'video-cut': 'cut',
+  cut: 'cut',
+  kols: 'kols',
+  'data-table': 'data-table',
   output: 'output',
   note: 'note',
   'api-call': 'api',
@@ -74,6 +92,10 @@ function convertNodeData(type: string, data: Record<string, unknown>): Record<st
     return { text: prompt, modelId: (data.model as string) || '' };
   }
 
+  if (type === 'text') {
+    return { prompt };
+  }
+
   if (MEDIA_NODE_TYPES.has(type)) {
     const urls = Array.isArray(data.urls)
       ? (data.urls as string[])
@@ -86,8 +108,10 @@ function convertNodeData(type: string, data: Record<string, unknown>): Record<st
       resultUrl: urls[0] || '',
       required: Boolean(data.required),
       configured: urls.length > 0,
-      randomOutput: false,
-      useOnce: false,
+      randomOutput: Boolean(data.random_output ?? data.randomOutput),
+      randomMin: Number(data.random_min ?? data.randomMin) || 1,
+      randomMax: Number(data.random_max ?? data.randomMax) || urls.length || 1,
+      useOnce: Boolean(data.use_once ?? data.useOnce),
       sourceTab: 'url',
     };
   }
@@ -101,6 +125,63 @@ function convertNodeData(type: string, data: Record<string, unknown>): Record<st
       exportMode: data.export_mode,
       profile: data.profile,
       resolution: data.resolution,
+    };
+  }
+
+  if (type === 'upscale-image') {
+    return {
+      modelId: (data.model as string) || '',
+      mode: data.mode,
+      resolution: data.resolution,
+    };
+  }
+
+  if (type === 'lipsync') {
+    return {
+      prompt,
+      modelId: (data.model as string) || '',
+    };
+  }
+
+  if (type === 'merge' || type === 'extract-media') {
+    return {};
+  }
+
+  if (type === 'agent') {
+    return {
+      prompt,
+      modelId: (data.model as string) || (data.chat_model as string) || '',
+    };
+  }
+
+  if (
+    type === 'remove-bg' ||
+    type === 'upscale-video' ||
+    type === 'vfx' ||
+    type === 'subtitle' ||
+    type === 'cut'
+  ) {
+    return {
+      prompt,
+      modelId: (data.model as string) || '',
+      mode: data.mode,
+      resolution: data.resolution,
+      startSec: data.start_sec ?? data.startSec,
+      endSec: data.end_sec ?? data.endSec,
+    };
+  }
+
+  if (type === 'kols') {
+    return {
+      kolId: (data.kol_id as string) || (data.kolId as string) || '',
+      customImageUrl: (data.image_url as string) || (data.url as string) || '',
+    };
+  }
+
+  if (type === 'data-table') {
+    return {
+      tableRaw: (data.table_raw as string) || prompt,
+      prompt: (data.table_raw as string) || prompt,
     };
   }
 
@@ -139,29 +220,34 @@ export function parseWflFile(raw: string): WflImportResult {
 
   const wfl = parsed;
   const typeById = new Map<string, string>();
+  let imageSlotSeq = 0;
 
   const nodes: Node[] = (wfl.nodes ?? []).map((n) => {
     const mappedType = NODE_TYPE_MAP[n.type] ?? n.type;
     typeById.set(n.id, mappedType);
+    const data = convertNodeData(mappedType, n.data ?? {});
+    if (mappedType === 'input-image') {
+      imageSlotSeq += 1;
+      data.imageSlot = imageSlotSeq;
+    }
     return {
       id: n.id,
       type: mappedType,
       position: n.position ?? { x: 0, y: 0 },
-      data: convertNodeData(mappedType, n.data ?? {}),
+      data,
     } as Node;
   });
 
   const edges: Edge[] = (wfl.connections ?? []).map((c, i) => {
-    const { sourceHandle, targetHandle } = resolveHandles(
-      typeById.get(c.sourceNodeId),
-      typeById.get(c.targetNodeId),
-    );
+    const sourceType = typeById.get(c.sourceNodeId);
+    const targetType = typeById.get(c.targetNodeId);
+    const fallback = resolveHandles(sourceType, targetType);
     return {
       id: c.id || `wfl-edge-${i}`,
       source: c.sourceNodeId,
       target: c.targetNodeId,
-      sourceHandle,
-      targetHandle,
+      sourceHandle: c.sourcePortId || fallback.sourceHandle,
+      targetHandle: c.targetPortId || fallback.targetHandle,
       type: 'wf',
     } as Edge;
   });

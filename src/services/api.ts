@@ -4,7 +4,19 @@ import { gommoDeviceFields } from './gommoDevice';
 /** Prefix /v2 = cùng origin → proxy server forward tới v2.api.gommo.net (che URL). */
 export const BASE_URL = '/v2';
 
-export type JobType = 'image' | 'video' | 'tts' | 'music' | 'avatar-lipsync' | 'image-upscale';
+export type JobType =
+  | 'image'
+  | 'video'
+  | 'tts'
+  | 'music'
+  | 'avatar-lipsync'
+  | 'image-upscale'
+  | 'remove-bg'
+  | 'video-upscale'
+  | 'video-vfx'
+  | 'video-subtitle'
+  | 'video-cut';
+
 export type PollMedia = 'image' | 'video' | 'music';
 
 export const POLL_MEDIA: Record<JobType, PollMedia | null> = {
@@ -14,6 +26,11 @@ export const POLL_MEDIA: Record<JobType, PollMedia | null> = {
   music: 'music',
   'avatar-lipsync': 'video',
   'image-upscale': 'image',
+  'remove-bg': 'image',
+  'video-upscale': 'video',
+  'video-vfx': 'video',
+  'video-subtitle': 'video',
+  'video-cut': 'video',
 };
 
 export interface GommoEnvelope<T = Record<string, unknown>> {

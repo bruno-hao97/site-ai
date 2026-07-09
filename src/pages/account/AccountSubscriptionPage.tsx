@@ -1,5 +1,5 @@
 import { getCreditsAi, getUpstreamMe } from '../../services/authStore';
-import { APP_SITE_URL } from '../../services/settingsStore';
+import { Link } from 'react-router-dom';
 
 export default function AccountSubscriptionPage() {
   const me = getUpstreamMe();
@@ -20,15 +20,13 @@ export default function AccountSubscriptionPage() {
           <span>Credits hiện tại</span>
           <strong>{credits.toLocaleString('vi-VN')}</strong>
         </div>
-        <a
-          href={`${APP_SITE_URL}/pricing`}
-          target="_blank"
-          rel="noreferrer"
+        <Link
+          to="/pricing"
           className="btn primary profile-upgrade-btn"
           style={{ marginTop: '1rem' }}
         >
           UPGRADE TO PRO
-        </a>
+        </Link>
       </section>
     </div>
   );

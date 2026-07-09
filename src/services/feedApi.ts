@@ -100,6 +100,8 @@ export interface FeedItem {
   author?: FeedAuthor;
   isMe?: boolean;
   file_size?: number;
+  category_name?: string;
+  server_ai?: string;
 }
 
 export interface FeedPage {
@@ -293,6 +295,8 @@ function mapImageToFeedItem(img: MyImageItem): FeedItem {
     created_time: img.created_at,
     isMe: img.isMe,
     file_size: img.file_size,
+    category_name: img.category_name,
+    server_ai: img.server_ai,
   };
 }
 
