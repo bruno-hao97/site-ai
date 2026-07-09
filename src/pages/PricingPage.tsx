@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, ChevronDown, Loader2, Sparkles } from 'lucide-react';
+import SubscriptionConfirmModal from '../components/SubscriptionConfirmModal';
+import SubscriptionPaymentModal from '../components/SubscriptionPaymentModal';
 import {
   createSubscriptionPayment,
   fetchSubscriptionPlans,
+  type SubscriptionPaymentResult,
   type SubscriptionPlan,
   type SubscriptionPlanType,
 } from '../services/subscriptionPlans';
@@ -112,6 +115,10 @@ export default function PricingPage() {
   const [error, setError] = useState('');
   const [payingPlanId, setPayingPlanId] = useState('');
   const [payError, setPayError] = useState('');
+  const [confirmPlan, setConfirmPlan] = useState<SubscriptionPlan | null>(null);
+  const [paymentPlanName, setPaymentPlanName] = useState('');
+  const [paymentPlanPrice, setPaymentPlanPrice] = useState('');
+  const [paymentResult, setPaymentResult] = useState<SubscriptionPaymentResult | null>(null);
   const [openFaq, setOpenFaq] = useState(0);
 
   useEffect(() => {
@@ -120,6 +127,10 @@ export default function PricingPage() {
     setError('');
     setPayError('');
     setPayingPlanId('');
+    setConfirmPlan(null);
+    setPaymentResult(null);
+    setPaymentPlanName('');
+    setPaymentPlanPrice('');
 
     fetchSubscriptionPlans(tab)
       .then((rows) => {
@@ -149,18 +160,48 @@ export default function PricingPage() {
     return [...set];
   }, [plans]);
 
-  async function handleSubscribe(plan: SubscriptionPlan): Promise<void> {
-    if (!plan.id) {
+  function openSubscribeModal(plan: SubscriptionPlan): void {
+    if (!plan.id_base) {
       setPayError('Không tìm thấy plan_id cho gói này.');
       return;
     }
     setPayError('');
-    setPayingPlanId(plan.id);
+    setConfirmPlan(plan);
+  }
+
+  function closeSubscribeModal(): void {
+    if (payingPlanId) return;
+    setConfirmPlan(null);
+    setPayError('');
+  }
+
+  function closePaymentModal(): void {
+    setPaymentResult(null);
+    setPaymentPlanName('');
+    setPaymentPlanPrice('');
+    setPayingPlanId('');
+    setPayError('');
+  }
+
+  async function handleConfirmSubscribe(_promoCode: string): Promise<void> {
+    if (!confirmPlan?.id_base) {
+      setPayError('Không tìm thấy plan_id cho gói này.');
+      return;
+    }
+    setPayError('');
+    setPayingPlanId(confirmPlan.id_base);
     try {
-      const payment = await createSubscriptionPayment({ planId: plan.id, gateway: 'payos' });
-      const redirectUrl = payment.url || payment.urlEmbedded;
-      if (!redirectUrl) throw new Error('Không nhận được URL thanh toán');
-      window.location.href = redirectUrl;
+      const payment = await createSubscriptionPayment({
+        planId: confirmPlan.id_base,
+        planName: confirmPlan.name,
+        amount: confirmPlan.price,
+        gateway: 'payos',
+      });
+      setPaymentPlanName(confirmPlan.name);
+      setPaymentPlanPrice(confirmPlan.price);
+      setPaymentResult(payment);
+      setConfirmPlan(null);
+      setPayingPlanId('');
     } catch (err) {
       setPayError(err instanceof Error ? err.message : String(err));
       setPayingPlanId('');
@@ -198,7 +239,7 @@ export default function PricingPage() {
         </div>
       )}
       {!loading && error && <p className="error pricing-error">{error}</p>}
-      {!!payError && <div className="banner warn pricing-pay-error">{payError}</div>}
+      {!!payError && !confirmPlan && <div className="banner warn pricing-pay-error">{payError}</div>}
 
       {!loading && !error && (
         <>
@@ -209,7 +250,7 @@ export default function PricingPage() {
 
               return (
                 <article
-                  key={plan.id || plan.plan_key}
+                  key={plan.id_base || plan.plan_key}
                   className={`panel pricing-plan-card ${isFeaturedPlan(plan) ? 'featured' : ''}`}
                 >
                   <div className="pricing-plan-top">
@@ -254,7 +295,7 @@ export default function PricingPage() {
                     <p className="pricing-models-title">Models ({models.length})</p>
                     <div className="pricing-chip-list">
                       {models.slice(0, 8).map((model, idx) => (
-                        <span key={`${plan.id}-${model.model || model.name || idx}`} className="pricing-chip">
+                        <span key={`${plan.id_base}-${model.model || model.name || idx}`} className="pricing-chip">
                           {model.name || model.model || 'Unknown model'}
                         </span>
                       ))}
@@ -269,7 +310,7 @@ export default function PricingPage() {
                       <p className="pricing-models-title">Tools</p>
                       <div className="pricing-chip-list">
                         {tools.map((tool) => (
-                          <span key={`${plan.id}-${tool}`} className="pricing-chip tool">
+                          <span key={`${plan.id_base}-${tool}`} className="pricing-chip tool">
                             {tool}
                           </span>
                         ))}
@@ -280,11 +321,11 @@ export default function PricingPage() {
                   <button
                     type="button"
                     className="btn primary pricing-cta-btn"
-                    onClick={() => void handleSubscribe(plan)}
-                    disabled={!!payingPlanId}
+                    onClick={() => openSubscribeModal(plan)}
+                    disabled={!!payingPlanId || !!confirmPlan || !!paymentResult}
                   >
-                    {payingPlanId === plan.id ? <Loader2 size={15} className="spin" /> : <Sparkles size={15} />}
-                    {payingPlanId === plan.id ? 'Đang tạo link thanh toán...' : 'Đăng ký ngay'}
+                    {payingPlanId === plan.id_base ? <Loader2 size={15} className="spin" /> : <Sparkles size={15} />}
+                    {payingPlanId === plan.id_base ? 'Đang tạo link thanh toán...' : 'Đăng ký ngay'}
                   </button>
                 </article>
               );
@@ -305,7 +346,7 @@ export default function PricingPage() {
                     <tr>
                       <th>Tính năng</th>
                       {plans.map((plan) => (
-                        <th key={`head-${plan.id}`}>{plan.name}</th>
+                        <th key={`head-${plan.id_base}`}>{plan.name}</th>
                       ))}
                     </tr>
                   </thead>
@@ -314,7 +355,7 @@ export default function PricingPage() {
                       <tr key={row.field}>
                         <td>{row.label}</td>
                         {plans.map((plan) => (
-                          <td key={`${plan.id}-${row.field}`}>{normalizeFieldValue(plan[row.field])}</td>
+                          <td key={`${plan.id_base}-${row.field}`}>{normalizeFieldValue(plan[row.field])}</td>
                         ))}
                       </tr>
                     ))}
@@ -322,7 +363,7 @@ export default function PricingPage() {
                       <tr key={`tool-${tool}`}>
                         <td>{tool}</td>
                         {plans.map((plan) => (
-                          <td key={`${plan.id}-${tool}`}>
+                          <td key={`${plan.id_base}-${tool}`}>
                             {planTools(plan).includes(tool) ? (
                               <span className="pricing-check">
                                 <Check size={14} />
@@ -381,6 +422,23 @@ export default function PricingPage() {
           </section>
         </>
       )}
+
+      <SubscriptionConfirmModal
+        open={!!confirmPlan}
+        plan={confirmPlan}
+        confirming={!!payingPlanId}
+        error={payError}
+        onClose={closeSubscribeModal}
+        onConfirm={(promoCode) => void handleConfirmSubscribe(promoCode)}
+      />
+
+      <SubscriptionPaymentModal
+        open={!!paymentResult}
+        planName={paymentPlanName}
+        planPrice={paymentPlanPrice}
+        payment={paymentResult}
+        onClose={closePaymentModal}
+      />
     </div>
   );
 }

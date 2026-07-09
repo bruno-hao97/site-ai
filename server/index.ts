@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import gommoProxyRoutes from './routes/gommoProxy.js';
+import payosRoutes from './routes/payos.js';
 import { config } from './config.js';
 
 const app = express();
@@ -19,11 +20,13 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+app.use('/api/payos', payosRoutes);
+
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
   res.status(500).json({ success: false, message: err.message || 'Internal error' });
 });
 
 app.listen(config.port, () => {
-  console.log(`API server http://localhost:${config.port} (Gommo proxy only)`);
+  console.log(`API server http://localhost:${config.port} (Gommo proxy + PayOS)`);
 });
