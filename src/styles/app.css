@@ -2512,6 +2512,113 @@ a.user-pill:hover { color: var(--text); }
   border-bottom: 1px solid var(--border);
 }
 
+.account-transfer-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .account-transfer-grid { grid-template-columns: 1fr; }
+}
+
+.account-transfer-form .label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.account-transfer-limits {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.account-transfer-message {
+  width: 100%;
+  min-height: 5.5rem;
+  resize: vertical;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+}
+
+.account-transfer-feedback {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.account-transfer-feedback.error {
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  border: 1px solid color-mix(in srgb, #ef4444 35%, transparent);
+  color: #fca5a5;
+}
+
+.account-transfer-feedback.success {
+  background: color-mix(in srgb, var(--accent-teal) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-teal) 35%, transparent);
+  color: color-mix(in srgb, var(--accent-teal) 80%, white);
+}
+
+.account-transfer-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.25rem;
+  background: linear-gradient(180deg, #1d8fd1 0%, #1570b8 100%);
+  color: #fff;
+  border: none;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.85rem 1rem;
+}
+
+.account-transfer-submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.account-transfer-warnings {
+  padding: 1rem 1.1rem;
+}
+
+.account-transfer-warnings h2 {
+  margin: 0;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #fbbf24;
+}
+
+.account-transfer-warnings ul {
+  margin: 0.85rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.account-transfer-warnings li {
+  margin-bottom: 0.55rem;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.account-transfer-warnings-foot {
+  margin: 0.85rem 0 0;
+  font-size: 0.8rem;
+  color: #d4a853;
+  line-height: 1.45;
+}
+
 /* —— Settings 79ai —— */
 .settings-79 { max-width: 820px; margin: 0 auto; }
 
