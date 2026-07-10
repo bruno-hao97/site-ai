@@ -23,6 +23,15 @@ export interface CreatePayOsPaymentInput {
   amount: number;
 }
 
+export interface CreateTopupPayOsInput {
+  username: string;
+  amountVnd: number;
+}
+
+function buildTopupDescription(orderCode: number): string {
+  return `TU${String(orderCode).slice(-6)}`.slice(0, 9);
+}
+
 export interface PayOsPaymentResult {
   status: string;
   url?: string;
@@ -100,6 +109,47 @@ export async function createPayOsPayment(input: CreatePayOsPaymentInput): Promis
       orderCode,
       amount,
       description,
+      returnUrl: config.payos.planReturnUrl,
+      cancelUrl: config.payos.planCancelUrl,
+    });
+
+    const transferAmount = data.amount ?? amount;
+    const content = data.description || String(data.orderCode ?? orderCode);
+
+    return {
+      status: 'success',
+      url: data.checkoutUrl,
+      urlEmbedded: data.checkoutUrl,
+      qrImage: data.qrCode,
+      orderCode: data.orderCode ?? orderCode,
+      bankTransfer: {
+        accountName: data.accountName || '',
+        bankName: resolveBankName(data.bin),
+        accountNumber: data.accountNumber || '',
+        amount: String(transferAmount),
+        amountFormatted: formatAmountVnd(transferAmount),
+        content,
+      },
+    };
+  } catch (err) {
+    throw new Error(normalizePayOsError(err));
+  }
+}
+
+export async function createTopupPayOsPayment(input: CreateTopupPayOsInput): Promise<PayOsPaymentResult> {
+  const amount = Math.round(input.amountVnd);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error('Số tiền nạp không hợp lệ');
+  }
+
+  const orderCode = generateOrderCode();
+  const description = buildTopupDescription(orderCode);
+
+  try {
+    const data = await getPayOsClient().paymentRequests.create({
+      orderCode,
+      amount,
+      description,
       returnUrl: config.payos.returnUrl,
       cancelUrl: config.payos.cancelUrl,
     });
@@ -138,8 +188,8 @@ export async function verifyPayOsKeys(): Promise<{ ok: boolean; message: string 
       orderCode,
       amount: 2000,
       description: buildPaymentDescription(orderCode, 'health'),
-      returnUrl: config.payos.returnUrl,
-      cancelUrl: config.payos.cancelUrl,
+      returnUrl: config.payos.planReturnUrl,
+      cancelUrl: config.payos.planCancelUrl,
     });
     return { ok: true, message: 'PayOS key hợp lệ' };
   } catch (err) {

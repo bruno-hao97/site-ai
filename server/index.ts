@@ -16,7 +16,7 @@ app.use(express.json({ limit: '25mb' }));
 app.get('/api/health', (_req, res) => {
   res.json({
     success: true,
-    data: { ok: true, mode: 'gommo-proxy' },
+    data: { ok: true, mode: 'payos-topup-api' },
   });
 });
 

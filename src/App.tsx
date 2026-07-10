@@ -38,6 +38,7 @@ import AccountSettingsPage from './pages/account/AccountSettingsPage';
 import AccountPromoPage from './pages/account/AccountPromoPage';
 import AccountSubscriptionPage from './pages/account/AccountSubscriptionPage';
 import AccountTransferPage from './pages/account/AccountTransferPage';
+import AccountTopupPage from './pages/account/AccountTopupPage';
 import AccountTransactionsPage from './pages/account/AccountTransactionsPage';
 import { useLocale } from './i18n';
 import type { TranslationKey } from './i18n';
@@ -216,6 +217,7 @@ function AppShell() {
               <Route path="promo" element={<AccountPromoPage />} />
               <Route path="subscription" element={<AccountSubscriptionPage />} />
               <Route path="transfer" element={<AccountTransferPage />} />
+              <Route path="topup" element={<AccountTopupPage />} />
               <Route path="transactions" element={<AccountTransactionsPage />} />
             </Route>
             <Route path="/dashboard" element={<DashboardPage />} />

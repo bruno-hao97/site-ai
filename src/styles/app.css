@@ -2619,6 +2619,91 @@ a.user-pill:hover { color: var(--text); }
   line-height: 1.45;
 }
 
+.account-topup-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .account-topup-grid { grid-template-columns: 1fr; }
+}
+
+.account-topup-lead { margin: 0 0 1rem; }
+
+.account-topup-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.account-topup-presets .btn.active {
+  border-color: var(--accent-teal);
+  color: var(--accent-teal);
+}
+
+.account-topup-payment { display: flex; flex-direction: column; gap: 0.85rem; }
+
+.account-topup-status {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.account-topup-qr-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 0.75rem;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.account-topup-qr {
+  width: 220px;
+  height: 220px;
+  object-fit: contain;
+}
+
+.account-topup-qr-fallback {
+  width: 220px;
+  height: 220px;
+  display: grid;
+  place-items: center;
+  color: #64748b;
+}
+
+.account-topup-bank {
+  margin: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.account-topup-bank div {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.88rem;
+}
+
+.account-topup-bank dt {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.account-topup-bank dd {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
 /* —— Settings 79ai —— */
 .settings-79 { max-width: 820px; margin: 0 auto; }
 

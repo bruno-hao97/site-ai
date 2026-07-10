@@ -1,6 +1,13 @@
 import { Router } from 'express';
-import { createPayOsPayment, verifyPayOsKeys, verifyPayOsWebhookSignature } from '../services/payos.js';
-import { config, isPayOsConfigured } from '../config.js';
+import {
+  createPayOsPayment,
+  createTopupPayOsPayment,
+  verifyPayOsKeys,
+  verifyPayOsWebhookSignature,
+} from '../services/payos.js';
+import { fulfillTopupFromWebhook } from '../services/topupFulfillment.js';
+import { createTopupOrder, getTopupOrder } from '../services/topupOrders.js';
+import { config, isGommoMerchantConfigured, isPayOsConfigured, vndToCredits } from '../config.js';
 
 const router = Router();
 
@@ -15,6 +22,12 @@ router.get('/status', async (_req, res) => {
       message: verify.message,
       returnUrl: config.payos.returnUrl,
       webhookUrl: config.payos.webhookUrl || null,
+      merchantReady: isGommoMerchantConfigured(),
+      topup: {
+        minVnd: config.topup.minVnd,
+        maxVnd: config.topup.maxVnd,
+        creditsPerVnd: config.topup.creditsPerVnd,
+      },
     },
   });
 });
@@ -38,7 +51,71 @@ router.post('/payment-requests', async (req, res) => {
   }
 });
 
-router.post('/webhook', (req, res) => {
+router.post('/topup-requests', async (req, res) => {
+  try {
+    const username = String(req.body?.username || '').trim();
+    const amountVnd = Math.round(Number(req.body?.amountVnd));
+
+    if (!username) {
+      res.status(400).json({ success: false, message: 'Thiếu username' });
+      return;
+    }
+    if (!Number.isFinite(amountVnd) || amountVnd < config.topup.minVnd || amountVnd > config.topup.maxVnd) {
+      res.status(400).json({
+        success: false,
+        message: `Số tiền từ ${config.topup.minVnd.toLocaleString('vi-VN')} đến ${config.topup.maxVnd.toLocaleString('vi-VN')} VND`,
+      });
+      return;
+    }
+    if (!isPayOsConfigured()) {
+      res.status(503).json({ success: false, message: 'PayOS chưa cấu hình trên server' });
+      return;
+    }
+
+    const credits = vndToCredits(amountVnd);
+    const payment = await createTopupPayOsPayment({ username, amountVnd });
+    const order = await createTopupOrder({
+      orderCode: payment.orderCode,
+      username,
+      amountVnd,
+      credits,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        ...payment,
+        username,
+        credits,
+        order,
+      },
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ success: false, message });
+  }
+});
+
+router.get('/topup-orders/:orderCode', async (req, res) => {
+  try {
+    const orderCode = Number(req.params.orderCode);
+    if (!Number.isFinite(orderCode)) {
+      res.status(400).json({ success: false, message: 'orderCode không hợp lệ' });
+      return;
+    }
+    const order = await getTopupOrder(orderCode);
+    if (!order) {
+      res.status(404).json({ success: false, message: 'Không tìm thấy đơn' });
+      return;
+    }
+    res.json({ success: true, data: order });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ success: false, message });
+  }
+});
+
+router.post('/webhook', async (req, res) => {
   try {
     const body = (req.body || {}) as Record<string, unknown>;
     const signature = String(body.signature || req.headers['x-payos-signature'] || '');
@@ -48,8 +125,15 @@ router.post('/webhook', (req, res) => {
       return;
     }
 
-    // TODO: kích hoạt gói / ghi log giao dịch khi code === '00' && data.status === 'PAID'
-    res.json({ success: true });
+    const result = await fulfillTopupFromWebhook(body);
+    if (!result.ok) {
+      console.error('[payos/webhook]', result.message, result.orderCode ?? '');
+      res.status(500).json({ success: false, message: result.message });
+      return;
+    }
+
+    console.log('[payos/webhook]', result.message);
+    res.json({ success: true, message: result.message });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     res.status(500).json({ success: false, message });
