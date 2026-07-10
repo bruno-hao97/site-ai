@@ -5,19 +5,23 @@ const KEYS = {
   projectId: 'gommo_project_id',
 } as const;
 
-export const DEFAULT_DOMAIN = 'trungtamai.vn';
-export const APP_SITE_URL = `https://${DEFAULT_DOMAIN}`;
+/** Domain Gommo cho login, gen media, feed, me… */
+export const DEFAULT_DOMAIN = 'vmedia.ai';
+/** Domain Gommo riêng cho plans + create_payment */
+export const PRICING_DOMAIN = 'trungtamai.vn';
+/** URL site public (Vercel) */
+export const APP_SITE_URL = 'https://trungtamai.vn';
 export const DEFAULT_PROJECT_ID = 'default';
 
 const LEGACY_DOMAINS = new Set([
   '79ai.net',
   '79ai.com',
   'www.79ai.net',
-  'vmedia.ai',
-  'www.vmedia.ai',
+  'trungtamai.vn',
+  'www.trungtamai.vn',
 ]);
 
-/** Chuẩn hóa domain cũ (79ai, vmedia…) → trungtamai.vn. */
+/** Chuẩn hóa domain cũ (79ai, trungtamai…) → vmedia.ai. */
 export function normalizeDomain(domain?: string | null): string {
   const trimmed = (domain || '').trim();
   if (!trimmed) return DEFAULT_DOMAIN;

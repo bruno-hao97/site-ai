@@ -1,5 +1,6 @@
 import { loadAuth } from './authStore';
 import { gommoDeviceFields } from './gommoDevice';
+import { PRICING_DOMAIN } from './settingsStore';
 import { GOMMO_AUTH_BASE, GOMMO_AUTH_PATH } from './upstreamMe';
 
 export type SubscriptionPlanType = 'image' | 'video' | 'combo';
@@ -142,7 +143,7 @@ export async function fetchSubscriptionPlans(type: SubscriptionPlanType): Promis
   const body = new URLSearchParams({
     action_type: 'plans',
     type,
-    domain: auth.domain.trim(),
+    domain: PRICING_DOMAIN,
     access_token: auth.access_token.trim(),
     ...gommoDeviceFields(),
   }).toString();
@@ -398,7 +399,7 @@ export async function createSubscriptionPayment(
 
   const body = new URLSearchParams({
     access_token: auth.access_token.trim(),
-    domain: auth.domain.trim(),
+    domain: PRICING_DOMAIN,
     plan_id: input.planId.trim(),
     subscribe_type: input.subscribeType || 'MEMBER_PLAN_AI',
     type: input.type || 'ai_plan',
