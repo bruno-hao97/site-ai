@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    { "source": "/v2/:path*", "destination": "https://vmedia.ai/v2/:path*" },
+    { "source": "/api/:path*", "destination": "https://vmedia.ai/api/:path*" },
+    { "source": "/ai/:path*", "destination": "https://vmedia.ai/ai/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
