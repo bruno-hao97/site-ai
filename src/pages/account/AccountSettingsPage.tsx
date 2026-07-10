@@ -30,7 +30,7 @@ export default function AccountSettingsPage() {
       setError('Mật khẩu mới tối thiểu 6 ký tự.');
       return;
     }
-    setNotice('Đổi mật khẩu cần đăng nhập email/password trên vmedia.ai — hiện app dùng Access Token.');
+    setNotice('Đổi mật khẩu cần đăng nhập email/password trên trungtamai.vn — hiện app dùng Access Token.');
     void currentPw;
   }
 
