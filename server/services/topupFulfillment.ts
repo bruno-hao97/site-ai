@@ -32,12 +32,12 @@ export async function fulfillTopupFromWebhook(body: Record<string, unknown>): Pr
     return { ok: true, message: `Webhook chưa PAID (code=${code}, status=${status})` };
   }
   if (!Number.isFinite(orderCode) || orderCode <= 0) {
-    return { ok: false, message: 'Webhook thiếu orderCode hợp lệ' };
+    return { ok: true, message: 'Webhook ping — bỏ qua (không có orderCode)' };
   }
 
   const order = await getTopupOrder(orderCode);
   if (!order) {
-    return { ok: false, message: `Không tìm thấy đơn topup #${orderCode}` };
+    return { ok: true, message: `Webhook đã nhận — chưa có đơn pending #${orderCode}` };
   }
 
   if (order.status === 'credited') {
@@ -49,7 +49,8 @@ export async function fulfillTopupFromWebhook(body: Record<string, unknown>): Pr
       status: 'failed',
       error: `Số tiền PayOS (${amount}) không khớp đơn (${order.amountVnd})`,
     });
-    return { ok: false, message: 'Số tiền thanh toán không khớp đơn pending' };
+    console.error('[payos/webhook] amount mismatch', orderCode, amount, order.amountVnd);
+    return { ok: true, message: 'Số tiền thanh toán không khớp đơn pending — đã ghi log' };
   }
 
   await updateTopupOrder(orderCode, {
@@ -80,6 +81,7 @@ export async function fulfillTopupFromWebhook(body: Record<string, unknown>): Pr
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     await updateTopupOrder(orderCode, { status: 'failed', error: errMsg });
-    return { ok: false, message: errMsg, orderCode };
+    console.error('[payos/webhook] sendBalances failed', orderCode, errMsg);
+    return { ok: true, message: `Đã nhận webhook — lỗi cộng credit: ${errMsg}`, orderCode };
   }
 }

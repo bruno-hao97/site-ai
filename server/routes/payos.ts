@@ -115,12 +115,18 @@ router.get('/topup-orders/:orderCode', async (req, res) => {
   }
 });
 
+/** PayOS / trình duyệt có thể GET để kiểm tra URL — phải trả 200. */
+router.get('/webhook', (_req, res) => {
+  res.json({ success: true, message: 'PayOS webhook endpoint ready' });
+});
+
 router.post('/webhook', async (req, res) => {
   try {
     const body = (req.body || {}) as Record<string, unknown>;
     const signature = String(body.signature || req.headers['x-payos-signature'] || '');
 
     if (!verifyPayOsWebhookSignature(body, signature)) {
+      console.warn('[payos/webhook] invalid signature');
       res.status(400).json({ success: false, message: 'Invalid PayOS signature' });
       return;
     }
@@ -128,14 +134,15 @@ router.post('/webhook', async (req, res) => {
     const result = await fulfillTopupFromWebhook(body);
     if (!result.ok) {
       console.error('[payos/webhook]', result.message, result.orderCode ?? '');
-      res.status(500).json({ success: false, message: result.message });
-      return;
+    } else {
+      console.log('[payos/webhook]', result.message);
     }
 
-    console.log('[payos/webhook]', result.message);
+    // PayOS yêu cầu HTTP 200 khi verify URL + nhận webhook (kể cả ping test).
     res.json({ success: true, message: result.message });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    console.error('[payos/webhook] unhandled', message);
     res.status(500).json({ success: false, message });
   }
 });
