@@ -65,6 +65,19 @@ const NODE_TYPE_MAP: Record<string, string> = {
 };
 
 const MEDIA_NODE_TYPES = new Set(['input-image', 'input-video']);
+const AI_GEN_NODE_TYPES = new Set(['image', 'video']);
+const MEDIA_OUTPUT_NODE_TYPES = new Set([
+  ...MEDIA_NODE_TYPES,
+  'image',
+  'video',
+  'upscale-image',
+  'remove-bg',
+  'upscale-video',
+  'vfx',
+  'subtitle',
+  'cut',
+  'lipsync',
+]);
 
 function isWflFile(value: unknown): value is WflFile {
   if (!value || typeof value !== 'object') return false;
@@ -206,6 +219,31 @@ function resolveHandles(
   return { sourceHandle, targetHandle };
 }
 
+function normalizeWflSourceHandle(
+  sourceType: string | undefined,
+  portId: string | undefined,
+  fallback: string | undefined,
+): string | undefined {
+  if (!portId) return fallback;
+  if (sourceType === 'start' && portId === 'trigger') return undefined;
+  if ((portId === 'image' || portId === 'video') && sourceType && MEDIA_OUTPUT_NODE_TYPES.has(sourceType)) {
+    return 'media-out';
+  }
+  return portId;
+}
+
+function normalizeWflTargetHandle(
+  targetType: string | undefined,
+  portId: string | undefined,
+  fallback: string | undefined,
+): string | undefined {
+  if (!portId) return fallback;
+  if ((portId === 'ref_image' || portId === 'image') && targetType && AI_GEN_NODE_TYPES.has(targetType)) {
+    return 'ref';
+  }
+  return portId;
+}
+
 /** Parse chuỗi JSON file .wfl → graph nội bộ; throw nếu format sai. */
 export function parseWflFile(raw: string): WflImportResult {
   let parsed: unknown;
@@ -246,8 +284,8 @@ export function parseWflFile(raw: string): WflImportResult {
       id: c.id || `wfl-edge-${i}`,
       source: c.sourceNodeId,
       target: c.targetNodeId,
-      sourceHandle: c.sourcePortId || fallback.sourceHandle,
-      targetHandle: c.targetPortId || fallback.targetHandle,
+      sourceHandle: normalizeWflSourceHandle(sourceType, c.sourcePortId, fallback.sourceHandle),
+      targetHandle: normalizeWflTargetHandle(targetType, c.targetPortId, fallback.targetHandle),
       type: 'wf',
     } as Edge;
   });
