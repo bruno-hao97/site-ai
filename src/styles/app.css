@@ -2633,91 +2633,6 @@ a.user-pill:hover { color: var(--text); }
   line-height: 1.45;
 }
 
-.account-topup-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 1.25rem;
-  align-items: start;
-}
-
-@media (max-width: 900px) {
-  .account-topup-grid { grid-template-columns: 1fr; }
-}
-
-.account-topup-lead { margin: 0 0 1rem; }
-
-.account-topup-presets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 0.5rem;
-}
-
-.account-topup-presets .btn.active {
-  border-color: var(--accent-teal);
-  color: var(--accent-teal);
-}
-
-.account-topup-payment { display: flex; flex-direction: column; gap: 0.85rem; }
-
-.account-topup-status {
-  margin: 0;
-  font-size: 0.88rem;
-  color: var(--muted);
-}
-
-.account-topup-qr-wrap {
-  display: flex;
-  justify-content: center;
-  padding: 0.75rem;
-  border-radius: 12px;
-  background: #fff;
-}
-
-.account-topup-qr {
-  width: 220px;
-  height: 220px;
-  object-fit: contain;
-}
-
-.account-topup-qr-fallback {
-  width: 220px;
-  height: 220px;
-  display: grid;
-  place-items: center;
-  color: #64748b;
-}
-
-.account-topup-bank {
-  margin: 0;
-  display: grid;
-  gap: 0.55rem;
-}
-
-.account-topup-bank div {
-  display: grid;
-  grid-template-columns: 110px 1fr;
-  gap: 0.5rem;
-  align-items: center;
-  font-size: 0.88rem;
-}
-
-.account-topup-bank dt {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.account-topup-bank dd {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-}
-
 /* —— Settings 79ai —— */
 .settings-79 { max-width: 820px; margin: 0 auto; }
 
@@ -14799,6 +14714,328 @@ input.wf-gen-pill--select {
   background: linear-gradient(130deg, rgba(25, 130, 90, 0.5), rgba(19, 77, 63, 0.7));
 }
 
+.pricing-credit-section {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.pricing-credit-expiry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(245, 190, 62, 0.2);
+  border-radius: 12px;
+  color: #f4d171;
+  background: rgba(116, 78, 16, 0.28);
+  font-size: 0.86rem;
+}
+
+.pricing-credit-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.pricing-credit-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(210px, 280px);
+  gap: 1.25rem;
+  align-items: center;
+  padding: 1.15rem 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(24, 29, 40, 0.98), rgba(18, 23, 33, 0.98));
+}
+
+.pricing-credit-card.featured {
+  border-color: rgba(130, 229, 65, 0.26);
+  background: linear-gradient(145deg, rgba(25, 45, 24, 0.98), rgba(17, 30, 20, 0.98));
+}
+
+.pricing-credit-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.pricing-credit-title-row h2 {
+  margin: 0;
+  font-size: clamp(1.15rem, 2vw, 1.45rem);
+}
+
+.pricing-credit-rate,
+.pricing-credit-bonus,
+.pricing-credit-best {
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.pricing-credit-rate {
+  color: #d0d4dc;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.pricing-credit-bonus {
+  color: #6df5a8;
+  background: rgba(27, 155, 92, 0.2);
+}
+
+.pricing-credit-best {
+  color: #19300a;
+  background: #b8ed55;
+}
+
+.pricing-credit-name {
+  margin: 0.6rem 0 0.5rem;
+  color: #9bd7ff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.pricing-credit-card.featured .pricing-credit-name {
+  color: #a9ef5c;
+}
+
+.pricing-credit-notes {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.pricing-credit-notes li::before {
+  content: "✓";
+  margin-right: 0.45rem;
+  color: #7ecb9f;
+}
+
+.pricing-credit-buy {
+  display: grid;
+  justify-items: end;
+  gap: 0.35rem;
+}
+
+.pricing-credit-price {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.pricing-credit-price span {
+  color: #e15b8f;
+  font-size: 0.8rem;
+  text-decoration: line-through;
+}
+
+.pricing-credit-price strong {
+  font-size: clamp(1.35rem, 3vw, 1.8rem);
+}
+
+.pricing-credit-buy small {
+  color: var(--muted);
+}
+
+.pricing-credit-buy-btn {
+  width: min(100%, 230px);
+  margin-top: 0.35rem;
+  padding: 0.72rem 1rem;
+  border: 0;
+  border-radius: 9px;
+  background: #f5f7fa;
+  color: #11151c;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.pricing-credit-buy-btn:hover:not(:disabled) {
+  background: #fff;
+  transform: translateY(-1px);
+}
+
+.pricing-credit-buy-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pricing-model-compare {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.pricing-model-compare-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  text-align: left;
+}
+
+.pricing-model-compare-head h2 {
+  margin: 0.2rem 0 0;
+  font-size: clamp(1.3rem, 2.5vw, 1.8rem);
+}
+
+.pricing-model-compare-head > p {
+  max-width: 430px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: right;
+}
+
+.pricing-model-groups {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.pricing-model-group {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(16, 21, 30, 0.96);
+}
+
+.pricing-model-group.open {
+  border-color: rgba(51, 216, 189, 0.25);
+}
+
+.pricing-model-group-toggle {
+  width: 100%;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border: 0;
+  color: var(--text);
+  background: linear-gradient(90deg, rgba(31, 41, 55, 0.88), rgba(20, 27, 38, 0.88));
+  cursor: pointer;
+  text-align: left;
+}
+
+.pricing-model-group-toggle > span {
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+}
+
+.pricing-model-group-toggle strong {
+  font-size: 0.92rem;
+}
+
+.pricing-model-group-toggle small {
+  color: var(--muted);
+}
+
+.pricing-model-group-toggle svg {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.pricing-model-group.open .pricing-model-group-toggle svg {
+  transform: rotate(180deg);
+}
+
+.pricing-model-table-wrap {
+  overflow-x: auto;
+}
+
+.pricing-model-table {
+  width: 100%;
+  min-width: 1080px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.76rem;
+}
+
+.pricing-model-table th,
+.pricing-model-table td {
+  padding: 0.6rem 0.65rem;
+  border-right: 1px solid rgba(255, 255, 255, 0.055);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.pricing-model-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  color: #cfd7e6;
+  background: #19212d;
+}
+
+.pricing-model-table th span,
+.pricing-model-table th small {
+  display: block;
+}
+
+.pricing-model-table th small {
+  margin-top: 0.15rem;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.pricing-model-table th:first-child,
+.pricing-model-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 170px;
+  text-align: left;
+  background: #141b25;
+}
+
+.pricing-model-table th:first-child {
+  z-index: 3;
+  background: #19212d;
+}
+
+.pricing-model-table th:nth-child(2),
+.pricing-model-table td:nth-child(2) {
+  min-width: 125px;
+  text-align: left;
+}
+
+.pricing-model-table tbody tr:nth-child(even) td {
+  background-color: rgba(255, 255, 255, 0.018);
+}
+
+.pricing-model-table tbody tr:nth-child(even) td:first-child {
+  background: #171e29;
+}
+
+.pricing-model-table td:nth-child(3) {
+  color: #56d9ea;
+}
+
+.pricing-model-table td:nth-child(3) del {
+  display: block;
+  color: #d75b83;
+  font-size: 0.68rem;
+}
+
+.pricing-model-table td:nth-child(3) strong {
+  display: block;
+}
+
+.pricing-model-table td.featured {
+  color: #9cf77b;
+  background: rgba(35, 130, 86, 0.16);
+}
+
 .pricing-loading {
   display: inline-flex;
   align-items: center;
@@ -15042,6 +15279,81 @@ input.wf-gen-pill--select {
   background: linear-gradient(165deg, #121722 0%, #0d1118 55%, #0a0e14 100%);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
   overflow: hidden;
+}
+
+.pricing-credit-confirm-modal {
+  position: relative;
+  width: min(480px, 100%);
+  padding: 1.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: linear-gradient(165deg, #171b24, #11151d);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.58);
+  text-align: center;
+}
+
+.pricing-credit-confirm-modal > .pricing-confirm-close {
+  position: absolute;
+  top: 0.8rem;
+  right: 0.8rem;
+}
+
+.pricing-credit-confirm-icon {
+  width: 66px;
+  height: 66px;
+  margin: 0 auto 1rem;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  color: #34dff3;
+  background: linear-gradient(145deg, rgba(14, 154, 179, 0.35), rgba(38, 79, 152, 0.35));
+}
+
+.pricing-credit-confirm-modal h2 {
+  margin: 0;
+}
+
+.pricing-credit-confirm-modal > .muted {
+  margin: 0.4rem 0 1.15rem;
+}
+
+.pricing-credit-confirm-summary {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.045);
+  text-align: left;
+}
+
+.pricing-credit-confirm-summary > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.pricing-credit-confirm-summary > div + div {
+  padding-top: 0.7rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pricing-credit-confirm-summary span {
+  color: var(--muted);
+}
+
+.pricing-credit-confirm-summary .accent {
+  color: #39dbea;
+}
+
+.pricing-credit-expiry-note {
+  margin: 0.85rem 0 0;
+  color: #f4d171;
+  font-size: 0.78rem;
+}
+
+.pricing-credit-confirm-modal .pricing-confirm-actions {
+  padding: 1.1rem 0 0;
 }
 
 .pricing-confirm-head {
@@ -15531,11 +15843,20 @@ input.wf-gen-pill--select {
 
 .pricing-payment-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.85rem 1.1rem 1rem;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pricing-payment-foot .pricing-payment-status {
+  flex: 1 0 100%;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  color: #8dffc8;
+  background: rgba(96, 255, 166, 0.1);
 }
 
 .pricing-payment-foot p {
@@ -15567,6 +15888,32 @@ input.wf-gen-pill--select {
 }
 
 @media (max-width: 640px) {
+  .pricing-model-compare-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pricing-model-compare-head > p {
+    text-align: left;
+  }
+
+  .pricing-credit-card {
+    grid-template-columns: 1fr;
+  }
+
+  .pricing-credit-buy {
+    justify-items: stretch;
+  }
+
+  .pricing-credit-price {
+    justify-content: flex-start;
+  }
+
+  .pricing-credit-buy-btn {
+    width: 100%;
+    max-width: none;
+  }
+
   .pricing-payment-foot {
     flex-direction: column;
     align-items: stretch;

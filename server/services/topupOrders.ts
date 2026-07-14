@@ -7,6 +7,7 @@ export type TopupOrderStatus = 'pending' | 'paid' | 'credited' | 'failed';
 export interface TopupOrder {
   orderCode: number;
   username: string;
+  packageId?: string;
   amountVnd: number;
   credits: number;
   status: TopupOrderStatus;
@@ -57,12 +58,14 @@ async function writeStore(store: OrderStore): Promise<void> {
 export async function createTopupOrder(input: {
   orderCode: number;
   username: string;
+  packageId: string;
   amountVnd: number;
   credits: number;
 }): Promise<TopupOrder> {
   const order: TopupOrder = {
     orderCode: input.orderCode,
     username: input.username,
+    packageId: input.packageId,
     amountVnd: input.amountVnd,
     credits: input.credits,
     status: 'pending',

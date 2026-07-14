@@ -29,6 +29,7 @@ interface Props {
   planName: string;
   planPrice?: string;
   payment: SubscriptionPaymentResult | null;
+  statusMessage?: string;
   onClose: () => void;
 }
 
@@ -87,7 +88,14 @@ function CopyField({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default function SubscriptionPaymentModal({ open, planName, planPrice, payment, onClose }: Props) {
+export default function SubscriptionPaymentModal({
+  open,
+  planName,
+  planPrice,
+  payment,
+  statusMessage,
+  onClose,
+}: Props) {
   const [tab, setTab] = useState<PaymentTab>('qr');
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [qrLoading, setQrLoading] = useState(false);
@@ -276,6 +284,7 @@ export default function SubscriptionPaymentModal({ open, planName, planPrice, pa
         </div>
 
         <div className="pricing-payment-foot">
+          {statusMessage ? <p className="pricing-payment-status">{statusMessage}</p> : null}
           <p>
             Sau khi thanh toán thành công bạn có thể truy cập{' '}
             <Link to="/account" onClick={onClose}>

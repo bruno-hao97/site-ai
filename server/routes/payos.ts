@@ -7,7 +7,8 @@ import {
 } from '../services/payos.js';
 import { fulfillTopupFromWebhook } from '../services/topupFulfillment.js';
 import { createTopupOrder, getTopupOrder } from '../services/topupOrders.js';
-import { config, isGommoMerchantConfigured, isPayOsConfigured, vndToCredits } from '../config.js';
+import { CREDIT_PACKAGES, getCreditPackage } from '../services/creditPackages.js';
+import { config, isGommoMerchantConfigured, isPayOsConfigured } from '../config.js';
 
 const router = Router();
 
@@ -51,20 +52,22 @@ router.post('/payment-requests', async (req, res) => {
   }
 });
 
+router.get('/credit-packages', (_req, res) => {
+  res.json({ success: true, data: CREDIT_PACKAGES });
+});
+
 router.post('/topup-requests', async (req, res) => {
   try {
     const username = String(req.body?.username || '').trim();
-    const amountVnd = Math.round(Number(req.body?.amountVnd));
+    const packageId = String(req.body?.packageId || '').trim();
+    const creditPackage = getCreditPackage(packageId);
 
     if (!username) {
       res.status(400).json({ success: false, message: 'Thiếu username' });
       return;
     }
-    if (!Number.isFinite(amountVnd) || amountVnd < config.topup.minVnd || amountVnd > config.topup.maxVnd) {
-      res.status(400).json({
-        success: false,
-        message: `Số tiền từ ${config.topup.minVnd.toLocaleString('vi-VN')} đến ${config.topup.maxVnd.toLocaleString('vi-VN')} VND`,
-      });
+    if (!creditPackage) {
+      res.status(400).json({ success: false, message: 'Gói credit không hợp lệ' });
       return;
     }
     if (!isPayOsConfigured()) {
@@ -72,13 +75,16 @@ router.post('/topup-requests', async (req, res) => {
       return;
     }
 
-    const credits = vndToCredits(amountVnd);
-    const payment = await createTopupPayOsPayment({ username, amountVnd });
+    const payment = await createTopupPayOsPayment({
+      username,
+      amountVnd: creditPackage.amountVnd,
+    });
     const order = await createTopupOrder({
       orderCode: payment.orderCode,
       username,
-      amountVnd,
-      credits,
+      packageId: creditPackage.id,
+      amountVnd: creditPackage.amountVnd,
+      credits: creditPackage.credits,
     });
 
     res.json({
@@ -86,7 +92,8 @@ router.post('/topup-requests', async (req, res) => {
       data: {
         ...payment,
         username,
-        credits,
+        packageId: creditPackage.id,
+        credits: creditPackage.credits,
         order,
       },
     });

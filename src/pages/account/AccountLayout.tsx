@@ -18,7 +18,6 @@ const NAV = [
   {
     section: 'TÀI CHÍNH',
     items: [
-      { to: '/account/topup', icon: '💳', label: 'Nạp credit' },
       { to: '/account/transfer', icon: '↔', label: 'Chuyển tiền' },
       { to: '/account/transactions', icon: '🕐', label: 'Lịch sử giao dịch' },
     ],

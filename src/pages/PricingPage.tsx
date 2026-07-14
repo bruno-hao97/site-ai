@@ -2,6 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { Check, ChevronDown, Loader2, Sparkles } from 'lucide-react';
 import SubscriptionConfirmModal from '../components/SubscriptionConfirmModal';
 import SubscriptionPaymentModal from '../components/SubscriptionPaymentModal';
+import CreditConfirmModal from '../components/CreditConfirmModal';
+import ModelCreditComparison from '../components/ModelCreditComparison';
+import { getDisplayUser, notifyCreditsUpdated, refreshSession } from '../services/authStore';
+import {
+  createTopupRequest,
+  fetchCreditPackages,
+  fetchTopupOrder,
+  type CreditPackage,
+} from '../services/topupApi';
 import {
   createSubscriptionPayment,
   fetchSubscriptionPlans,
@@ -25,15 +34,18 @@ type PlanFieldKey =
   | 'queue_vip'
   | 'storage';
 
+type PricingTab = SubscriptionPlanType | 'credit';
+
 interface ComparisonRow {
   label: string;
   field: PlanFieldKey;
 }
 
-const PLAN_TABS: Array<{ key: SubscriptionPlanType; label: string; hint: string }> = [
+const PLAN_TABS: Array<{ key: PricingTab; label: string; hint: string }> = [
   { key: 'combo', label: 'Combo', hint: 'Ảnh + video' },
   { key: 'image', label: 'Gói ảnh', hint: 'Image-first' },
   { key: 'video', label: 'Gói video', hint: 'Video-first' },
+  { key: 'credit', label: 'Nạp Credit', hint: 'Thanh toán một lần' },
 ];
 
 const COMPARISON_ROWS: ComparisonRow[] = [
@@ -109,8 +121,9 @@ function isFeaturedPlan(plan: SubscriptionPlan): boolean {
 }
 
 export default function PricingPage() {
-  const [tab, setTab] = useState<SubscriptionPlanType>('combo');
+  const [tab, setTab] = useState<PricingTab>('credit');
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [creditPackages, setCreditPackages] = useState<CreditPackage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [payingPlanId, setPayingPlanId] = useState('');
@@ -119,7 +132,11 @@ export default function PricingPage() {
   const [paymentPlanName, setPaymentPlanName] = useState('');
   const [paymentPlanPrice, setPaymentPlanPrice] = useState('');
   const [paymentResult, setPaymentResult] = useState<SubscriptionPaymentResult | null>(null);
+  const [confirmCreditPackage, setConfirmCreditPackage] = useState<CreditPackage | null>(null);
+  const [creditOrderCode, setCreditOrderCode] = useState<number | null>(null);
+  const [creditOrderStatus, setCreditOrderStatus] = useState('');
   const [openFaq, setOpenFaq] = useState(0);
+  const username = getDisplayUser().username || '';
 
   useEffect(() => {
     let active = true;
@@ -128,9 +145,29 @@ export default function PricingPage() {
     setPayError('');
     setPayingPlanId('');
     setConfirmPlan(null);
+    setConfirmCreditPackage(null);
     setPaymentResult(null);
     setPaymentPlanName('');
     setPaymentPlanPrice('');
+
+    if (tab === 'credit') {
+      fetchCreditPackages()
+        .then((rows) => {
+          if (active) setCreditPackages(rows);
+        })
+        .catch((err) => {
+          if (!active) return;
+          setCreditPackages([]);
+          setError(err instanceof Error ? err.message : String(err));
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+
+      return () => {
+        active = false;
+      };
+    }
 
     fetchSubscriptionPlans(tab)
       .then((rows) => {
@@ -151,6 +188,37 @@ export default function PricingPage() {
       active = false;
     };
   }, [tab]);
+
+  useEffect(() => {
+    if (!creditOrderCode) return;
+    let stopped = false;
+
+    const poll = async () => {
+      if (stopped) return;
+      try {
+        const order = await fetchTopupOrder(creditOrderCode);
+        if (stopped) return;
+        setCreditOrderStatus(order.status);
+        if (order.status === 'credited') {
+          await refreshSession();
+          notifyCreditsUpdated();
+          return;
+        }
+        if (order.status === 'failed') {
+          setPayError(order.error || 'Nạp credit thất bại');
+          return;
+        }
+      } catch {
+        // Lỗi mạng tạm thời: tiếp tục kiểm tra đơn.
+      }
+      if (!stopped) window.setTimeout(poll, 3000);
+    };
+
+    void poll();
+    return () => {
+      stopped = true;
+    };
+  }, [creditOrderCode]);
 
   const allToolRows = useMemo(() => {
     const set = new Set<string>();
@@ -181,6 +249,49 @@ export default function PricingPage() {
     setPaymentPlanPrice('');
     setPayingPlanId('');
     setPayError('');
+    setCreditOrderCode(null);
+    setCreditOrderStatus('');
+  }
+
+  function openCreditModal(creditPackage: CreditPackage): void {
+    setPayError('');
+    setConfirmCreditPackage(creditPackage);
+  }
+
+  function closeCreditModal(): void {
+    if (payingPlanId) return;
+    setConfirmCreditPackage(null);
+    setPayError('');
+  }
+
+  async function handleConfirmCredit(): Promise<void> {
+    if (!confirmCreditPackage) return;
+    if (!username) {
+      setPayError('Tài khoản chưa có username — không thể nạp credit.');
+      return;
+    }
+
+    setPayError('');
+    setPayingPlanId(confirmCreditPackage.id);
+    try {
+      const topup = await createTopupRequest(username, confirmCreditPackage.id);
+      setPaymentPlanName(`${confirmCreditPackage.name} · ${topup.credits.toLocaleString('vi-VN')} Credits`);
+      setPaymentPlanPrice(String(confirmCreditPackage.amountVnd));
+      setPaymentResult({
+        status: topup.status,
+        url: topup.url,
+        urlEmbedded: topup.urlEmbedded,
+        qrImage: topup.qrImage,
+        bankTransfer: topup.bankTransfer,
+      });
+      setCreditOrderCode(topup.orderCode);
+      setCreditOrderStatus('pending');
+      setConfirmCreditPackage(null);
+    } catch (err) {
+      setPayError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPayingPlanId('');
+    }
   }
 
   async function handleConfirmSubscribe(_promoCode: string): Promise<void> {
@@ -239,9 +350,73 @@ export default function PricingPage() {
         </div>
       )}
       {!loading && error && <p className="error pricing-error">{error}</p>}
-      {!!payError && !confirmPlan && <div className="banner warn pricing-pay-error">{payError}</div>}
+      {!!payError && !confirmPlan && !confirmCreditPackage && (
+        <div className="banner warn pricing-pay-error">{payError}</div>
+      )}
 
       {!loading && !error && (
+        tab === 'credit' ? (
+          <section className="pricing-credit-section">
+            <div className="pricing-credit-expiry">
+              <span>☆</span>
+              <strong>Lưu ý: Credit nạp sẽ hết hạn sau 3 tháng kể từ ngày nạp.</strong>
+            </div>
+
+            <div className="pricing-credit-list">
+              {creditPackages.map((creditPackage) => {
+                const rate = Math.round((creditPackage.credits / creditPackage.amountVnd) * 1000);
+                return (
+                  <article
+                    key={creditPackage.id}
+                    className={`pricing-credit-card${creditPackage.featured ? ' featured' : ''}`}
+                  >
+                    <div className="pricing-credit-info">
+                      <div className="pricing-credit-title-row">
+                        <h2>{creditPackage.credits.toLocaleString('vi-VN')} Credits</h2>
+                        {creditPackage.featured ? <span className="pricing-credit-best">BEST</span> : null}
+                        <span className="pricing-credit-rate">
+                          ≈ {rate.toLocaleString('vi-VN')} credit / 1.000đ
+                        </span>
+                        {creditPackage.bonusPercent > 0 ? (
+                          <span className="pricing-credit-bonus">+{creditPackage.bonusPercent}% Thưởng</span>
+                        ) : null}
+                      </div>
+
+                      <p className="pricing-credit-name">{creditPackage.name}</p>
+                      <ul className="pricing-credit-notes">
+                        <li>Dùng cho tạo ảnh, video, TTS, nhạc và các model trả phí</li>
+                        {creditPackage.bonusPercent > 0 ? (
+                          <li>+{creditPackage.bonusPercent}% credits thưởng so với mệnh giá cơ bản</li>
+                        ) : null}
+                        {creditPackage.prioritySupport ? <li>Hỗ trợ ưu tiên</li> : null}
+                      </ul>
+                    </div>
+
+                    <div className="pricing-credit-buy">
+                      <div className="pricing-credit-price">
+                        {creditPackage.credits > creditPackage.amountVnd ? (
+                          <span>{creditPackage.credits.toLocaleString('vi-VN')}đ</span>
+                        ) : null}
+                        <strong>{creditPackage.amountVnd.toLocaleString('vi-VN')}đ</strong>
+                      </div>
+                      <small>Thanh toán 1 lần</small>
+                      <button
+                        type="button"
+                        className="pricing-credit-buy-btn"
+                        onClick={() => openCreditModal(creditPackage)}
+                        disabled={!!payingPlanId || !!confirmCreditPackage || !!paymentResult}
+                      >
+                        Mua ngay
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            <ModelCreditComparison creditPackages={creditPackages} />
+          </section>
+        ) : (
         <>
           <section className="pricing-cards-grid">
             {plans.map((plan) => {
@@ -421,6 +596,7 @@ export default function PricingPage() {
             </div>
           </section>
         </>
+        )
       )}
 
       <SubscriptionConfirmModal
@@ -432,11 +608,27 @@ export default function PricingPage() {
         onConfirm={(promoCode) => void handleConfirmSubscribe(promoCode)}
       />
 
+      <CreditConfirmModal
+        open={!!confirmCreditPackage}
+        creditPackage={confirmCreditPackage}
+        confirming={!!payingPlanId}
+        error={payError}
+        onClose={closeCreditModal}
+        onConfirm={() => void handleConfirmCredit()}
+      />
+
       <SubscriptionPaymentModal
         open={!!paymentResult}
         planName={paymentPlanName}
         planPrice={paymentPlanPrice}
         payment={paymentResult}
+        statusMessage={
+          creditOrderStatus === 'credited'
+            ? 'Thanh toán thành công — credit đã được cộng vào tài khoản.'
+            : creditOrderCode
+              ? 'Đang chờ xác nhận thanh toán…'
+              : undefined
+        }
         onClose={closePaymentModal}
       />
     </div>

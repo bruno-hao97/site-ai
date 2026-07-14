@@ -14,6 +14,7 @@ export interface TopupPaymentResult {
   qrImage?: string;
   orderCode: number;
   username: string;
+  packageId: string;
   credits: number;
   bankTransfer: TopupBankTransfer;
 }
@@ -23,6 +24,7 @@ export type TopupOrderStatus = 'pending' | 'paid' | 'credited' | 'failed';
 export interface TopupOrder {
   orderCode: number;
   username: string;
+  packageId?: string;
   amountVnd: number;
   credits: number;
   status: TopupOrderStatus;
@@ -32,13 +34,36 @@ export interface TopupOrder {
   error?: string;
 }
 
-export const TOPUP_PRESETS_VND = [10_000, 50_000, 100_000, 200_000, 500_000] as const;
+export interface CreditPackage {
+  id: string;
+  name: string;
+  amountVnd: number;
+  credits: number;
+  bonusPercent: number;
+  featured?: boolean;
+  prioritySupport?: boolean;
+}
 
-export async function createTopupRequest(username: string, amountVnd: number): Promise<TopupPaymentResult> {
+export async function fetchCreditPackages(): Promise<CreditPackage[]> {
+  const res = await fetch('/api/payos/credit-packages');
+  const text = await res.text();
+  let raw: { success?: boolean; message?: string; data?: CreditPackage[] };
+  try {
+    raw = JSON.parse(text) as typeof raw;
+  } catch {
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+  if (!res.ok || !raw.success || !Array.isArray(raw.data)) {
+    throw new Error(raw.message || `HTTP ${res.status}`);
+  }
+  return raw.data;
+}
+
+export async function createTopupRequest(username: string, packageId: string): Promise<TopupPaymentResult> {
   const res = await fetch('/api/payos/topup-requests', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, amountVnd }),
+    body: JSON.stringify({ username, packageId }),
   });
 
   const text = await res.text();
