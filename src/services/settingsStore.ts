@@ -7,8 +7,8 @@ const KEYS = {
 
 /** Domain Gommo cho login, gen media, feed, me… */
 export const DEFAULT_DOMAIN = 'vmedia.ai';
-/** Domain Gommo riêng cho plans + create_payment */
-export const PRICING_DOMAIN = 'trungtamai.vn';
+/** Domain Gommo cho plans + create_payment (cùng DEFAULT_DOMAIN) */
+export const PRICING_DOMAIN = DEFAULT_DOMAIN;
 /** URL site public (Vercel) */
 export const APP_SITE_URL = 'https://trungtamai.vn';
 export const DEFAULT_PROJECT_ID = 'default';

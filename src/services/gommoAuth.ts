@@ -1,3 +1,4 @@
+import { gommoDeviceFields } from './gommoDevice';
 import { GOMMO_AUTH_PATH } from './upstreamMe';
 
 export class GommoAuthError extends Error {
@@ -10,10 +11,18 @@ export class GommoAuthError extends Error {
   }
 }
 
-async function parseAuthResponse(res: Response): Promise<{ access_token?: string; message?: string; error?: number }> {
+interface GommoAuthResponse {
+  access_token?: string;
+  success?: boolean;
+  message?: string;
+  error?: number;
+  runtime?: number;
+}
+
+async function parseAuthResponse(res: Response): Promise<GommoAuthResponse> {
   const text = await res.text();
   try {
-    return JSON.parse(text) as { access_token?: string; message?: string; error?: number; success?: boolean };
+    return JSON.parse(text) as GommoAuthResponse;
   } catch {
     throw new GommoAuthError(text || `HTTP ${res.status}`, res.status);
   }
@@ -74,4 +83,60 @@ export async function gommoRegisterWithPassword(input: GommoRegisterInput): Prom
     throw new GommoAuthError(parsed.message || 'Đăng ký thất bại', status);
   }
   return parsed.access_token;
+}
+
+export interface GommoChangePasswordInput {
+  accessToken: string;
+  domain: string;
+  currentPassword: string;
+  newPassword: string;
+}
+
+/** Đổi mật khẩu Gommo qua proxy — POST /api/apps/go-mmo/auth/change-password */
+export async function gommoChangePassword(input: GommoChangePasswordInput): Promise<string> {
+  const body = new URLSearchParams({
+    access_token: input.accessToken.trim(),
+    domain: input.domain.trim(),
+    current_password: input.currentPassword,
+    new_password: input.newPassword,
+    language: 'vi',
+    ...gommoDeviceFields(),
+  }).toString();
+
+  const res = await fetch(`${GOMMO_AUTH_PATH}/auth/change-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+
+  const parsed = await parseAuthResponse(res);
+  if (!res.ok || parsed.error || !parsed.success) {
+    throw new GommoAuthError(parsed.message || 'Đổi mật khẩu thất bại', res.status);
+  }
+  return parsed.message || 'Đổi mật khẩu thành công.';
+}
+
+/** Quên mật khẩu — POST /api/apps/go-mmo/auth/reset-password */
+export async function gommoResetPassword(
+  email: string,
+  domain: string,
+  language = 'VI',
+): Promise<string> {
+  const body = new URLSearchParams({
+    email: email.trim(),
+    domain: domain.trim(),
+    language,
+  }).toString();
+
+  const res = await fetch(`${GOMMO_AUTH_PATH}/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+
+  const parsed = await parseAuthResponse(res);
+  if (!res.ok || parsed.error || !parsed.success) {
+    throw new GommoAuthError(parsed.message || 'Gửi email reset thất bại', res.status);
+  }
+  return parsed.message || 'Chúng tôi đã gửi email reset mật khẩu.';
 }

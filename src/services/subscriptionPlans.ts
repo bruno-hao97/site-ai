@@ -103,15 +103,8 @@ export interface SubscriptionPaymentResult {
   runtime?: number;
 }
 
-const PLANS_URLS = [
-  `${GOMMO_AUTH_BASE}${GOMMO_AUTH_PATH}/subscriptions/plans`,
-  'https://api.gommo.net/api/apps/go-mmo/subscriptions/plans',
-];
-
-const CREATE_PAYMENT_URLS = [
-  `${GOMMO_AUTH_BASE}${GOMMO_AUTH_PATH}/subscriptions/create_payment`,
-  'https://api.gommo.net/api/apps/go-mmo/subscriptions/create_payment',
-];
+const PLANS_URL = `${GOMMO_AUTH_BASE}${GOMMO_AUTH_PATH}/subscriptions/plans`;
+const CREATE_PAYMENT_URL = `${GOMMO_AUTH_BASE}${GOMMO_AUTH_PATH}/subscriptions/create_payment`;
 
 function normalizePlan(raw: unknown): SubscriptionPlan | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -148,34 +141,24 @@ export async function fetchSubscriptionPlans(type: SubscriptionPlanType): Promis
     ...gommoDeviceFields(),
   }).toString();
 
-  let lastError: Error | null = null;
+  const res = await fetch(PLANS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+  const text = await res.text();
 
-  for (const url of PLANS_URLS) {
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body,
-      });
-      const text = await res.text();
-
-      let raw: unknown;
-      try {
-        raw = JSON.parse(text);
-      } catch {
-        throw new Error(text || `HTTP ${res.status}`);
-      }
-
-      const payload = parsePlansPayload(raw);
-      if (!res.ok) throw new Error(payload.message || `HTTP ${res.status}`);
-      if (!Array.isArray(payload.data)) throw new Error(payload.message || 'Sai định dạng dữ liệu plans');
-      return payload.data;
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-    }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    throw new Error(text || `HTTP ${res.status}`);
   }
 
-  throw lastError ?? new Error('Không tải được danh sách plans');
+  const payload = parsePlansPayload(raw);
+  if (!res.ok) throw new Error(payload.message || `HTTP ${res.status}`);
+  if (!Array.isArray(payload.data)) throw new Error(payload.message || 'Sai định dạng dữ liệu plans');
+  return payload.data;
 }
 
 function collectPaymentSources(input: unknown): Record<string, unknown>[] {
@@ -407,55 +390,46 @@ export async function createSubscriptionPayment(
     ...gommoDeviceFields(),
   }).toString();
 
-  let lastError: Error | null = null;
-  for (const url of CREATE_PAYMENT_URLS) {
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body,
-      });
-      const text = await res.text();
+  const res = await fetch(CREATE_PAYMENT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+  const text = await res.text();
 
-      let raw: unknown;
-      try {
-        raw = JSON.parse(text);
-      } catch {
-        throw new Error(text || `HTTP ${res.status}`);
-      }
-
-      const payload = parsePaymentPayload(raw);
-      if (!res.ok) throw new Error(normalizePaymentError(payload.message) || `HTTP ${res.status}`);
-      if (payload.error) throw new Error(normalizePaymentError(payload.message));
-      if (payload.status && payload.status.toLowerCase() !== 'success') {
-        throw new Error(normalizePaymentError(payload.message || 'Tạo thanh toán thất bại'));
-      }
-
-      const hasPaymentSurface = Boolean(
-        payload.url ||
-          payload.url_embedded ||
-          payload.qrUrl ||
-          payload.qrImage ||
-          payload.bankTransfer?.accountNumber ||
-          payload.bankTransfer?.content,
-      );
-      if (!hasPaymentSurface) {
-        throw new Error(normalizePaymentError(payload.message || 'Không nhận được thông tin thanh toán'));
-      }
-
-      return {
-        status: payload.status,
-        url: payload.url,
-        urlEmbedded: payload.url_embedded,
-        qrUrl: payload.qrUrl,
-        qrImage: payload.qrImage,
-        bankTransfer: payload.bankTransfer,
-        runtime: payload.runtime,
-      };
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-    }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    throw new Error(text || `HTTP ${res.status}`);
   }
 
-  throw lastError ?? new Error('Không tạo được payment link');
+  const payload = parsePaymentPayload(raw);
+  if (!res.ok) throw new Error(normalizePaymentError(payload.message) || `HTTP ${res.status}`);
+  if (payload.error) throw new Error(normalizePaymentError(payload.message));
+  if (payload.status && payload.status.toLowerCase() !== 'success') {
+    throw new Error(normalizePaymentError(payload.message || 'Tạo thanh toán thất bại'));
+  }
+
+  const hasPaymentSurface = Boolean(
+    payload.url ||
+      payload.url_embedded ||
+      payload.qrUrl ||
+      payload.qrImage ||
+      payload.bankTransfer?.accountNumber ||
+      payload.bankTransfer?.content,
+  );
+  if (!hasPaymentSurface) {
+    throw new Error(normalizePaymentError(payload.message || 'Không nhận được thông tin thanh toán'));
+  }
+
+  return {
+    status: payload.status,
+    url: payload.url,
+    urlEmbedded: payload.url_embedded,
+    qrUrl: payload.qrUrl,
+    qrImage: payload.qrImage,
+    bankTransfer: payload.bankTransfer,
+    runtime: payload.runtime,
+  };
 }

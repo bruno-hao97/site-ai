@@ -129,8 +129,8 @@ export default function AccountTopupPage() {
       <div className="account-topup-grid">
         <section className="panel account-card">
           <p className="muted account-topup-lead">
-            Quét QR hoặc chuyển khoản PayOS — hệ thống tự cộng credit cho{' '}
-            <strong>@{username || '—'}</strong> sau khi thanh toán thành công.
+            Chọn số tiền, tạo mã thanh toán và quét QR hoặc chuyển khoản. Credit sẽ được cộng vào tài khoản{' '}
+            <strong>@{username || '—'}</strong> sau khi thanh toán xong.
           </p>
 
           {!payment ? (
@@ -192,15 +192,15 @@ export default function AccountTopupPage() {
                 </p>
               ) : (
                 <p className="account-topup-status">
-                  Trạng thái: <strong>{orderStatus || 'pending'}</strong> — đang chờ PayOS xác nhận…
+                  Trạng thái: <strong>{orderStatus || 'pending'}</strong> — đang chờ xác nhận thanh toán…
                 </p>
               )}
 
               <div className="account-topup-qr-wrap">
                 {isImageQrSource(qrPayload) ? (
-                  <img src={qrPayload} alt="QR PayOS" className="account-topup-qr" />
+                  <img src={qrPayload} alt="Mã QR thanh toán" className="account-topup-qr" />
                 ) : qrDataUrl ? (
-                  <img src={qrDataUrl} alt="QR PayOS" className="account-topup-qr" />
+                  <img src={qrDataUrl} alt="Mã QR thanh toán" className="account-topup-qr" />
                 ) : (
                   <div className="account-topup-qr-fallback">
                     <QrCode size={48} aria-hidden />
@@ -265,12 +265,12 @@ export default function AccountTopupPage() {
         </section>
 
         <aside className="account-transfer-warnings panel">
-          <h2>ℹ HƯỚNG DẪN</h2>
+          <h2>Hướng dẫn</h2>
           <ul>
-            <li>Credit cộng tự động qua webhook PayOS (server Railway).</li>
-            <li>Username lấy từ tài khoản đang đăng nhập — không đổi tay.</li>
-            <li>1 VND = 1 credit (có thể đổi trên server).</li>
-            <li>Sau khi chuyển, đợi vài giây đến 2 phút để số dư cập nhật.</li>
+            <li>Chọn số tiền và bấm &quot;Tạo mã thanh toán&quot;.</li>
+            <li>Quét mã QR hoặc chuyển khoản theo thông tin hiển thị.</li>
+            <li>Nhập đúng nội dung chuyển khoản.</li>
+            <li>Credit được cộng tự động sau khi thanh toán thành công (thường trong 1–2 phút).</li>
           </ul>
         </aside>
       </div>

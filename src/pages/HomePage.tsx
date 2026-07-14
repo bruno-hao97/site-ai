@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import HomeNewsCarousel from '../components/HomeNewsCarousel';
 import HomeFeed from '../components/HomeFeed';
 import HomeMyContent, { type MineFilter } from '../components/HomeMyContent';
 import HomeQuickCreateBar from '../components/HomeQuickCreateBar';
@@ -42,8 +41,6 @@ export default function HomePage() {
           </button>
         ))}
       </div>
-
-      {tab === 'Bảng tin' && <HomeNewsCarousel />}
 
       {mineFilter ? (
         <HomeMyContent key={mineFilter} filter={mineFilter} />

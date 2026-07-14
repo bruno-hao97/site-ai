@@ -2,11 +2,11 @@ import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronRight, KeyRound, KeySquare, Lock, User, X } from 'lucide-react';
 import { loginWithGommoToken } from '../services/authStore';
-import { gommoLoginWithPassword, GommoAuthError } from '../services/gommoAuth';
+import { gommoLoginWithPassword, gommoResetPassword, GommoAuthError } from '../services/gommoAuth';
 import { UpstreamMeError } from '../services/upstreamMe';
 import { APP_SITE_URL, DEFAULT_DOMAIN } from '../services/settingsStore';
 
-type Step = 'menu' | 'account' | 'token';
+type Step = 'menu' | 'account' | 'token' | 'reset';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -20,8 +20,12 @@ export default function LoginPage() {
   const [accessToken, setAccessToken] = useState('');
   const [tokenLoading, setTokenLoading] = useState(false);
 
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState('');
+
   function goStep(next: Step) {
     setError('');
+    setResetSuccess('');
     setStep(next);
   }
 
@@ -37,6 +41,21 @@ export default function LoginPage() {
       setError(err instanceof GommoAuthError || err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResetPassword(e: FormEvent) {
+    e.preventDefault();
+    setResetLoading(true);
+    setError('');
+    setResetSuccess('');
+    try {
+      const message = await gommoResetPassword(email, DEFAULT_DOMAIN);
+      setResetSuccess(message);
+    } catch (err) {
+      setError(err instanceof GommoAuthError || err instanceof Error ? err.message : String(err));
+    } finally {
+      setResetLoading(false);
     }
   }
 
@@ -135,9 +154,50 @@ export default function LoginPage() {
                   />
                 </span>
               </label>
+              <button type="button" className="auth-forgot" onClick={() => goStep('reset')}>
+                Quên mật khẩu?
+              </button>
               {error && <p className="error">{error}</p>}
               <button type="submit" className="btn auth-submit" disabled={loading}>
                 {loading ? 'Đang đăng nhập…' : 'Đăng nhập'}
+              </button>
+            </form>
+          </>
+        )}
+
+        {step === 'reset' && (
+          <>
+            <div className="auth-switch">
+              <button type="button" className="auth-back" onClick={() => goStep('account')}>
+                <ArrowLeft size={14} /> Quay lại
+              </button>
+              <span className="auth-switch-link auth-switch-current">Reset mật khẩu</span>
+            </div>
+
+            <form onSubmit={handleResetPassword} className="form">
+              <p className="lead sm">
+                Nhập email tài khoản, hệ thống sẽ gửi email hỗ trợ reset mật khẩu.
+              </p>
+              <label className="field">
+                <span className="label">Email</span>
+                <span className="auth-input">
+                  <User size={16} className="auth-input-icon" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    required
+                  />
+                </span>
+              </label>
+              {error && <p className="error">{error}</p>}
+              {resetSuccess && (
+                <p className="account-transfer-feedback success">{resetSuccess}</p>
+              )}
+              <button type="submit" className="btn auth-submit" disabled={resetLoading}>
+                {resetLoading ? 'Đang gửi…' : 'Gửi email reset'}
               </button>
             </form>
           </>

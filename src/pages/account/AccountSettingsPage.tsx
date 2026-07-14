@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react';
-import { getDisplayUser, getUpstreamMe } from '../../services/authStore';
+import { getDisplayUser, getUpstreamMe, loadAuth } from '../../services/authStore';
+import { gommoChangePassword } from '../../services/gommoAuth';
 
 export default function AccountSettingsPage() {
   const user = getDisplayUser();
@@ -10,6 +11,7 @@ export default function AccountSettingsPage() {
   const [confirmPw, setConfirmPw] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   function handleProfile(e: FormEvent) {
     e.preventDefault();
@@ -18,10 +20,14 @@ export default function AccountSettingsPage() {
     setNotice('Cập nhật hồ sơ upstream sẽ có khi tích hợp API Gommo user.update.');
   }
 
-  function handlePassword(e: FormEvent) {
+  async function handlePassword(e: FormEvent) {
     e.preventDefault();
     setNotice('');
     setError('');
+    if (!currentPw) {
+      setError('Vui lòng nhập mật khẩu hiện tại.');
+      return;
+    }
     if (newPw !== confirmPw) {
       setError('Mật khẩu xác nhận không khớp.');
       return;
@@ -30,8 +36,30 @@ export default function AccountSettingsPage() {
       setError('Mật khẩu mới tối thiểu 6 ký tự.');
       return;
     }
-    setNotice('Đổi mật khẩu cần đăng nhập email/password trên trungtamai.vn — hiện app dùng Access Token.');
-    void currentPw;
+
+    const auth = loadAuth();
+    if (!auth?.access_token) {
+      setError('Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const message = await gommoChangePassword({
+        accessToken: auth.access_token,
+        domain: auth.domain,
+        currentPassword: currentPw,
+        newPassword: newPw,
+      });
+      setCurrentPw('');
+      setNewPw('');
+      setConfirmPw('');
+      setNotice(message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Đổi mật khẩu thất bại.');
+    } finally {
+      setIsChangingPassword(false);
+    }
   }
 
   return (
@@ -62,6 +90,7 @@ export default function AccountSettingsPage() {
               value={currentPw}
               onChange={(e) => setCurrentPw(e.target.value)}
               autoComplete="current-password"
+              required
             />
           </label>
           <label className="field">
@@ -71,6 +100,8 @@ export default function AccountSettingsPage() {
               value={newPw}
               onChange={(e) => setNewPw(e.target.value)}
               autoComplete="new-password"
+              minLength={6}
+              required
             />
           </label>
           <label className="field">
@@ -80,10 +111,12 @@ export default function AccountSettingsPage() {
               value={confirmPw}
               onChange={(e) => setConfirmPw(e.target.value)}
               autoComplete="new-password"
+              minLength={6}
+              required
             />
           </label>
-          <button type="submit" className="btn account-teal-btn">
-            Cập nhật mật khẩu
+          <button type="submit" className="btn account-teal-btn" disabled={isChangingPassword}>
+            {isChangingPassword ? 'Đang cập nhật…' : 'Cập nhật mật khẩu'}
           </button>
         </form>
       </section>
