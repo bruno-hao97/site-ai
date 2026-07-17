@@ -135,6 +135,8 @@ export default function PricingPage() {
   const [confirmCreditPackage, setConfirmCreditPackage] = useState<CreditPackage | null>(null);
   const [creditOrderCode, setCreditOrderCode] = useState<number | null>(null);
   const [creditOrderStatus, setCreditOrderStatus] = useState('');
+  /** Gói credit vừa fail hạn mức — chỉ khóa đúng gói đó, gói nhỏ hơn vẫn mua được. */
+  const [blockedCreditPackageIds, setBlockedCreditPackageIds] = useState<string[]>([]);
   const [openFaq, setOpenFaq] = useState(0);
   const username = getDisplayUser().username || '';
 
@@ -149,6 +151,7 @@ export default function PricingPage() {
     setPaymentResult(null);
     setPaymentPlanName('');
     setPaymentPlanPrice('');
+    setBlockedCreditPackageIds([]);
 
     if (tab === 'credit') {
       fetchCreditPackages()
@@ -240,7 +243,10 @@ export default function PricingPage() {
   function closeSubscribeModal(): void {
     if (payingPlanId) return;
     setConfirmPlan(null);
-    setPayError('');
+    // Giữ banner nếu lỗi hạn mức vừa xảy ra.
+    if (!/tạm dừng nhận thanh toán|MERCHANT_BALANCE/i.test(payError)) {
+      setPayError('');
+    }
   }
 
   function closePaymentModal(): void {
@@ -261,7 +267,8 @@ export default function PricingPage() {
   function closeCreditModal(): void {
     if (payingPlanId) return;
     setConfirmCreditPackage(null);
-    setPayError('');
+    // Giữ 1 banner nếu gói vừa fail hạn mức; xóa lỗi thường khi đóng.
+    if (!blockedCreditPackageIds.length) setPayError('');
   }
 
   async function handleConfirmCredit(): Promise<void> {
@@ -273,8 +280,10 @@ export default function PricingPage() {
 
     setPayError('');
     setPayingPlanId(confirmCreditPackage.id);
+    const packageId = confirmCreditPackage.id;
     try {
-      const topup = await createTopupRequest(username, confirmCreditPackage.id);
+      const topup = await createTopupRequest(username, packageId);
+      setBlockedCreditPackageIds((ids) => ids.filter((id) => id !== packageId));
       setPaymentPlanName(`${confirmCreditPackage.name} · ${topup.credits.toLocaleString('vi-VN')} Credits`);
       setPaymentPlanPrice(String(confirmCreditPackage.amountVnd));
       setPaymentResult({
@@ -287,8 +296,19 @@ export default function PricingPage() {
       setCreditOrderCode(topup.orderCode);
       setCreditOrderStatus('pending');
       setConfirmCreditPackage(null);
+      setPayError('');
     } catch (err) {
-      setPayError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      const code = err && typeof err === 'object' && 'code' in err ? String((err as { code?: string }).code || '') : '';
+      const isBalanceBlock =
+        code === 'MERCHANT_BALANCE' ||
+        /tạm dừng nhận thanh toán|tạm dừng nhận nạp|hạn mức nạp|không đọc được số dư merchant/i.test(
+          message,
+        );
+      setPayError(message);
+      if (isBalanceBlock) {
+        setBlockedCreditPackageIds((ids) => (ids.includes(packageId) ? ids : [...ids, packageId]));
+      }
     } finally {
       setPayingPlanId('');
     }
@@ -313,8 +333,10 @@ export default function PricingPage() {
       setPaymentResult(payment);
       setConfirmPlan(null);
       setPayingPlanId('');
+      setPayError('');
     } catch (err) {
-      setPayError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      setPayError(message);
       setPayingPlanId('');
     }
   }
@@ -350,7 +372,7 @@ export default function PricingPage() {
         </div>
       )}
       {!loading && error && <p className="error pricing-error">{error}</p>}
-      {!!payError && !confirmPlan && !confirmCreditPackage && (
+      {!!payError && !confirmPlan && !confirmCreditPackage && tab !== 'credit' && (
         <div className="banner warn pricing-pay-error">{payError}</div>
       )}
 
@@ -362,9 +384,15 @@ export default function PricingPage() {
               <strong>Lưu ý: Credit nạp sẽ hết hạn sau 3 tháng kể từ ngày nạp.</strong>
             </div>
 
+            {!!payError && !confirmCreditPackage ? (
+              <div className="banner warn pricing-pay-error" style={{ marginBottom: 16 }}>
+                {payError}
+              </div>
+            ) : null}
             <div className="pricing-credit-list">
               {creditPackages.map((creditPackage) => {
                 const rate = Math.round((creditPackage.credits / creditPackage.amountVnd) * 1000);
+                const packageBlocked = blockedCreditPackageIds.includes(creditPackage.id);
                 return (
                   <article
                     key={creditPackage.id}
@@ -406,7 +434,7 @@ export default function PricingPage() {
                         onClick={() => openCreditModal(creditPackage)}
                         disabled={!!payingPlanId || !!confirmCreditPackage || !!paymentResult}
                       >
-                        Mua ngay
+                        {packageBlocked ? 'Thử lại' : 'Mua ngay'}
                       </button>
                     </div>
                   </article>
@@ -566,7 +594,10 @@ export default function PricingPage() {
               </article>
               <article className="panel">
                 <h3>Hỗ trợ 24/7</h3>
-                <p className="muted">Đội ngũ hỗ trợ liên tục, xử lý nhanh vấn đề gói và thanh toán.</p>
+                <p className="muted">
+                  Đội ngũ hỗ trợ liên tục, xử lý nhanh vấn đề gói và thanh toán. Hotline:{' '}
+                  <a href="tel:0996369369">0996 369369</a>
+                </p>
               </article>
               <article className="panel">
                 <h3>Hiệu năng cao</h3>

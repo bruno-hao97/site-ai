@@ -6,9 +6,14 @@ import {
   verifyPayOsWebhookSignature,
 } from '../services/payos.js';
 import { fulfillTopupFromWebhook } from '../services/topupFulfillment.js';
-import { createTopupOrder, getTopupOrder } from '../services/topupOrders.js';
+import { createTopupOrder, getTopupOrder, sumReservedTopupCredits } from '../services/topupOrders.js';
 import { CREDIT_PACKAGES, getCreditPackage } from '../services/creditPackages.js';
-import { config, isGommoMerchantConfigured, isPayOsConfigured } from '../config.js';
+import {
+  assertMerchantCanCover,
+  fetchMerchantCreditsAi,
+  MerchantBalanceError,
+} from '../services/gommoMerchantBalance.js';
+import { config, isGommoMerchantConfigured, isPayOsConfigured, vndToCredits } from '../config.js';
 
 const router = Router();
 
@@ -28,6 +33,7 @@ router.get('/status', async (_req, res) => {
         minVnd: config.topup.minVnd,
         maxVnd: config.topup.maxVnd,
         creditsPerVnd: config.topup.creditsPerVnd,
+        merchantBufferCredits: config.topup.merchantBufferCredits,
       },
     },
   });
@@ -43,11 +49,44 @@ router.post('/payment-requests', async (req, res) => {
       res.status(400).json({ success: false, message: 'Thiếu planId' });
       return;
     }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      res.status(400).json({ success: false, message: 'Số tiền gói không hợp lệ' });
+      return;
+    }
+    if (!isPayOsConfigured()) {
+      res.status(503).json({ success: false, message: 'PayOS chưa cấu hình trên server' });
+      return;
+    }
+    if (!isGommoMerchantConfigured()) {
+      res.status(503).json({ success: false, message: 'Merchant Gommo chưa cấu hình trên server' });
+      return;
+    }
+
+    const creditsNeeded = vndToCredits(amount);
+    const [merchantBalance, reservedCredits] = await Promise.all([
+      fetchMerchantCreditsAi(),
+      sumReservedTopupCredits(),
+    ]);
+    assertMerchantCanCover({
+      merchantBalance,
+      reservedCredits,
+      creditsToSend: creditsNeeded,
+      bufferCredits: config.topup.merchantBufferCredits,
+    });
 
     const payment = await createPayOsPayment({ planId, planName, amount });
     res.json({ success: true, data: payment });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    if (err instanceof MerchantBalanceError) {
+      if (err.detail) console.warn('[payos/payment-requests] MERCHANT_BALANCE', err.detail);
+      res.status(503).json({
+        success: false,
+        code: 'MERCHANT_BALANCE',
+        message,
+      });
+      return;
+    }
     res.status(500).json({ success: false, message });
   }
 });
@@ -74,6 +113,21 @@ router.post('/topup-requests', async (req, res) => {
       res.status(503).json({ success: false, message: 'PayOS chưa cấu hình trên server' });
       return;
     }
+    if (!isGommoMerchantConfigured()) {
+      res.status(503).json({ success: false, message: 'Merchant Gommo chưa cấu hình trên server' });
+      return;
+    }
+
+    const [merchantBalance, reservedCredits] = await Promise.all([
+      fetchMerchantCreditsAi(),
+      sumReservedTopupCredits(),
+    ]);
+    assertMerchantCanCover({
+      merchantBalance,
+      reservedCredits,
+      creditsToSend: creditPackage.credits,
+      bufferCredits: config.topup.merchantBufferCredits,
+    });
 
     const payment = await createTopupPayOsPayment({
       username,
@@ -99,6 +153,15 @@ router.post('/topup-requests', async (req, res) => {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    if (err instanceof MerchantBalanceError) {
+      if (err.detail) console.warn('[payos/topup-requests] MERCHANT_BALANCE', err.detail);
+      res.status(503).json({
+        success: false,
+        code: 'MERCHANT_BALANCE',
+        message,
+      });
+      return;
+    }
     res.status(500).json({ success: false, message });
   }
 });

@@ -17,6 +17,8 @@ export const config = {
     minVnd: Number(process.env.TOPUP_MIN_VND) || 10_000,
     maxVnd: Number(process.env.TOPUP_MAX_VND) || 20_000_000,
     creditsPerVnd: Number(process.env.TOPUP_CREDITS_PER_VND) || 1,
+    /** Buffer cộng thêm trên số credit gói trước khi cho tạo lệnh PayOS. */
+    merchantBufferCredits: Number(process.env.TOPUP_MERCHANT_BUFFER_CREDITS) || 300_000,
     ordersFile: process.env.TOPUP_ORDERS_FILE || path.join(process.cwd(), 'data', 'topup-orders.json'),
   },
   payos: {
@@ -30,6 +32,17 @@ export const config = {
     planCancelUrl: `${appUrl}/pricing`,
     apiBaseUrl: 'https://api-merchant.payos.vn',
   },
+  telegram: {
+    botToken: (process.env.TELEGRAM_BOT_TOKEN || '').trim(),
+    webhookUrl: (process.env.TELEGRAM_WEBHOOK_URL || '').trim(),
+    /** Secret token khi setWebhook + header x-telegram-bot-api-secret-token */
+    webhookSecret: (process.env.TELEGRAM_WEBHOOK_SECRET || '').trim(),
+    /** Chat ID nhận cảnh báo topup (cách nhau bởi dấu phẩy) */
+    notifyChatIds: (process.env.TELEGRAM_NOTIFY_CHAT_IDS || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  },
 };
 
 export function isPayOsConfigured(): boolean {
@@ -38,6 +51,10 @@ export function isPayOsConfigured(): boolean {
 
 export function isGommoMerchantConfigured(): boolean {
   return Boolean(config.gommo.accessToken && config.gommo.apiDomain);
+}
+
+export function isTelegramConfigured(): boolean {
+  return Boolean(config.telegram.botToken);
 }
 
 export function vndToCredits(amountVnd: number): number {

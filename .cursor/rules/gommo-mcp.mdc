@@ -1,0 +1,32 @@
+---
+description: Dùng Gommo MCP (79ai) triệt để khi làm việc trên site-ai
+alwaysApply: true
+---
+
+# Gommo MCP trên site-ai
+
+MCP server Cursor: **`user-79ai`** (UI hiện `79ai`). Site runtime dùng REST qua proxy Express — **không** nhúng MCP vào browser.
+
+## Khi nào gọi MCP
+
+| Việc | Tool |
+|------|------|
+| Xem account / credit trước khi gen | `gommo_account_info`, `gommo_credit_balance` |
+| Trước tạo ảnh/video | `gommo_models_list` (`type`: image\|video\|audio) |
+| Tạo media | `gommo_image_create` / `gommo_video_create` — **hỏi duyệt credit trước** |
+| Poll kết quả | `gommo_image_status` / `gommo_video_status` / `gommo_task_stream` (id_base, **không** dùng task_id nội bộ) |
+| Ping user khi xong task dài | `gommo_notify_send` (`send_telegram: true` nếu đã link) |
+
+## Quy tắc cứng
+
+1. **Không bịa** `ratio` / `resolution` / `duration` / `mode` — lấy từ `gommo_models_list`, chỉ set khi user xác nhận (hoặc catalog đúng 1 option + user đã duyệt create).
+2. Config API reject → **dừng, hỏi lại** — không đoán retry.
+3. Gen media **trừ credit** → xin approve trước khi create.
+4. Phân biệt: Cursor **GenerateImage** ≠ `gommo_image_create` (Gommo trừ credit).
+5. Topup PayOS / merchant balance / Telegram bot site = code trong `server/` — sửa code, không thay bằng MCP.
+
+## Site ↔ MCP
+
+- FE/BE: `GommoClient`, proxy `/v2` `/ai` `/api/apps/go-mmo`, PayOS topup, bot `TELEGRAM_*`.
+- Ops: `GET /api/ops/status` (chi tiết cần header `x-ops-key`).
+- Telegram site bot ≠ Gommo `gommo_notify_send` (cần link Telegram trên tài khoản Gommo).

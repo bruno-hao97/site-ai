@@ -189,7 +189,9 @@ export default function SubscriptionConfirmModal({
             </p>
 
             <div className="pricing-confirm-support">
-              <p>Hỗ trợ: 0965-393-325</p>
+              <p>
+                Hỗ trợ: <a href="tel:0996369369">0996 369369</a>
+              </p>
               <p>Cộng đồng: Zalo · Facebook · TikTok</p>
             </div>
 
@@ -218,7 +220,7 @@ export default function SubscriptionConfirmModal({
             disabled={confirming}
           >
             {confirming ? <Loader2 size={16} className="spin" /> : null}
-            {confirming ? 'Đang tạo link thanh toán...' : 'Xác nhận'}
+            {confirming ? 'Đang tạo link thanh toán...' : error ? 'Thử lại' : 'Xác nhận'}
           </button>
         </div>
       </div>

@@ -87,7 +87,7 @@ export default function CreditConfirmModal({
           </button>
           <button type="button" className="pricing-confirm-submit" onClick={onConfirm} disabled={confirming}>
             {confirming ? <Loader2 size={16} className="spin" /> : null}
-            {confirming ? 'Đang tạo thanh toán...' : 'Xác nhận'}
+            {confirming ? 'Đang tạo thanh toán...' : error ? 'Thử lại' : 'Xác nhận'}
           </button>
         </div>
       </div>

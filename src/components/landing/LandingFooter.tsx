@@ -13,7 +13,7 @@ const footerLinks = {
   ],
   'Công ty': [
     { label: 'Về chúng tôi', href: '#' },
-    { label: 'Liên hệ', href: '#' },
+    { label: 'Hotline: 0996 369369', href: 'tel:0996369369' },
   ],
 } as const;
 

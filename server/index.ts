@@ -2,7 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import gommoProxyRoutes from './routes/gommoProxy.js';
 import payosRoutes from './routes/payos.js';
-import { config } from './config.js';
+import telegramRoutes from './routes/telegram.js';
+import opsRoutes from './routes/ops.js';
+import { config, isTelegramConfigured } from './config.js';
 
 const app = express();
 
@@ -16,11 +18,17 @@ app.use(express.json({ limit: '25mb' }));
 app.get('/api/health', (_req, res) => {
   res.json({
     success: true,
-    data: { ok: true, mode: 'payos-topup-api' },
+    data: {
+      ok: true,
+      mode: 'payos-topup-api',
+      telegram: isTelegramConfigured(),
+    },
   });
 });
 
 app.use('/api/payos', payosRoutes);
+app.use('/api/telegram', telegramRoutes);
+app.use('/api/ops', opsRoutes);
 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
@@ -28,5 +36,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 });
 
 app.listen(config.port, () => {
-  console.log(`API server http://localhost:${config.port} (Gommo proxy + PayOS)`);
+  console.log(
+    `API server http://localhost:${config.port} (Gommo proxy + PayOS${isTelegramConfigured() ? ' + Telegram' : ''})`,
+  );
 });

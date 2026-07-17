@@ -358,11 +358,12 @@ async function createLocalPayOsPayment(input: CreateSubscriptionPaymentInput): P
   }
 
   if (!res.ok) {
+    const root = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null;
     const message =
-      raw && typeof raw === 'object' && typeof (raw as Record<string, unknown>).message === 'string'
-        ? String((raw as Record<string, unknown>).message)
-        : `HTTP ${res.status}`;
-    throw new Error(message);
+      root && typeof root.message === 'string' ? String(root.message) : `HTTP ${res.status}`;
+    const err = new Error(message) as Error & { code?: string };
+    if (root && typeof root.code === 'string') err.code = root.code;
+    throw err;
   }
 
   return parsePayOsApiResult(raw);

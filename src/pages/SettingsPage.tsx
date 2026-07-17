@@ -1,8 +1,17 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { clearAuth, loadAuth } from '../services/authStore';
 import { loadOpenaiKey, saveOpenaiKey } from '../services/openaiKeyStore';
 import { loadTheme, saveTheme, type ThemeMode } from '../services/themeStore';
+import { fetchOpsStatus, type OpsStatusData } from '../services/opsApi';
+
+const OPS_KEY_SESSION = 'ops_status_key';
+
+function pill(ok: boolean | null | undefined): string {
+  if (ok === true) return 'ok';
+  if (ok === false) return 'warn';
+  return '';
+}
 
 export default function SettingsPage() {
   const auth = loadAuth();
@@ -12,6 +21,32 @@ export default function SettingsPage() {
   const [emailNotif, setEmailNotif] = useState(true);
   const [openaiKey, setOpenaiKey] = useState(loadOpenaiKey());
   const [openaiSaved, setOpenaiSaved] = useState(false);
+  const [ops, setOps] = useState<OpsStatusData | null>(null);
+  const [opsError, setOpsError] = useState('');
+  const [opsLoading, setOpsLoading] = useState(false);
+  const [opsKey, setOpsKey] = useState(() => sessionStorage.getItem(OPS_KEY_SESSION) || '');
+
+  const loadOps = useCallback(async () => {
+    setOpsLoading(true);
+    setOpsError('');
+    try {
+      if (opsKey.trim()) sessionStorage.setItem(OPS_KEY_SESSION, opsKey.trim());
+      else sessionStorage.removeItem(OPS_KEY_SESSION);
+      const data = await fetchOpsStatus(opsKey.trim() || undefined);
+      setOps(data);
+    } catch (err) {
+      setOps(null);
+      setOpsError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setOpsLoading(false);
+    }
+  }, [opsKey]);
+
+  useEffect(() => {
+    void loadOps();
+    // Mount once; refresh via button
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleLogout() {
     clearAuth();
@@ -60,6 +95,73 @@ export default function SettingsPage() {
               Sao chép &amp; Tạo mới
             </Link>
           </div>
+        </section>
+
+        <section className="panel settings-79-section">
+          <h2>🛠 Ops — Gommo / PayOS / Telegram</h2>
+          <p className="muted" style={{ marginTop: 0 }}>
+            MCP Cursor (<code>79ai</code>) dùng trong IDE. Trang này kiểm tra runtime site (Railway).
+          </p>
+          <div className="settings-79-openai-row" style={{ marginBottom: '0.75rem' }}>
+            <input
+              value={opsKey}
+              onChange={(e) => setOpsKey(e.target.value)}
+              placeholder="x-ops-key (TELEGRAM_WEBHOOK_SECRET hoặc OPS_STATUS_KEY)"
+              className="settings-79-openai-input"
+              type="password"
+              autoComplete="off"
+            />
+            <button type="button" className="btn primary sm" onClick={() => void loadOps()} disabled={opsLoading}>
+              {opsLoading ? 'Đang tải…' : 'Làm mới'}
+            </button>
+          </div>
+          {opsError && <p className="muted" style={{ color: 'var(--danger)' }}>{opsError}</p>}
+          {ops && (
+            <div style={{ display: 'grid', gap: '0.5rem' }}>
+              <div className="settings-79-row">
+                <div>
+                  <div className="settings-79-row-title">PayOS</div>
+                  <div className="settings-79-row-desc">{ops.payos?.message || ops.payos?.webhookUrl || '—'}</div>
+                </div>
+                <span className={`status-pill ${pill(Boolean(ops.payos?.configured && ops.payos?.valid !== false))}`}>
+                  {ops.payos?.configured ? (ops.payos.valid === false ? 'Key lỗi' : 'OK') : 'Chưa cấu hình'}
+                </span>
+              </div>
+              <div className="settings-79-row">
+                <div>
+                  <div className="settings-79-row-title">Merchant Gommo</div>
+                  <div className="settings-79-row-desc">
+                    Domain {ops.merchant?.domain || '—'}
+                    {ops.detail && ops.merchant?.available != null
+                      ? ` · khả dụng ${ops.merchant.available.toLocaleString('vi-VN')} credit`
+                      : ''}
+                    {ops.merchant?.error ? ` · ${ops.merchant.error}` : ''}
+                  </div>
+                </div>
+                <span className={`status-pill ${pill(Boolean(ops.merchant?.configured && !ops.merchant?.error))}`}>
+                  {ops.merchant?.configured ? 'OK' : 'Chưa cấu hình'}
+                </span>
+              </div>
+              <div className="settings-79-row">
+                <div>
+                  <div className="settings-79-row-title">Telegram bot (site)</div>
+                  <div className="settings-79-row-desc">
+                    Chat admin: {ops.telegram?.notifyChatIdsConfigured ?? 0}
+                    {ops.telegram?.webhookError ? ` · ${ops.telegram.webhookError}` : ''}
+                  </div>
+                </div>
+                <span className={`status-pill ${pill(ops.telegram?.configured)}`}>
+                  {ops.telegram?.configured ? 'Token OK' : 'Chưa cấu hình'}
+                </span>
+              </div>
+              {!ops.detail && ops.hint && (
+                <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>{ops.hint}</p>
+              )}
+              {ops.mcp?.note && (
+                <p className="muted" style={{ fontSize: '0.85rem', margin: 0 }}>{ops.mcp.note}</p>
+              )}
+            </div>
+          )}
         </section>
 
         <section className="panel settings-79-section">

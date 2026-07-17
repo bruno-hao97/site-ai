@@ -1,6 +1,18 @@
 import { config, vndToCredits } from '../config.js';
+import {
+  assertMerchantCanCover,
+  fetchMerchantCreditsAi,
+  MerchantBalanceError,
+} from './gommoMerchantBalance.js';
 import { merchantSendBalances } from './gommoSendBalances.js';
-import { getTopupOrder, updateTopupOrder } from './topupOrders.js';
+import { notifyTelegramAdmins } from './telegram.js';
+import { getTopupOrder, sumReservedTopupCredits, updateTopupOrder } from './topupOrders.js';
+
+function notifyTopupAsync(text: string): void {
+  void notifyTelegramAdmins(text).then((r) => {
+    if (r.errors.length) console.warn('[telegram] notify errors', r.errors);
+  });
+}
 
 export interface PayOsWebhookPayload {
   code?: string;
@@ -37,7 +49,11 @@ export async function fulfillTopupFromWebhook(body: Record<string, unknown>): Pr
 
   const order = await getTopupOrder(orderCode);
   if (!order) {
-    return { ok: true, message: `Webhook đã nhận — chưa có đơn pending #${orderCode}` };
+    const msg = `Webhook đã nhận — chưa có đơn pending #${orderCode}`;
+    notifyTopupAsync(
+      `⚠️ Topup PayOS #${orderCode}\nKhông tìm thấy đơn pending trên server.\nTiền có thể đã vào nhưng chưa cộng credit.`,
+    );
+    return { ok: true, message: msg };
   }
 
   if (order.status === 'credited') {
@@ -45,11 +61,13 @@ export async function fulfillTopupFromWebhook(body: Record<string, unknown>): Pr
   }
 
   if (Number.isFinite(amount) && amount > 0 && amount !== order.amountVnd) {
+    const err = `Số tiền PayOS (${amount}) không khớp đơn (${order.amountVnd})`;
     await updateTopupOrder(orderCode, {
       status: 'failed',
-      error: `Số tiền PayOS (${amount}) không khớp đơn (${order.amountVnd})`,
+      error: err,
     });
     console.error('[payos/webhook] amount mismatch', orderCode, amount, order.amountVnd);
+    notifyTopupAsync(`❌ Topup #${orderCode} FAILED\n@${order.username}\n${err}`);
     return { ok: true, message: 'Số tiền thanh toán không khớp đơn pending — đã ghi log' };
   }
 
@@ -63,6 +81,18 @@ export async function fulfillTopupFromWebhook(body: Record<string, unknown>): Pr
   const message = `PayOS topup #${orderCode}`;
 
   try {
+    // Re-check ngay trước sendBalances (tránh race 2 đơn cùng lúc).
+    const [merchantBalance, reservedCredits] = await Promise.all([
+      fetchMerchantCreditsAi(),
+      sumReservedTopupCredits(orderCode),
+    ]);
+    assertMerchantCanCover({
+      merchantBalance,
+      reservedCredits,
+      creditsToSend: credits,
+      bufferCredits: 0,
+    });
+
     await merchantSendBalances({
       username: order.username,
       value: credits,
@@ -73,15 +103,23 @@ export async function fulfillTopupFromWebhook(body: Record<string, unknown>): Pr
       creditedAt: new Date().toISOString(),
       error: undefined,
     });
+    const okMsg = `Đã cộng ${credits} credit cho @${order.username}`;
+    notifyTopupAsync(
+      `✅ Topup #${orderCode} CREDITED\n@${order.username}\n${credits.toLocaleString('vi-VN')} credits\n${order.amountVnd.toLocaleString('vi-VN')} VND`,
+    );
     return {
       ok: true,
-      message: `Đã cộng ${credits} credit cho @${order.username}`,
+      message: okMsg,
       orderCode,
     };
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
+    const detail = err instanceof MerchantBalanceError ? err.detail : undefined;
     await updateTopupOrder(orderCode, { status: 'failed', error: errMsg });
-    console.error('[payos/webhook] sendBalances failed', orderCode, errMsg);
+    console.error('[payos/webhook] sendBalances failed', orderCode, errMsg, detail || '');
+    notifyTopupAsync(
+      `❌ Topup #${orderCode} FAILED (sendBalances)\n@${order.username}\n${credits.toLocaleString('vi-VN')} credits\n${errMsg}${detail ? `\n${detail}` : ''}`,
+    );
     return { ok: true, message: `Đã nhận webhook — lỗi cộng credit: ${errMsg}`, orderCode };
   }
 }

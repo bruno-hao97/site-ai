@@ -67,7 +67,7 @@ export async function createTopupRequest(username: string, packageId: string): P
   });
 
   const text = await res.text();
-  let raw: { success?: boolean; message?: string; data?: TopupPaymentResult };
+  let raw: { success?: boolean; message?: string; code?: string; data?: TopupPaymentResult };
   try {
     raw = JSON.parse(text) as typeof raw;
   } catch {
@@ -75,7 +75,9 @@ export async function createTopupRequest(username: string, packageId: string): P
   }
 
   if (!res.ok || !raw.success || !raw.data) {
-    throw new Error(raw.message || `HTTP ${res.status}`);
+    const err = new Error(raw.message || `HTTP ${res.status}`) as Error & { code?: string };
+    if (raw.code) err.code = raw.code;
+    throw err;
   }
 
   return raw.data;

@@ -86,6 +86,29 @@ export async function getTopupOrder(orderCode: number): Promise<TopupOrder | nul
   return store.orders[String(orderCode)] ?? null;
 }
 
+/** Credit đang giữ bởi đơn chưa kết thúc (pending/paid) — tránh mở thêm lệnh khi sắp trừ. */
+export async function sumReservedTopupCredits(excludeOrderCode?: number): Promise<number> {
+  const store = await readStore();
+  const now = Date.now();
+  /** QR bỏ quên không chiếm hạn mức mãi. */
+  const pendingMaxAgeMs = 2 * 60 * 60 * 1000;
+  let total = 0;
+  for (const order of Object.values(store.orders)) {
+    if (excludeOrderCode != null && order.orderCode === excludeOrderCode) continue;
+    if (order.status === 'paid') {
+      const credits = Math.floor(Number(order.credits) || 0);
+      if (credits > 0) total += credits;
+      continue;
+    }
+    if (order.status !== 'pending') continue;
+    const created = Date.parse(order.createdAt);
+    if (Number.isFinite(created) && now - created > pendingMaxAgeMs) continue;
+    const credits = Math.floor(Number(order.credits) || 0);
+    if (credits > 0) total += credits;
+  }
+  return total;
+}
+
 export async function updateTopupOrder(
   orderCode: number,
   patch: Partial<TopupOrder>,
