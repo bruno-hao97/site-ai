@@ -9,6 +9,7 @@ import {
   refreshSession,
 } from './services/authStore';
 import { UpstreamMeError } from './services/upstreamMe';
+import { setupOneSignalFromAuth } from './services/oneSignal';
 import { useCreditsUpdated } from './hooks/useCreditsUpdated';
 import type { JobType } from './services/api';
 import BrandLogo from './components/BrandLogo';
@@ -165,6 +166,12 @@ function AppHeader() {
 
 function AppShell() {
   const location = useLocation();
+  const loggedIn = isLoggedIn();
+
+  useEffect(() => {
+    if (loggedIn) void setupOneSignalFromAuth();
+  }, [loggedIn]);
+
   const BARE_PAGES = ['/', '/login', '/register'];
   const isBarePage = BARE_PAGES.includes(location.pathname);
   const isWorkflow = location.pathname === '/workflow';

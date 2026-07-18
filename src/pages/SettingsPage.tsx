@@ -4,6 +4,13 @@ import { clearAuth, loadAuth } from '../services/authStore';
 import { loadOpenaiKey, saveOpenaiKey } from '../services/openaiKeyStore';
 import { loadTheme, saveTheme, type ThemeMode } from '../services/themeStore';
 import { fetchOpsStatus, type OpsStatusData } from '../services/opsApi';
+import {
+  getBrowserPushStatus,
+  requestPushPermission,
+  resolvePushAppId,
+  setupOneSignalFromAuth,
+  type PushStatus,
+} from '../services/oneSignal';
 
 const OPS_KEY_SESSION = 'ops_status_key';
 
@@ -25,6 +32,10 @@ export default function SettingsPage() {
   const [opsError, setOpsError] = useState('');
   const [opsLoading, setOpsLoading] = useState(false);
   const [opsKey, setOpsKey] = useState(() => sessionStorage.getItem(OPS_KEY_SESSION) || '');
+  const [pushStatus, setPushStatus] = useState<PushStatus>(() => getBrowserPushStatus());
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushAppId, setPushAppId] = useState<string | null>(null);
+  const [pushLoading, setPushLoading] = useState(true);
 
   const loadOps = useCallback(async () => {
     setOpsLoading(true);
@@ -47,6 +58,38 @@ export default function SettingsPage() {
     // Mount once; refresh via button
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setPushLoading(true);
+      try {
+        const id = await resolvePushAppId();
+        if (cancelled) return;
+        setPushAppId(id);
+        setPushStatus(getBrowserPushStatus());
+        if (id) void setupOneSignalFromAuth();
+      } finally {
+        if (!cancelled) setPushLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleEnablePush() {
+    setPushBusy(true);
+    try {
+      const id = pushAppId || (await resolvePushAppId());
+      setPushAppId(id);
+      setPushStatus(await requestPushPermission());
+    } catch {
+      setPushStatus(getBrowserPushStatus());
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   function handleLogout() {
     clearAuth();
@@ -228,11 +271,39 @@ export default function SettingsPage() {
             <div>
               <div className="settings-79-row-title">Thông báo đẩy</div>
               <div className="settings-79-row-desc">
-                Nhận thông báo về các cập nhật, tin nhắn mới và các hoạt động khác.
+                {pushLoading
+                  ? 'Đang tải cấu hình push…'
+                  : !pushAppId
+                    ? 'Domain chưa cấu hình push (thiếu push_app_id).'
+                    : pushStatus === 'unsupported'
+                      ? 'Trình duyệt không hỗ trợ thông báo đẩy.'
+                      : pushStatus === 'granted'
+                        ? 'Đã bật — thiết bị này sẽ nhận thông báo đẩy.'
+                        : pushStatus === 'denied'
+                          ? 'Bị chặn — hãy bật lại quyền Thông báo trong cài đặt trình duyệt.'
+                          : 'Nhận thông báo về các cập nhật, tin nhắn mới và các hoạt động khác.'}
               </div>
             </div>
-            <button type="button" className="btn settings-79-gradient-btn" disabled>
-              Bật thông báo
+            <button
+              type="button"
+              className="btn settings-79-gradient-btn"
+              onClick={handleEnablePush}
+              disabled={
+                pushLoading ||
+                pushBusy ||
+                !pushAppId ||
+                pushStatus === 'unsupported' ||
+                pushStatus === 'granted' ||
+                pushStatus === 'denied'
+              }
+            >
+              {pushLoading
+                ? 'Đang tải…'
+                : pushBusy
+                  ? 'Đang bật…'
+                  : pushStatus === 'granted'
+                    ? 'Đã bật'
+                    : 'Bật thông báo'}
             </button>
           </div>
           <div className="settings-79-row">

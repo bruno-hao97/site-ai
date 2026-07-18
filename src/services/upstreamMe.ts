@@ -30,12 +30,21 @@ export interface UpstreamBalancesInfo {
   [key: string]: unknown;
 }
 
+/** Cấu hình theo domain do Gommo trả về — chứa OneSignal appId cho web push. */
+export interface UpstreamDomainInfo {
+  push_app_id?: string;
+  app_name?: string;
+  name?: string;
+  [key: string]: unknown;
+}
+
 export interface UpstreamMeResponse {
   success?: boolean;
   message?: string;
   getConfig?: unknown[];
   userInfo?: UpstreamUserInfo;
   balancesInfo?: UpstreamBalancesInfo;
+  domainInfo?: UpstreamDomainInfo;
   videoCount?: number;
   runtime?: number;
 }
