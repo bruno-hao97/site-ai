@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/api/auth/:path*", "destination": "https://api.trungtamai.vn/api/auth/:path*" },
     { "source": "/api/payos/:path*", "destination": "https://api.trungtamai.vn/api/payos/:path*" },
     { "source": "/api/telegram/:path*", "destination": "https://api.trungtamai.vn/api/telegram/:path*" },
     { "source": "/api/ops/:path*", "destination": "https://api.trungtamai.vn/api/ops/:path*" },

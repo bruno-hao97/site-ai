@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Hexagon, Sparkles, Zap } from 'lucide-react';
-import { appEntryPath } from '../../lib/landingConfig';
+import { useLandingAccess } from './LandingAccessContext';
 
 export default function HeroSection() {
-  const appPath = appEntryPath();
+  const requestAccess = useLandingAccess();
 
   return (
     <section className="hero">
@@ -54,10 +54,10 @@ export default function HeroSection() {
         transition={{ duration: 0.6, delay: 0.35 }}
         className="hero-buttons"
       >
-        <Link to={appPath} className="btn-primary">
+        <button type="button" className="btn-primary" onClick={requestAccess}>
           <Zap size={16} />
           Truy cập APP
-        </Link>
+        </button>
         <a href="#features" className="btn-secondary">
           <Hexagon size={16} />
           Khám phá API

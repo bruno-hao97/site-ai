@@ -1088,3 +1088,95 @@
   font-size: 12px;
   color: rgba(255, 255, 255, 0.25);
 }
+
+/* —— Access notice modal (Truy cập APP) —— */
+.landing-access-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(2, 6, 15, 0.88);
+  backdrop-filter: blur(10px);
+}
+
+.landing-access-dialog {
+  width: min(580px, calc(100vw - 24px));
+  max-height: min(88vh, 820px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: rgba(6, 10, 18, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 16px;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.65);
+}
+
+.landing-access-dialog-head {
+  flex-shrink: 0;
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.landing-access-dialog-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.landing-access-dialog-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: rgba(2, 6, 15, 0.92);
+}
+
+.landing-access-loading {
+  margin: 0;
+  padding: 24px 18px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.landing-access-notif {
+  font-size: 14px;
+}
+
+.landing-access-notif a {
+  color: inherit;
+}
+
+.landing-access-dialog-foot {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 14px 14px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(6, 10, 18, 0.98);
+}
+
+.landing-access-confirm {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 24px;
+  background: linear-gradient(135deg, #22d3ee, #0ea5e9);
+  color: #031018;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.landing-access-confirm:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.landing-page .btn-primary,
+.landing-page .cta-btn {
+  font-family: inherit;
+}

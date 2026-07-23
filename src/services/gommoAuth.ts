@@ -59,26 +59,28 @@ export interface GommoRegisterInput {
   phone: string;
   domain: string;
   name?: string;
+  note?: string;
 }
 
-/** Đăng ký Gommo qua proxy — POST /api/apps/go-mmo/auth/register */
+/**
+ * Đăng ký qua server site — POST /api/auth/register
+ * Server gắn manager_id (admin site) + merchant access_token; không lộ token lên FE.
+ */
 export async function gommoRegisterWithPassword(input: GommoRegisterInput): Promise<string> {
-  const body = new URLSearchParams({
-    name: input.name?.trim() || '',
-    email: input.email.trim(),
-    password: input.password,
-    phone: input.phone.trim(),
-    domain: input.domain.trim(),
-  }).toString();
-
-  const res = await fetch(`${GOMMO_AUTH_PATH}/auth/register`, {
+  const res = await fetch('/api/auth/register', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name: input.name?.trim() || '',
+      email: input.email.trim(),
+      password: input.password,
+      phone: input.phone.trim(),
+      note: input.note?.trim() || '',
+    }),
   });
 
   const parsed = await parseAuthResponse(res);
-  if (!res.ok || parsed.error || !parsed.access_token) {
+  if (!res.ok || parsed.error || parsed.success === false || !parsed.access_token) {
     const status = /tồn tại|exist/i.test(parsed.message || '') ? 409 : res.status;
     throw new GommoAuthError(parsed.message || 'Đăng ký thất bại', status);
   }

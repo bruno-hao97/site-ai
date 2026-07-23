@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import gommoProxyRoutes from './routes/gommoProxy.js';
+import authRoutes from './routes/auth.js';
 import payosRoutes from './routes/payos.js';
 import telegramRoutes from './routes/telegram.js';
 import opsRoutes from './routes/ops.js';
@@ -27,6 +28,7 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+app.use('/api/auth', authRoutes);
 app.use('/api/payos', payosRoutes);
 app.use('/api/telegram', telegramRoutes);
 app.use('/api/ops', opsRoutes);

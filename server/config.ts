@@ -12,6 +12,10 @@ export const config = {
     authPath: process.env.GOMMO_AUTH_PATH || '/api/apps/go-mmo',
     accessToken: (process.env.GOMMO_ACCESS_TOKEN || '').trim(),
     apiDomain: (process.env.GOMMO_API_DOMAIN || 'vmedia.ai').trim(),
+    /** id_base admin site — gửi làm manager_id + ref khi đăng ký user mới */
+    managerId: (process.env.GOMMO_MANAGER_ID || 'c8f06b2317880f42').trim(),
+    /** Số ngày hết hạn tài khoản mới (payload Gommo register) */
+    registerExpiredTime: (process.env.GOMMO_REGISTER_EXPIRED_TIME || '999').trim(),
   },
   topup: {
     minVnd: Number(process.env.TOPUP_MIN_VND) || 10_000,
@@ -51,6 +55,10 @@ export function isPayOsConfigured(): boolean {
 
 export function isGommoMerchantConfigured(): boolean {
   return Boolean(config.gommo.accessToken && config.gommo.apiDomain);
+}
+
+export function isGommoRegisterConfigured(): boolean {
+  return Boolean(config.gommo.accessToken && config.gommo.apiDomain && config.gommo.managerId);
 }
 
 export function isTelegramConfigured(): boolean {

@@ -1,13 +1,14 @@
 import { Link } from 'react-router-dom';
 import { Zap } from 'lucide-react';
 import { getCreditsAi, getDisplayUser, isLoggedIn } from '../../services/authStore';
-import { NAV_LINKS, appEntryPath } from '../../lib/landingConfig';
+import { NAV_LINKS } from '../../lib/landingConfig';
+import { useLandingAccess } from './LandingAccessContext';
 
 export default function LandingNavbar() {
+  const requestAccess = useLandingAccess();
   const loggedIn = isLoggedIn();
   const credits = loggedIn ? getCreditsAi() : null;
   const user = loggedIn ? getDisplayUser() : null;
-  const appPath = appEntryPath();
 
   return (
     <nav className="landing-nav">
@@ -46,9 +47,9 @@ export default function LandingNavbar() {
               Đăng nhập
             </Link>
           )}
-          <Link to={appPath} className="cta-btn">
+          <button type="button" className="cta-btn" onClick={requestAccess}>
             Truy cập APP
-          </Link>
+          </button>
         </div>
       </div>
     </nav>
