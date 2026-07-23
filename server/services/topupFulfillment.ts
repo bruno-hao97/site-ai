@@ -5,6 +5,7 @@ import {
   MerchantBalanceError,
 } from './gommoMerchantBalance.js';
 import { merchantSendBalances } from './gommoSendBalances.js';
+import { notifyMerchantLowBalanceAsync } from './merchantLowBalanceAlert.js';
 import { notifyTelegramAdmins } from './telegram.js';
 import { getTopupOrder, sumReservedTopupCredits, updateTopupOrder } from './topupOrders.js';
 
@@ -107,6 +108,7 @@ export async function fulfillTopupFromWebhook(body: Record<string, unknown>): Pr
     notifyTopupAsync(
       `✅ Topup #${orderCode} CREDITED\n@${order.username}\n${credits.toLocaleString('vi-VN')} credits\n${order.amountVnd.toLocaleString('vi-VN')} VND`,
     );
+    notifyMerchantLowBalanceAsync(`after topup #${orderCode} credited`);
     return {
       ok: true,
       message: okMsg,
@@ -120,6 +122,9 @@ export async function fulfillTopupFromWebhook(body: Record<string, unknown>): Pr
     notifyTopupAsync(
       `❌ Topup #${orderCode} FAILED (sendBalances)\n@${order.username}\n${credits.toLocaleString('vi-VN')} credits\n${errMsg}${detail ? `\n${detail}` : ''}`,
     );
+    if (err instanceof MerchantBalanceError) {
+      notifyMerchantLowBalanceAsync(`topup #${orderCode} merchant balance fail`);
+    }
     return { ok: true, message: `Đã nhận webhook — lỗi cộng credit: ${errMsg}`, orderCode };
   }
 }

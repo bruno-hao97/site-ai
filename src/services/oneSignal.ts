@@ -85,6 +85,10 @@ export function getPushAppId(): string | null {
   return cachedPushAppId;
 }
 
+function fallbackPushAppId(domain: string): string | null {
+  return normalizeDomain(domain) === DEFAULT_DOMAIN ? VMEDIA_PUSH_APP_ID : null;
+}
+
 /** Lấy OneSignal appId từ Gommo site-config theo domain. */
 export async function resolvePushAppId(): Promise<string | null> {
   if (cachedPushAppId) return cachedPushAppId;
@@ -92,22 +96,26 @@ export async function resolvePushAppId(): Promise<string | null> {
 
   pushAppIdPromise = (async () => {
     const domain = normalizeDomain(loadAuth()?.domain || DEFAULT_DOMAIN);
-    const body = new URLSearchParams({ domain }).toString();
-    const res = await fetch(`${GOMMO_AUTH_PATH}/app/site-config`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
-    });
-    const text = await res.text();
-    let parsed: { domainInfo?: { push_app_id?: string } };
+    const fallback = fallbackPushAppId(domain);
     try {
-      parsed = JSON.parse(text) as { domainInfo?: { push_app_id?: string } };
+      const body = new URLSearchParams({ domain }).toString();
+      const res = await fetch(`${GOMMO_AUTH_PATH}/app/site-config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+      });
+      const text = await res.text();
+      const start = text.indexOf('{');
+      const parsed = JSON.parse(start >= 0 ? text.slice(start) : text) as {
+        domainInfo?: { push_app_id?: string };
+      };
+      const id = parsed.domainInfo?.push_app_id?.trim() || fallback;
+      cachedPushAppId = id;
+      return id;
     } catch {
-      return null;
+      cachedPushAppId = fallback;
+      return fallback;
     }
-    const id = parsed.domainInfo?.push_app_id?.trim() || null;
-    cachedPushAppId = id;
-    return id;
   })().finally(() => {
     pushAppIdPromise = null;
   });

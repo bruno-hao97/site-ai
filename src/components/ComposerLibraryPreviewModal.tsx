@@ -79,7 +79,6 @@ export default function ComposerLibraryPreviewModal({
 
   const {
     onRegenerate,
-    onPublish,
     onCreateVideo,
     onEdit,
     onDelete,

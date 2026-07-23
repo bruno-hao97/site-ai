@@ -4,6 +4,11 @@ import { gommoServerDeviceFields } from './gommoDevice.js';
 /** Gommo: sau sendBalances số dư còn lại phải > 500.000. */
 export const GOMMO_MIN_REMAINING_AFTER_SEND = 500_000;
 
+/** Khả dụng tối thiểu an toàn (= 500.001). Dưới ngưỡng này không còn room cho sendBalances. */
+export function merchantSafeAvailableThreshold(): number {
+  return GOMMO_MIN_REMAINING_AFTER_SEND + 1;
+}
+
 export async function fetchMerchantCreditsAi(): Promise<number> {
   if (!isGommoMerchantConfigured()) {
     throw new Error('Chưa cấu hình GOMMO_ACCESS_TOKEN trên server');

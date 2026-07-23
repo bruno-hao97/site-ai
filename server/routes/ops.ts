@@ -8,8 +8,10 @@ import {
 import {
   fetchMerchantCreditsAi,
   GOMMO_MIN_REMAINING_AFTER_SEND,
+  merchantSafeAvailableThreshold,
   requiredMerchantCredits,
 } from '../services/gommoMerchantBalance.js';
+import { checkAndNotifyMerchantLowBalance } from '../services/merchantLowBalanceAlert.js';
 import { sumReservedTopupCredits } from '../services/topupOrders.js';
 import { CREDIT_PACKAGES } from '../services/creditPackages.js';
 import { getTelegramWebhookInfo, notifyTelegramAdmins } from '../services/telegram.js';
@@ -71,6 +73,7 @@ router.get('/status', async (req, res) => {
       configured: merchantConfigured,
       domain: config.gommo.apiDomain,
       minRemainingAfterSend: GOMMO_MIN_REMAINING_AFTER_SEND,
+      safeAvailableThreshold: merchantSafeAvailableThreshold(),
       bufferCredits: config.topup.merchantBufferCredits,
     },
     telegram: {
@@ -164,6 +167,27 @@ router.post('/notify-test', async (req, res) => {
   try {
     const result = await notifyTelegramAdmins(message);
     res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+/** Kiểm tra merchant credit thấp + gửi Telegram nếu dưới 500.001 — cần x-ops-key. */
+router.post('/merchant-low-balance-check', async (req, res) => {
+  if (!opsKeyOk(req)) {
+    res.status(401).json({ success: false, message: 'Thiếu hoặc sai x-ops-key' });
+    return;
+  }
+  try {
+    const force = Boolean(req.body?.force);
+    const data = await checkAndNotifyMerchantLowBalance({
+      force,
+      reason: force ? 'ops force check' : 'ops check',
+    });
+    res.json({ success: true, data });
   } catch (err) {
     res.status(500).json({
       success: false,

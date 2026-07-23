@@ -15,7 +15,18 @@ export function jobTypeLabel(type: JobType): string {
 }
 
 export function jobTypeToHistoryType(type: JobType): HistoryType {
-  return type;
+  switch (type) {
+    case 'image-upscale':
+    case 'remove-bg':
+      return 'image';
+    case 'video-upscale':
+    case 'video-vfx':
+    case 'video-subtitle':
+    case 'video-cut':
+      return 'video';
+    default:
+      return type;
+  }
 }
 
 export function defaultSelectionsForType(type: JobType): JobSelections {

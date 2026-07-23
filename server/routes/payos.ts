@@ -13,6 +13,12 @@ import {
   fetchMerchantCreditsAi,
   MerchantBalanceError,
 } from '../services/gommoMerchantBalance.js';
+import {
+  bearerAccessToken,
+  PaymentIdentityError,
+  verifyPaymentIdentity,
+} from '../services/gommoPaymentIdentity.js';
+import { notifyMerchantLowBalanceAsync } from '../services/merchantLowBalanceAlert.js';
 import { config, isGommoMerchantConfigured, isPayOsConfigured, vndToCredits } from '../config.js';
 
 const router = Router();
@@ -62,6 +68,11 @@ router.post('/payment-requests', async (req, res) => {
       return;
     }
 
+    await verifyPaymentIdentity({
+      accessToken: bearerAccessToken(String(req.headers.authorization || '')),
+      amountVnd: amount,
+    });
+
     const creditsNeeded = vndToCredits(amount);
     const [merchantBalance, reservedCredits] = await Promise.all([
       fetchMerchantCreditsAi(),
@@ -80,9 +91,18 @@ router.post('/payment-requests', async (req, res) => {
     const message = err instanceof Error ? err.message : String(err);
     if (err instanceof MerchantBalanceError) {
       if (err.detail) console.warn('[payos/payment-requests] MERCHANT_BALANCE', err.detail);
+      notifyMerchantLowBalanceAsync('create payment blocked — merchant balance');
       res.status(503).json({
         success: false,
         code: 'MERCHANT_BALANCE',
+        message,
+      });
+      return;
+    }
+    if (err instanceof PaymentIdentityError) {
+      res.status(err.status).json({
+        success: false,
+        code: err.code,
         message,
       });
       return;
@@ -117,6 +137,12 @@ router.post('/topup-requests', async (req, res) => {
       res.status(503).json({ success: false, message: 'Merchant Gommo chưa cấu hình trên server' });
       return;
     }
+
+    await verifyPaymentIdentity({
+      accessToken: bearerAccessToken(String(req.headers.authorization || '')),
+      expectedUsername: username,
+      amountVnd: creditPackage.amountVnd,
+    });
 
     const [merchantBalance, reservedCredits] = await Promise.all([
       fetchMerchantCreditsAi(),
@@ -155,9 +181,18 @@ router.post('/topup-requests', async (req, res) => {
     const message = err instanceof Error ? err.message : String(err);
     if (err instanceof MerchantBalanceError) {
       if (err.detail) console.warn('[payos/topup-requests] MERCHANT_BALANCE', err.detail);
+      notifyMerchantLowBalanceAsync('create topup blocked — merchant balance');
       res.status(503).json({
         success: false,
         code: 'MERCHANT_BALANCE',
+        message,
+      });
+      return;
+    }
+    if (err instanceof PaymentIdentityError) {
+      res.status(err.status).json({
+        success: false,
+        code: err.code,
         message,
       });
       return;

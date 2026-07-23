@@ -5,6 +5,7 @@ import payosRoutes from './routes/payos.js';
 import telegramRoutes from './routes/telegram.js';
 import opsRoutes from './routes/ops.js';
 import { config, isTelegramConfigured } from './config.js';
+import { startMerchantLowBalancePoller } from './services/merchantLowBalanceAlert.js';
 
 const app = express();
 
@@ -39,4 +40,5 @@ app.listen(config.port, () => {
   console.log(
     `API server http://localhost:${config.port} (Gommo proxy + PayOS${isTelegramConfigured() ? ' + Telegram' : ''})`,
   );
+  startMerchantLowBalancePoller();
 });

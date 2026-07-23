@@ -35,7 +35,7 @@ export default function SettingsPage() {
   const [pushStatus, setPushStatus] = useState<PushStatus>(() => getBrowserPushStatus());
   const [pushBusy, setPushBusy] = useState(false);
   const [pushAppId, setPushAppId] = useState<string | null>(null);
-  const [pushLoading, setPushLoading] = useState(true);
+  const [pushError, setPushError] = useState('');
 
   const loadOps = useCallback(async () => {
     setOpsLoading(true);
@@ -62,16 +62,11 @@ export default function SettingsPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setPushLoading(true);
-      try {
-        const id = await resolvePushAppId();
-        if (cancelled) return;
-        setPushAppId(id);
-        setPushStatus(getBrowserPushStatus());
-        if (id) void setupOneSignalFromAuth();
-      } finally {
-        if (!cancelled) setPushLoading(false);
-      }
+      const id = await resolvePushAppId();
+      if (cancelled) return;
+      setPushAppId(id);
+      setPushStatus(getBrowserPushStatus());
+      if (id) void setupOneSignalFromAuth();
     })();
     return () => {
       cancelled = true;
@@ -80,12 +75,29 @@ export default function SettingsPage() {
 
   async function handleEnablePush() {
     setPushBusy(true);
+    setPushError('');
     try {
       const id = pushAppId || (await resolvePushAppId());
       setPushAppId(id);
-      setPushStatus(await requestPushPermission());
-    } catch {
+      if (!id) {
+        setPushError('Không lấy được push_app_id từ Gommo.');
+        return;
+      }
+      if (getBrowserPushStatus() === 'denied') {
+        setPushError(
+          'Trình duyệt đang chặn thông báo. Mở ổ khóa URL → Thông báo → Cho phép, rồi tải lại trang.',
+        );
+        setPushStatus('denied');
+        return;
+      }
+      const next = await requestPushPermission();
+      setPushStatus(next);
+      if (next !== 'granted') {
+        setPushError('Chưa được cấp quyền thông báo. Hãy chọn Allow/Cho phép khi trình duyệt hỏi.');
+      }
+    } catch (err) {
       setPushStatus(getBrowserPushStatus());
+      setPushError(err instanceof Error ? err.message : String(err));
     } finally {
       setPushBusy(false);
     }
@@ -271,39 +283,25 @@ export default function SettingsPage() {
             <div>
               <div className="settings-79-row-title">Thông báo đẩy</div>
               <div className="settings-79-row-desc">
-                {pushLoading
-                  ? 'Đang tải cấu hình push…'
-                  : !pushAppId
-                    ? 'Domain chưa cấu hình push (thiếu push_app_id).'
+                {pushStatus === 'granted'
+                  ? 'Đã bật — thiết bị này sẽ nhận thông báo đẩy.'
+                  : pushStatus === 'denied'
+                    ? 'Bị chặn bởi trình duyệt — bấm nút để xem cách mở lại quyền.'
                     : pushStatus === 'unsupported'
                       ? 'Trình duyệt không hỗ trợ thông báo đẩy.'
-                      : pushStatus === 'granted'
-                        ? 'Đã bật — thiết bị này sẽ nhận thông báo đẩy.'
-                        : pushStatus === 'denied'
-                          ? 'Bị chặn — hãy bật lại quyền Thông báo trong cài đặt trình duyệt.'
-                          : 'Nhận thông báo về các cập nhật, tin nhắn mới và các hoạt động khác.'}
+                      : 'Nhận thông báo về các cập nhật, tin nhắn mới và các hoạt động khác.'}
+                {pushError ? (
+                  <div style={{ color: 'var(--danger)', marginTop: 6 }}>{pushError}</div>
+                ) : null}
               </div>
             </div>
             <button
               type="button"
               className="btn settings-79-gradient-btn"
-              onClick={handleEnablePush}
-              disabled={
-                pushLoading ||
-                pushBusy ||
-                !pushAppId ||
-                pushStatus === 'unsupported' ||
-                pushStatus === 'granted' ||
-                pushStatus === 'denied'
-              }
+              onClick={() => void handleEnablePush()}
+              disabled={pushBusy || pushStatus === 'unsupported' || pushStatus === 'granted'}
             >
-              {pushLoading
-                ? 'Đang tải…'
-                : pushBusy
-                  ? 'Đang bật…'
-                  : pushStatus === 'granted'
-                    ? 'Đã bật'
-                    : 'Bật thông báo'}
+              {pushBusy ? 'Đang bật…' : pushStatus === 'granted' ? 'Đã bật' : 'Bật thông báo'}
             </button>
           </div>
           <div className="settings-79-row">

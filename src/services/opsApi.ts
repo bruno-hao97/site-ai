@@ -17,6 +17,7 @@ export interface OpsStatusData {
     configured?: boolean;
     domain?: string;
     minRemainingAfterSend?: number;
+    safeAvailableThreshold?: number;
     bufferCredits?: number;
     balance?: number | null;
     reservedPendingCredits?: number;

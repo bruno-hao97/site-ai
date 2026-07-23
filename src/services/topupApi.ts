@@ -1,3 +1,5 @@
+import { getToken } from './authStore';
+
 export interface TopupBankTransfer {
   accountName: string;
   bankName: string;
@@ -60,9 +62,13 @@ export async function fetchCreditPackages(): Promise<CreditPackage[]> {
 }
 
 export async function createTopupRequest(username: string, packageId: string): Promise<TopupPaymentResult> {
+  const accessToken = getToken()?.trim();
   const res = await fetch('/api/payos/topup-requests', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    },
     body: JSON.stringify({ username, packageId }),
   });
 

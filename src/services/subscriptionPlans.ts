@@ -297,8 +297,8 @@ export function formatTransferAmountNote(amount: string): string {
 
 function normalizePaymentError(message?: string): string {
   if (!message) return 'Không tạo được link thanh toán';
-  if (/domain/i.test(message)) {
-    return 'Bạn cần truy cập đúng domain đã đăng ký để mua gói hoặc nạp credit.';
+  if (/domain/i.test(message) || /đối\s*tác/i.test(message)) {
+    return 'Vui lòng truy cập đúng Domain mà bạn đăng ký để có thể mua gói hoặc nạp credit.';
   }
   return message;
 }
@@ -338,10 +338,17 @@ async function createLocalPayOsPayment(input: CreateSubscriptionPaymentInput): P
   if (!Number.isFinite(amount) || amount <= 0) {
     throw new Error('Số tiền gói không hợp lệ');
   }
+  const auth = loadAuth();
+  if (!auth?.access_token) {
+    throw new Error('Vui lòng đăng nhập lại trước khi thanh toán.');
+  }
 
   const res = await fetch('/api/payos/payment-requests', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${auth.access_token.trim()}`,
+    },
     body: JSON.stringify({
       planId: input.planId.trim(),
       planName: input.planName?.trim() || 'Gói đăng ký',

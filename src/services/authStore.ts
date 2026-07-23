@@ -20,6 +20,10 @@ export interface DisplayUser {
   username: string | null;
 }
 
+function trimmedString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 function pickProjectId(id?: string | null): string | null {
   const trimmed = id?.trim();
   if (!trimmed || trimmed === DEFAULT_PROJECT_ID) return null;
@@ -68,7 +72,7 @@ export function clearAuth(): void {
 }
 
 export function isLoggedIn(): boolean {
-  return Boolean(loadAuth()?.access_token?.trim());
+  return Boolean(trimmedString(loadAuth()?.access_token));
 }
 
 /** Khóa localStorage theo user Gommo. */
@@ -91,11 +95,12 @@ export function getGommoClient(): GommoClient {
 export function getDisplayUser(): DisplayUser {
   const u = loadAuth()?.upstream_me?.userInfo;
   if (u) {
+    const username = trimmedString(u.username);
     return {
-      name: u.name?.trim() || u.username?.trim() || null,
-      email: u.email?.trim() || '',
-      avatar: u.avatar || null,
-      username: u.username || null,
+      name: trimmedString(u.name) || username || null,
+      email: trimmedString(u.email),
+      avatar: trimmedString(u.avatar) || null,
+      username: username || null,
     };
   }
   return { name: null, email: '', avatar: null, username: null };
