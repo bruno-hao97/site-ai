@@ -1,4 +1,7 @@
 {
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/auth/:path*", "destination": "https://api.trungtamai.vn/api/auth/:path*" },
     { "source": "/api/payos/:path*", "destination": "https://api.trungtamai.vn/api/payos/:path*" },

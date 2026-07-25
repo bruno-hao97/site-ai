@@ -7,6 +7,11 @@ data/
 .env*.local
 *.env.local
 *.db
+*.tsbuildinfo
+
+# Compiled emit from vite.config.ts — source of truth is vite.config.ts
+vite.config.js
+vite.config.d.ts
 
 # Reference-only Next.js project (has its own git history)
 landing/
