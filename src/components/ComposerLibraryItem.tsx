@@ -62,6 +62,15 @@ export default function ComposerLibraryItem({
     <div
       className={`clib-item ${ratio}${selected ? ' selected' : ''}`}
       title={prompt || model || item.id_base}
+      role="button"
+      tabIndex={0}
+      onClick={onPreview}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onPreview();
+        }
+      }}
     >
       {onToggleSelect && (
         <ComposerSelectCircle selected={selected} onToggle={onToggleSelect} />
@@ -86,7 +95,7 @@ export default function ComposerLibraryItem({
 
       {prompt && <span className="clib-prompt">{prompt}</span>}
 
-      <div className="clib-item-actions">
+      <div className="clib-item-actions" onClick={(e) => e.stopPropagation()}>
         <button
           type="button"
           className="clib-action-btn"

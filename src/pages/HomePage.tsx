@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import HomeFeed from '../components/HomeFeed';
+import HomeLocalHistory, { type LocalHistoryFilter } from '../components/HomeLocalHistory';
 import HomeMyContent, { type MineFilter } from '../components/HomeMyContent';
+import HomePublicFeed from '../components/HomePublicFeed';
 import HomeQuickCreateBar from '../components/HomeQuickCreateBar';
 
 const HOME_TABS = [
@@ -16,24 +18,32 @@ const HOME_TABS = [
 
 type HomeTab = (typeof HOME_TABS)[number];
 
-// Tab dùng nội dung "của tôi" (gọi /ai/videos + /ai/images) → ánh xạ sang filter.
 const MINE_TABS: Partial<Record<HomeTab, MineFilter>> = {
   'Của tôi': 'all',
   Videos: 'video',
   'Hình ảnh': 'image',
 };
 
+const LOCAL_TABS: Partial<Record<HomeTab, LocalHistoryFilter>> = {
+  Nhạc: 'music',
+  'Âm thanh': 'tts',
+  'Yêu thích': 'favorites',
+};
+
 export default function HomePage() {
   const [tab, setTab] = useState<HomeTab>('Bảng tin');
   const mineFilter = MINE_TABS[tab];
+  const localFilter = LOCAL_TABS[tab];
 
   return (
     <div className="home-explore home-explore--has-qc">
-      <div className="home-tabs">
+      <div className="home-tabs" role="tablist" aria-label="Home">
         {HOME_TABS.map((t) => (
           <button
             key={t}
             type="button"
+            role="tab"
+            aria-selected={tab === t}
             className={`home-tab ${tab === t ? 'active' : ''}`}
             onClick={() => setTab(t)}
           >
@@ -44,6 +54,10 @@ export default function HomePage() {
 
       {mineFilter ? (
         <HomeMyContent key={mineFilter} filter={mineFilter} />
+      ) : localFilter ? (
+        <HomeLocalHistory key={localFilter} filter={localFilter} />
+      ) : tab === 'Hướng cho bạn' ? (
+        <HomePublicFeed />
       ) : (
         <HomeFeed />
       )}

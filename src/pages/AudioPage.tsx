@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   ChevronLeft,
   ChevronRight,
@@ -19,7 +20,7 @@ import {
   Wand2,
   X,
 } from 'lucide-react';
-import type { GommoModel } from '../services/api';
+import type { GommoModel, JobType } from '../services/api';
 import {
   getGommoClient,
   loadAuth,
@@ -180,6 +181,7 @@ function isVoiceProvider(value: string | undefined): value is VoiceProvider {
 
 export default function AudioPage() {
   const { t, locale } = useLocale();
+  const location = useLocation();
   const auth = loadAuth();
   const client = useMemo(
     () => (auth?.access_token ? getGommoClient() : null),
@@ -314,6 +316,15 @@ export default function AudioPage() {
   }, [audioLists, mainTab, sessionStartSec]);
 
   const recentCount = audioLists.length;
+
+  useEffect(() => {
+    const reuse = (location.state as {
+      reuseHistory?: { type: JobType; prompt?: string };
+    } | null)?.reuseHistory;
+    if (!reuse || reuse.type !== 'tts' || !reuse.prompt?.trim()) return;
+    setActiveFeature('tts');
+    setScript(reuse.prompt.trim());
+  }, [location.key, location.state]);
 
   const selectedItems = useMemo(
     () => filteredLists.filter((item) => selectedListIds.has(item.id_base)),

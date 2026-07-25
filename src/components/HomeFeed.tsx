@@ -1,92 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Heart, MessageCircle, Play, Share2, Sparkles, Wand2 } from 'lucide-react';
 import { isLoggedIn } from '../services/authStore';
-import {
-  feedMediaUrl,
-  feedSourceCount,
-  feedThumb,
-  fetchNewsfeed,
-  formatFeedTime,
-  type FeedItem,
-} from '../services/feedApi';
+import { feedThumb, fetchNewsfeed, type FeedItem } from '../services/feedApi';
 import { UpstreamMeError } from '../services/upstreamMe';
-
-function FeedCard({ item }: { item: FeedItem }) {
-  const thumb = feedThumb(item);
-  const media = feedMediaUrl(item);
-  const isVideo = item.type === 'video';
-  const sources = feedSourceCount(item);
-
-  return (
-    <article className="feed-card">
-      <header className="feed-card-head">
-        {item.author?.avatar ? (
-          <img className="feed-avatar" src={item.author.avatar} alt="" loading="lazy" />
-        ) : (
-          <span className="feed-avatar feed-avatar-empty" />
-        )}
-        <span className="feed-author">{item.author?.name || 'Ẩn danh'}</span>
-        {item.resolution && <span className="feed-res">{item.resolution}</span>}
-      </header>
-
-      <a
-        className="feed-media"
-        href={media || thumb || '#'}
-        target="_blank"
-        rel="noreferrer"
-      >
-        {thumb ? (
-          <img src={thumb} alt="" loading="lazy" />
-        ) : (
-          <span className="feed-media-empty">Đang xử lý…</span>
-        )}
-        {isVideo && (
-          <span className="feed-play">
-            <Play size={20} fill="currentColor" />
-          </span>
-        )}
-        {sources > 1 && <span className="feed-count">{sources}</span>}
-        {item.duration && Number(item.duration) > 0 && (
-          <span className="feed-duration">{item.duration}s</span>
-        )}
-      </a>
-
-      <div className="feed-card-meta">
-        {item.model && (
-          <span className="feed-model">
-            <Sparkles size={11} /> {item.model}
-          </span>
-        )}
-        <span className="feed-time">{formatFeedTime(item.created_time)}</span>
-      </div>
-
-      <footer className="feed-card-foot">
-        <div className="feed-stats">
-          <span><Heart size={14} /> {item.likes_count ?? item.like_count ?? 0}</span>
-          <span><MessageCircle size={14} /> {item.comments_count ?? 0}</span>
-          <span><Share2 size={14} /></span>
-        </div>
-        <button type="button" className="feed-remix">
-          {isVideo ? (
-            <>
-              <Wand2 size={13} /> Edit video
-            </>
-          ) : (
-            <>
-              <Wand2 size={13} /> Remix
-            </>
-          )}
-        </button>
-      </footer>
-    </article>
-  );
-}
+import HomeFeedCard from './HomeFeedCard';
+import HomeFeedPreview from './HomeFeedPreview';
 
 export default function HomeFeed() {
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
   const afterVideoRef = useRef('');
   const afterImageRef = useRef('');
@@ -153,11 +77,16 @@ export default function HomeFeed() {
     return () => observer.disconnect();
   }, [loadMore]);
 
+  const openPreview = (item: FeedItem) => {
+    const idx = items.findIndex((it) => it.id_base === item.id_base);
+    if (idx >= 0) setPreviewIndex(idx);
+  };
+
   return (
     <div className="home-feed">
       <div className="home-masonry">
         {items.map((item) => (
-          <FeedCard key={item.id_base} item={item} />
+          <HomeFeedCard key={item.id_base} item={item} onOpenPreview={openPreview} />
         ))}
       </div>
 
@@ -168,6 +97,15 @@ export default function HomeFeed() {
       )}
 
       <div ref={sentinelRef} className="feed-sentinel" />
+
+      {previewIndex != null && (
+        <HomeFeedPreview
+          items={items}
+          index={previewIndex}
+          onClose={() => setPreviewIndex(null)}
+          onNavigate={setPreviewIndex}
+        />
+      )}
     </div>
   );
 }

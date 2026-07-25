@@ -1,19 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Heart, MessageCircle, Play, Share2, Wand2 } from 'lucide-react';
 import { isLoggedIn } from '../services/authStore';
 import {
   feedMediaUrl,
-  feedModelLabel,
-  feedSourceCount,
   feedThumb,
   fetchMyImages,
   fetchMyVideos,
-  formatFeedTime,
   type FeedItem,
   type MinePage,
 } from '../services/feedApi';
 import { UpstreamMeError } from '../services/upstreamMe';
-import ProjectPicker from './ProjectPicker';
+import HomeFeedCard from './HomeFeedCard';
+import HomeFeedPreview from './HomeFeedPreview';
 
 export type MineFilter = 'all' | 'video' | 'image';
 
@@ -23,80 +20,12 @@ function mineTime(item: FeedItem): number {
   return Number.isFinite(n) ? Number(n) : 0;
 }
 
-function MineCard({ item }: { item: FeedItem }) {
-  const thumb = feedThumb(item);
-  const media = feedMediaUrl(item);
-  const isVideo = item.type !== 'image';
-  const sources = feedSourceCount(item);
-  const model = feedModelLabel(item);
-
-  return (
-    <article className="feed-card">
-      <div className="feed-card-actions">
-        <ProjectPicker
-          snapshot={{
-            itemId: item.id_base,
-            type: item.type,
-            prompt: item.prompt || item.title,
-            thumbnailUrl: thumb || undefined,
-            downloadUrl: media || undefined,
-            createdTime: item.created_time,
-          }}
-        />
-      </div>
-      <header className="feed-card-head">
-        {item.author?.avatar ? (
-          <img className="feed-avatar" src={item.author.avatar} alt="" loading="lazy" />
-        ) : (
-          <span className="feed-avatar feed-avatar-empty" />
-        )}
-        <span className="feed-author">{item.author?.name || 'Bạn'}</span>
-        {item.resolution && item.resolution !== 'unknow' && (
-          <span className="feed-res">{item.resolution}</span>
-        )}
-      </header>
-
-      <a className="feed-media" href={media || thumb || '#'} target="_blank" rel="noreferrer">
-        {thumb ? (
-          <img src={thumb} alt="" loading="lazy" />
-        ) : (
-          <span className="feed-media-empty">Đang xử lý…</span>
-        )}
-        {isVideo && (
-          <span className="feed-play">
-            <Play size={20} fill="currentColor" />
-          </span>
-        )}
-        {model && <span className="feed-model-badge">{model}</span>}
-        {sources > 1 && <span className="feed-count">{sources}</span>}
-        {item.duration && Number(item.duration) > 0 && (
-          <span className="feed-duration">{item.duration}s</span>
-        )}
-      </a>
-
-      <div className="feed-card-meta">
-        <span className="feed-time">{formatFeedTime(item.created_time)}</span>
-      </div>
-
-      <footer className="feed-card-foot">
-        <div className="feed-stats">
-          <span><Heart size={14} /> {item.likes_count ?? item.like_count ?? 0}</span>
-          <span><MessageCircle size={14} /> {item.comments_count ?? 0}</span>
-          <span><Share2 size={14} /></span>
-        </div>
-        <button type="button" className="feed-remix">
-          <Wand2 size={13} /> {isVideo ? 'Edit video' : 'Remix'}
-        </button>
-      </footer>
-    </article>
-  );
-}
-
 export default function HomeMyContent({ filter }: { filter: MineFilter }) {
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
   const videoAfter = useRef('');
   const imageAfter = useRef('');
@@ -133,7 +62,7 @@ export default function HomeMyContent({ filter }: { filter: MineFilter }) {
         if (!page) return;
         for (const it of page.items) {
           if (!it.id_base || seen.current.has(it.id_base)) continue;
-          if (!feedThumb(it) && !feedMediaUrl(it)) continue; // bỏ job lỗi/đang xử lý
+          if (!feedThumb(it) && !feedMediaUrl(it)) continue;
           seen.current.add(it.id_base);
           fresh.push(it);
         }
@@ -178,11 +107,23 @@ export default function HomeMyContent({ filter }: { filter: MineFilter }) {
     return () => observer.disconnect();
   }, [loadMore]);
 
+  const openPreview = (item: FeedItem) => {
+    const idx = items.findIndex((it) => it.id_base === item.id_base);
+    if (idx >= 0) setPreviewIndex(idx);
+  };
+
   return (
     <div className="home-feed">
       <div className="home-masonry">
         {items.map((item) => (
-          <MineCard key={item.id_base} item={item} />
+          <HomeFeedCard
+            key={item.id_base}
+            item={item}
+            onOpenPreview={openPreview}
+            showProjectPicker
+            showModelBadge
+            authorFallback="Bạn"
+          />
         ))}
       </div>
 
@@ -193,6 +134,15 @@ export default function HomeMyContent({ filter }: { filter: MineFilter }) {
       )}
 
       <div ref={sentinelRef} className="feed-sentinel" />
+
+      {previewIndex != null && (
+        <HomeFeedPreview
+          items={items}
+          index={previewIndex}
+          onClose={() => setPreviewIndex(null)}
+          onNavigate={setPreviewIndex}
+        />
+      )}
     </div>
   );
 }

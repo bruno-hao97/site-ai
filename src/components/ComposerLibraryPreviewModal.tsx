@@ -86,6 +86,14 @@ export default function ComposerLibraryPreviewModal({
   } = handlers;
 
   useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, []);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (upscaleOpen) setUpscaleOpen(false);
@@ -185,13 +193,12 @@ export default function ComposerLibraryPreviewModal({
   }
 
   return createPortal(
-    <div className="clib-preview-backdrop" onClick={onClose}>
+    <div className="clib-preview-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="clib-preview" onClick={(e) => e.stopPropagation()}>
-        <button type="button" className="clib-preview-close" aria-label="Đóng" onClick={onClose}>
-          <X size={20} />
-        </button>
-
         <div className="clib-preview-main">
+          <button type="button" className="clib-preview-close" aria-label="Đóng" onClick={onClose}>
+            <X size={20} />
+          </button>
           {canPrev && (
             <button
               type="button"

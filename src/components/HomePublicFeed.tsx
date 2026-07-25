@@ -1,21 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { isLoggedIn } from '../services/authStore';
 import { feedThumb, fetchPublicVideos, type FeedItem } from '../services/feedApi';
 import { UpstreamMeError } from '../services/upstreamMe';
-import HomeFeedCard from '../components/HomeFeedCard';
-import HomeFeedPreview from '../components/HomeFeedPreview';
+import HomeFeedCard from './HomeFeedCard';
+import HomeFeedPreview from './HomeFeedPreview';
 
-type MediaFilter = 'all' | 'video' | 'image';
-
-const FILTERS: { id: MediaFilter; label: string }[] = [
-  { id: 'all', label: 'Tất cả' },
-  { id: 'video', label: 'Video' },
-  { id: 'image', label: 'Hình ảnh' },
-];
-
-export default function ExplorePage() {
+/** Feed gợi ý / public — dùng cho tab "Hướng cho bạn". */
+export default function HomePublicFeed() {
   const [items, setItems] = useState<FeedItem[]>([]);
-  const [filter, setFilter] = useState<MediaFilter>('all');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
@@ -80,61 +72,35 @@ export default function ExplorePage() {
     return () => observer.disconnect();
   }, [loadMore]);
 
-  const visible = useMemo(() => {
-    if (filter === 'all') return items;
-    if (filter === 'image') return items.filter((it) => it.type === 'image');
-    return items.filter((it) => it.type !== 'image');
-  }, [items, filter]);
-
   const openPreview = (item: FeedItem) => {
-    const idx = visible.findIndex((it) => it.id_base === item.id_base);
+    const idx = items.findIndex((it) => it.id_base === item.id_base);
     if (idx >= 0) setPreviewIndex(idx);
   };
 
   return (
-    <div className="home-explore">
-      <div className="home-tabs explore-tabs" role="tablist" aria-label="Explore">
-        {FILTERS.map((f) => (
-          <button
-            key={f.id}
-            type="button"
-            role="tab"
-            aria-selected={filter === f.id}
-            className={`home-tab ${filter === f.id ? 'active' : ''}`}
-            onClick={() => {
-              setFilter(f.id);
-              setPreviewIndex(null);
-            }}
-          >
-            {f.label}
-          </button>
+    <div className="home-feed">
+      <div className="home-masonry">
+        {items.map((item) => (
+          <HomeFeedCard
+            key={item.id_base}
+            item={item}
+            onOpenPreview={openPreview}
+            showModelBadge
+          />
         ))}
       </div>
 
-      <div className="home-feed">
-        <div className="home-masonry">
-          {visible.map((item) => (
-            <HomeFeedCard
-              key={item.id_base}
-              item={item}
-              onOpenPreview={openPreview}
-              showModelBadge
-            />
-          ))}
-        </div>
+      {error && <p className="error feed-status">{error}</p>}
+      {loading && <p className="muted feed-status">Đang tải…</p>}
+      {!loading && !items.length && !error && (
+        <p className="muted feed-status">Chưa có nội dung gợi ý.</p>
+      )}
 
-        {error && <p className="error feed-status">{error}</p>}
-        {loading && <p className="muted feed-status">Đang tải…</p>}
-        {!loading && !visible.length && !error && (
-          <p className="muted feed-status">Chưa có nội dung.</p>
-        )}
-
-        <div ref={sentinelRef} className="feed-sentinel" />
-      </div>
+      <div ref={sentinelRef} className="feed-sentinel" />
 
       {previewIndex != null && (
         <HomeFeedPreview
-          items={visible}
+          items={items}
           index={previewIndex}
           onClose={() => setPreviewIndex(null)}
           onNavigate={setPreviewIndex}

@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Hexagon, Sparkles, Zap } from 'lucide-react';
 import { useLandingAccess } from './LandingAccessContext';

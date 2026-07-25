@@ -12,6 +12,9 @@ import {
   X,
 } from 'lucide-react';
 import ComposerSelectCircle from './ComposerSelectCircle';
+import ComposerLibraryPreviewModal, {
+  type ComposerPreviewHandlers,
+} from './ComposerLibraryPreviewModal';
 import {
   deleteFeedPost,
   feedMediaUrl,
@@ -137,6 +140,7 @@ export default function ComposerHistory({
   selectedIds,
   onToggleSelect,
   onClearSelection,
+  buildPreviewHandlers,
 }: {
   jobType: JobType;
   zoom: number;
@@ -149,6 +153,12 @@ export default function ComposerHistory({
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
   onClearSelection?: () => void;
+  buildPreviewHandlers?: (
+    item: FeedItem,
+    mediaUrl: string,
+    onClosePreview: () => void,
+    onDelete?: () => void,
+  ) => ComposerPreviewHandlers;
 }) {
   const kind = jobKind(jobType);
   const [items, setItems] = useState<FeedItem[]>([]);
@@ -161,6 +171,7 @@ export default function ComposerHistory({
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc');
   const [selectMode, setSelectMode] = useState(false);
   const [deletingId, setDeletingId] = useState('');
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const loadingRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -311,6 +322,33 @@ export default function ComposerHistory({
       return next;
     });
   }, []);
+
+  const previewItems = useMemo(
+    () =>
+      sortedItems.filter(
+        (it) => !isFeedItemProcessing(it) && Boolean(feedMediaUrl(it) || feedThumb(it)),
+      ),
+    [sortedItems],
+  );
+
+  const previewIndexById = useMemo(() => {
+    const map = new Map<string, number>();
+    previewItems.forEach((it, i) => {
+      if (it.id_base) map.set(it.id_base, i);
+    });
+    return map;
+  }, [previewItems]);
+
+  const openPreview = useCallback(
+    (item: FeedItem) => {
+      if (kind === 'unsupported') return;
+      if (isFeedItemProcessing(item)) return;
+      const idx = item.id_base ? previewIndexById.get(item.id_base) : undefined;
+      if (idx == null) return;
+      setPreviewIndex(idx);
+    },
+    [kind, previewIndexById],
+  );
 
   const handleDelete = useCallback(async (idBase: string) => {
     if (!idBase || deletingId) return;
@@ -511,7 +549,11 @@ export default function ComposerHistory({
                   <button
                     type="button"
                     className={`chist-block${open ? ' open' : ''}${processing ? ' chist-block-pending' : ''}`}
-                    onClick={() => toggle(key)}
+                    onClick={() => {
+                      if (processing) return;
+                      if (feedMediaUrl(item) || feedThumb(item)) openPreview(item);
+                      else toggle(key);
+                    }}
                   >
                     <div className="chist-block-head">
                       <span className="chist-name" title={name}>
@@ -520,7 +562,14 @@ export default function ComposerHistory({
                       {processing ? (
                         <Loader2 size={16} className="chist-pending-spin" aria-label="Đang tạo" />
                       ) : (
-                        <ChevronDown size={15} className={`chist-caret${open ? ' open' : ''}`} />
+                        <ChevronDown
+                          size={15}
+                          className={`chist-caret${open ? ' open' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggle(key);
+                          }}
+                        />
                       )}
                     </div>
                     <div className="chist-meta">
@@ -579,15 +628,14 @@ export default function ComposerHistory({
                     <div className="chist-images" style={{ ['--chist-thumb' as string]: `${zoom}px` }}>
                       {urls.length > 0 ? (
                         urls.map((u, i) => (
-                          <a
+                          <button
                             key={`${key}-${i}`}
-                            href={u}
-                            target="_blank"
-                            rel="noreferrer"
+                            type="button"
                             className="chist-img"
+                            onClick={() => openPreview(item)}
                           >
                             {renderMedia(u)}
-                          </a>
+                          </button>
                         ))
                       ) : (
                         <p className="chist-empty">Không có sản phẩm trong mục này.</p>
@@ -603,6 +651,40 @@ export default function ComposerHistory({
 
       {loading && <div className="chist-status">Đang tải…</div>}
       <div ref={sentinelRef} className="chist-sentinel" />
+
+      {previewIndex != null && previewItems.length > 0 && (
+        <ComposerLibraryPreviewModal
+          items={previewItems}
+          index={Math.min(previewIndex, previewItems.length - 1)}
+          kind={kind}
+          onClose={() => setPreviewIndex(null)}
+          onNavigate={setPreviewIndex}
+          handlers={
+            buildPreviewHandlers
+              ? buildPreviewHandlers(
+                  previewItems[Math.min(previewIndex, previewItems.length - 1)],
+                  feedMediaUrl(previewItems[Math.min(previewIndex, previewItems.length - 1)]) ||
+                    feedThumb(previewItems[Math.min(previewIndex, previewItems.length - 1)]) ||
+                    '',
+                  () => setPreviewIndex(null),
+                  () => {
+                    const item = previewItems[previewIndex];
+                    if (item?.id_base) void handleDelete(item.id_base);
+                  },
+                )
+              : {
+                  onDelete: () => {
+                    const item = previewItems[previewIndex];
+                    if (item?.id_base) void handleDelete(item.id_base);
+                  },
+                }
+          }
+          deleting={Boolean(
+            previewItems[previewIndex]?.id_base &&
+              deletingId === previewItems[previewIndex]?.id_base,
+          )}
+        />
+      )}
     </div>
   );
 }

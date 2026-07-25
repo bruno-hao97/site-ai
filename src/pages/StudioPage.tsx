@@ -1047,12 +1047,13 @@ export default function StudioPage({
     loadRecentJobs();
   }, [loadRecentJobs]);
 
-  const applyReuse = useCallback((entry: HistoryEntry) => {
+  const applyReuse = useCallback((entry: HistoryEntry & { references?: string[] }) => {
     const t = entry.type as JobType;
     if (!REUSABLE_JOB_TYPES.includes(t)) return;
     setJobType(t);
     setSelectedSlug(entry.modelSlug || '');
     const base = defaultSelectionsForType(t);
+    const refs = entry.references?.filter(Boolean) ?? [];
     setSelections({
       ...base,
       prompt: t === 'tts' || t === 'music' ? base.prompt : entry.prompt || base.prompt,
@@ -1062,6 +1063,12 @@ export default function StudioPage({
       resolution: entry.meta?.resolution || '',
       ratio: entry.meta?.ratio || '',
       duration: entry.meta?.duration || '',
+      ...(refs.length
+        ? {
+            references: refs,
+            images: t === 'video' || t === 'image' ? refs : base.images,
+          }
+        : {}),
     });
   }, []);
 
@@ -1128,6 +1135,7 @@ export default function StudioPage({
       prompt?: string;
       modelSlug?: string;
       meta?: Record<string, string>;
+      references?: string[];
     } } | null)?.reuseHistory;
     if (!reuse?.type || !REUSABLE_JOB_TYPES.includes(reuse.type)) return;
     applyReuse({
@@ -1138,6 +1146,7 @@ export default function StudioPage({
       modelSlug: reuse.modelSlug,
       createdAt: new Date().toISOString(),
       meta: reuse.meta,
+      references: reuse.references,
     });
   }, [location.key, applyReuse]);
 
@@ -3065,32 +3074,33 @@ export default function StudioPage({
                 <button type="button" onClick={() => setQty((q) => Math.min(8, q + 1))}>+</button>
               </div>
             )}
-            <span className="composer-total">
-              <Sparkles size={13} />{' '}
+          </div>
+
+          {error && <p className="error composer-error">{error}</p>}
+          {progress && <p className="progress composer-progress">{progress}</p>}
+
+          <div className="composer-send-row">
+            <button
+              type="button"
+              className="composer-submit"
+              disabled={submitting || !schema}
+              onClick={(e) => void handleSubmit(e as unknown as FormEvent)}
+            >
+              <Wand2 size={16} />
+              {submitting
+                ? t('composer.submitting')
+                : t('composer.submit', { type: typeLabel() })}
+            </button>
+            <span className="composer-send-cost" title="Chi phí ước tính (không phải số dư)">
               {isMotionView
                 ? motionTotalCost > 0
                   ? submitTotalCost.toLocaleString('vi-VN')
                   : motionGrossTotal > 0 && motionPromoPercent > 0
                     ? motionGrossTotal.toLocaleString('vi-VN')
                     : '—'
-                : submitTotalCost}
+                : Number(submitTotalCost).toLocaleString('vi-VN')}
             </span>
           </div>
-
-          {error && <p className="error composer-error">{error}</p>}
-          {progress && <p className="progress composer-progress">{progress}</p>}
-
-          <button
-            type="button"
-            className="composer-submit"
-            disabled={submitting || !schema}
-            onClick={(e) => void handleSubmit(e as unknown as FormEvent)}
-          >
-            <Wand2 size={16} />
-            {submitting
-              ? t('composer.submitting')
-              : t('composer.submit', { type: typeLabel() })}
-          </button>
         </aside>
 
         <div
@@ -3200,6 +3210,7 @@ export default function StudioPage({
               selectedIds={selectedIds}
               onToggleSelect={toggleSelect}
               onClearSelection={clearSelection}
+              buildPreviewHandlers={buildPreviewHandlers}
             />
           ) : mainTab === 'folder' ? (
             <ComposerLibrary
