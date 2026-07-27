@@ -13,5 +13,5 @@ data/
 vite.config.js
 vite.config.d.ts
 
-# Reference-only Next.js project (has its own git history)
-landing/
+# Reference-only Next.js project at repo root (has its own git history)
+/landing/
