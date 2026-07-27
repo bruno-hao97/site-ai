@@ -12,7 +12,9 @@ import type { GommoModel, JobType } from '../../services/api';
 import {
   analyzeModel,
   defaultSelections,
+  mergeSelectionsForSchema,
   modelSlug,
+  pickAllowedOption,
   type ModelOption,
   type ModelSchema,
 } from '../../services/modelSchema';
@@ -62,6 +64,27 @@ function ratioToAspect(ratio?: string): string | undefined {
   return `${m[1]} / ${m[2]}`;
 }
 
+function mergeNodeConfigForSchema(
+  data: Pick<AiGenNodeData, 'ratio' | 'mode' | 'resolution' | 'duration'>,
+  schema: ModelSchema,
+): Pick<AiGenNodeData, 'ratio' | 'mode' | 'resolution' | 'duration'> {
+  const merged = mergeSelectionsForSchema(
+    {
+      ratio: data.ratio,
+      mode: data.mode,
+      resolution: data.resolution,
+      duration: data.duration,
+    },
+    schema,
+  );
+  return {
+    ratio: merged.ratio,
+    mode: merged.mode,
+    resolution: merged.resolution,
+    duration: merged.duration,
+  };
+}
+
 function ConfigPill({
   label,
   value,
@@ -75,8 +98,17 @@ function ConfigPill({
   onChange?: (v: string) => void;
   readOnly?: boolean;
 }) {
-  if (!value && options.length === 0) return null;
-  const display = options.find((o) => o.value === value)?.label || value || label;
+  const resolved = pickAllowedOption(value, options) ?? options[0]?.value ?? '';
+
+  useEffect(() => {
+    if (readOnly || !onChange || !options.length) return;
+    if (value && options.some((o) => o.value === value)) return;
+    const next = pickAllowedOption(value, options);
+    if (next && next !== value) onChange(next);
+  }, [readOnly, value, options, onChange]);
+
+  if (!resolved && options.length === 0) return null;
+  const display = options.find((o) => o.value === resolved)?.label || resolved || label;
   const short =
     display.length > 10 && display.includes(' ')
       ? display.split(/\s+/)[0]
@@ -91,7 +123,7 @@ function ConfigPill({
   return (
     <select
       className="wf-gen-pill wf-gen-pill--select nodrag"
-      value={value || ''}
+      value={resolved}
       aria-label={label}
       onChange={(e) => onChange(e.target.value)}
     >
@@ -218,14 +250,14 @@ export function AiGenNodeCard({
           const def = pickDefaultModel(m);
           if (def) {
             const slug = modelSlug(def);
-            const schema = analyzeModel(def, jobType);
-            const defs = defaultSelections(schema);
+            const nodeSchema = analyzeModel(def, jobType);
+            const defs = defaultSelections(nodeSchema);
             update({
               modelId: slug,
-              ratio: data.ratio || defs.ratio,
-              mode: data.mode || defs.mode,
-              resolution: data.resolution || defs.resolution,
-              duration: data.duration || defs.duration,
+              ratio: defs.ratio,
+              mode: defs.mode,
+              resolution: defs.resolution,
+              duration: defs.duration,
             });
           }
         }
@@ -250,13 +282,15 @@ export function AiGenNodeCard({
 
   useEffect(() => {
     if (!schema) return;
-    const defs = defaultSelections(schema);
-    const patch: Partial<AiGenNodeData> = {};
-    if (!data.ratio && defs.ratio) patch.ratio = defs.ratio;
-    if (!data.mode && defs.mode) patch.mode = defs.mode;
-    if (!data.resolution && defs.resolution) patch.resolution = defs.resolution;
-    if (!data.duration && defs.duration) patch.duration = defs.duration;
-    if (Object.keys(patch).length) update(patch);
+    const patch = mergeNodeConfigForSchema(data, schema);
+    if (
+      patch.ratio !== data.ratio ||
+      patch.mode !== data.mode ||
+      patch.resolution !== data.resolution ||
+      patch.duration !== data.duration
+    ) {
+      update(patch);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schema?.slug]);
 
@@ -378,13 +412,9 @@ export function AiGenNodeCard({
                     return;
                   }
                   const s = analyzeModel(m, jobType);
-                  const defs = defaultSelections(s);
                   update({
                     modelId: slug,
-                    ratio: defs.ratio,
-                    mode: defs.mode,
-                    resolution: defs.resolution,
-                    duration: defs.duration,
+                    ...mergeNodeConfigForSchema(data, s),
                   });
                 }}
               >

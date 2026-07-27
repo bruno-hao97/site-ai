@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import HomeFeed from '../components/HomeFeed';
-import HomeLocalHistory, { type LocalHistoryFilter } from '../components/HomeLocalHistory';
+import HomeFavoritesFeed from '../components/HomeFavoritesFeed';
 import HomeMyContent, { type MineFilter } from '../components/HomeMyContent';
 import HomePublicFeed from '../components/HomePublicFeed';
 import HomeQuickCreateBar from '../components/HomeQuickCreateBar';
@@ -22,18 +22,13 @@ const MINE_TABS: Partial<Record<HomeTab, MineFilter>> = {
   'Của tôi': 'all',
   Videos: 'video',
   'Hình ảnh': 'image',
-};
-
-const LOCAL_TABS: Partial<Record<HomeTab, LocalHistoryFilter>> = {
   Nhạc: 'music',
   'Âm thanh': 'tts',
-  'Yêu thích': 'favorites',
 };
 
 export default function HomePage() {
   const [tab, setTab] = useState<HomeTab>('Bảng tin');
   const mineFilter = MINE_TABS[tab];
-  const localFilter = LOCAL_TABS[tab];
 
   return (
     <div className="home-explore home-explore--has-qc">
@@ -52,10 +47,10 @@ export default function HomePage() {
         ))}
       </div>
 
-      {mineFilter ? (
+      {tab === 'Yêu thích' ? (
+        <HomeFavoritesFeed />
+      ) : mineFilter ? (
         <HomeMyContent key={mineFilter} filter={mineFilter} />
-      ) : localFilter ? (
-        <HomeLocalHistory key={localFilter} filter={localFilter} />
       ) : tab === 'Hướng cho bạn' ? (
         <HomePublicFeed />
       ) : (

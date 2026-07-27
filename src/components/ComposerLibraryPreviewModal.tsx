@@ -39,6 +39,7 @@ import { downloadMediaUrl } from '../utils/downloadMedia';
 
 export type ComposerPreviewHandlers = {
   onRegenerate?: () => void;
+  onReuse?: () => void;
   onPublish?: () => void;
   onCreateVideo?: () => void;
   onEdit?: () => void;
@@ -54,6 +55,7 @@ export default function ComposerLibraryPreviewModal({
   onNavigate,
   handlers = {},
   deleting = false,
+  layout: _layout = 'composer',
 }: {
   items: FeedItem[];
   index: number;
@@ -62,6 +64,7 @@ export default function ComposerLibraryPreviewModal({
   onNavigate: (index: number) => void;
   handlers?: ComposerPreviewHandlers;
   deleting?: boolean;
+  layout?: 'composer' | 'home';
 }) {
   const item = items[index];
   const mediaUrl = item ? feedMediaUrl(item) || feedThumb(item) : null;

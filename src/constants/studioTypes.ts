@@ -36,7 +36,11 @@ export function defaultSelectionsForType(type: JobType): JobSelections {
     case 'tts':
       return { text: 'Xin chào, đây là thử nghiệm giọng đọc AI.' };
     case 'music':
-      return { prompt: 'upbeat electronic dance track', name: 'Demo track' };
+      return {
+        name: 'Demo track',
+        style: 'upbeat electronic dance',
+        prompt: '',
+      };
     case 'avatar-lipsync':
       return { prompt: 'A person speaking naturally to camera' };
     default:
@@ -49,7 +53,9 @@ export function historyPromptFromSelections(
   selections: JobSelections,
 ): string {
   if (type === 'tts') return selections.text || selections.prompt || '';
-  if (type === 'music') return selections.name || selections.prompt || '';
+  if (type === 'music') {
+    return selections.name || selections.style || selections.prompt || '';
+  }
   return selections.prompt || '';
 }
 

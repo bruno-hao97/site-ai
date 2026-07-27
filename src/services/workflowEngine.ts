@@ -4,8 +4,8 @@ import { createJobAndPoll, type PollProgress } from './polling';
 import {
   analyzeModel,
   buildJobPayload,
-  defaultSelections,
   isModelAvailable,
+  mergeSelectionsForSchema,
   modelSlug,
   parseModelsList,
   type JobSelections,
@@ -49,7 +49,7 @@ export async function runNodeJob(input: RunNodeInput): Promise<string> {
   if (!auth?.access_token) throw new Error('Chưa đăng nhập');
 
   const schema = analyzeModel(model, type);
-  const merged: JobSelections = { ...defaultSelections(schema), ...selections };
+  const merged = mergeSelectionsForSchema(selections, schema);
   const { payload } = buildJobPayload(model, type, merged, {
     domain: auth.domain,
     projectId: auth.projectId,

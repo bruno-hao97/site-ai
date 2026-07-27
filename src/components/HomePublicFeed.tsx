@@ -1,12 +1,25 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import ComposerLibraryPreviewModal, {
+  type ComposerPreviewHandlers,
+} from './ComposerLibraryPreviewModal';
+import FeedMasonryCard from './FeedMasonryCard';
 import { isLoggedIn } from '../services/authStore';
-import { feedThumb, fetchPublicVideos, type FeedItem } from '../services/feedApi';
+import { feedMediaUrl, feedThumb, fetchPublicVideos, type FeedItem } from '../services/feedApi';
 import { UpstreamMeError } from '../services/upstreamMe';
-import HomeFeedCard from './HomeFeedCard';
-import HomeFeedPreview from './HomeFeedPreview';
+import {
+  canOpenFeedPreview,
+  feedPreviewKind,
+  navigateFeedItemReuse,
+} from '../utils/feedItemReuse';
 
-/** Feed gợi ý / public — dùng cho tab "Hướng cho bạn". */
+function hasVisual(item: FeedItem): boolean {
+  return Boolean(feedThumb(item) || feedMediaUrl(item));
+}
+
+/** Feed gợi ý / public — tab "Hướng cho bạn". */
 export default function HomePublicFeed() {
+  const navigate = useNavigate();
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -35,12 +48,12 @@ export default function HomePublicFeed() {
 
       const fresh = page.items.filter((it) => {
         if (!it.id_base || seenRef.current.has(it.id_base)) return false;
-        if (!feedThumb(it)) return false;
+        if (!hasVisual(it)) return false;
         seenRef.current.add(it.id_base);
         return true;
       });
 
-      setItems((prev) => [...prev, ...fresh]);
+      if (fresh.length) setItems((prev) => [...prev, ...fresh]);
 
       const noProgress = !page.nextAfterId || page.nextAfterId === afterIdRef.current;
       afterIdRef.current = page.nextAfterId;
@@ -72,23 +85,48 @@ export default function HomePublicFeed() {
     return () => observer.disconnect();
   }, [loadMore]);
 
-  const openPreview = (item: FeedItem) => {
-    const idx = items.findIndex((it) => it.id_base === item.id_base);
-    if (idx >= 0) setPreviewIndex(idx);
-  };
+  const visualItems = useMemo(() => items.filter(canOpenFeedPreview), [items]);
+  const previewItem = previewIndex != null ? visualItems[previewIndex] : null;
+  const previewKindValue = previewItem ? feedPreviewKind(previewItem) : 'video';
+
+  const openItem = useCallback(
+    (item: FeedItem) => {
+      const idx = visualItems.findIndex((it) => it.id_base === item.id_base);
+      if (idx >= 0) setPreviewIndex(idx);
+    },
+    [visualItems],
+  );
+
+  const previewHandlers = useMemo((): ComposerPreviewHandlers => {
+    if (!previewItem) return {};
+    const close = () => setPreviewIndex(null);
+    const reuse = () => navigateFeedItemReuse(navigate, previewItem, close);
+    return {
+      onRegenerate: reuse,
+      onReuse: reuse,
+      onEdit: feedPreviewKind(previewItem) === 'video' ? reuse : undefined,
+    };
+  }, [previewItem, navigate]);
 
   return (
     <div className="home-feed">
-      <div className="home-masonry">
+      <div className="home-masonry home-masonry--feed">
         {items.map((item) => (
-          <HomeFeedCard
-            key={item.id_base}
-            item={item}
-            onOpenPreview={openPreview}
-            showModelBadge
-          />
+          <FeedMasonryCard key={item.id_base} item={item} onOpen={() => openItem(item)} />
         ))}
       </div>
+
+      {previewIndex != null && visualItems.length > 0 && (
+        <ComposerLibraryPreviewModal
+          items={visualItems}
+          index={Math.min(previewIndex, visualItems.length - 1)}
+          kind={previewKindValue}
+          layout="home"
+          onClose={() => setPreviewIndex(null)}
+          onNavigate={setPreviewIndex}
+          handlers={previewHandlers}
+        />
+      )}
 
       {error && <p className="error feed-status">{error}</p>}
       {loading && <p className="muted feed-status">Đang tải…</p>}
@@ -97,15 +135,6 @@ export default function HomePublicFeed() {
       )}
 
       <div ref={sentinelRef} className="feed-sentinel" />
-
-      {previewIndex != null && (
-        <HomeFeedPreview
-          items={items}
-          index={previewIndex}
-          onClose={() => setPreviewIndex(null)}
-          onNavigate={setPreviewIndex}
-        />
-      )}
     </div>
   );
 }

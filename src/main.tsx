@@ -5,6 +5,7 @@ import App from './App';
 import { LanguageProvider } from './i18n';
 import './styles/tailwind.css';
 import './styles/app.css';
+import './styles/home-feed-toc.css';
 import './services/themeStore';
 
 createRoot(document.getElementById('root')!).render(

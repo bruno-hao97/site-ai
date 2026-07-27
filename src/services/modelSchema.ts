@@ -3,6 +3,7 @@ import { DEFAULT_DOMAIN } from './settingsStore';
 import { POLL_MEDIA } from './api';
 import type { ComposerShot } from './composerShots';
 import { buildMultiShotPayload, getMultiShotConfig } from './composerShots';
+import { gommoDeviceFields } from './gommoDevice';
 
 export interface ModelOption {
   value: string;
@@ -34,6 +35,7 @@ export interface ModelSchema {
     prompt: boolean;
     text: boolean;
     musicName: boolean;
+    musicStyle: boolean;
     ratio: boolean;
     mode: boolean;
     resolution: boolean;
@@ -61,6 +63,10 @@ export interface JobSelections {
   prompt?: string;
   text?: string;
   name?: string;
+  /** Suno/VMedia: phong cách nhạc → gửi lên API dưới key `styles` (≥ 3 ký tự). */
+  style?: string;
+  /** Không lời — omit `prompt` như VMedia khi bật. */
+  instrumental?: boolean;
   gender?: string;
   ratio?: string;
   mode?: string;
@@ -113,6 +119,32 @@ export function normalizeOptions(list: unknown): ModelOption[] {
   });
 }
 
+/** Giữ selection cũ chỉ khi còn trong options của model hiện tại. */
+export function pickAllowedOption(
+  current: string | undefined,
+  options: ModelOption[],
+): string | undefined {
+  if (current && options.some((o) => o.value === current)) return current;
+  return options[0]?.value;
+}
+
+/** Gộp subjects + references cũ (state legacy) thành một danh sách URL. */
+export function collectComponentUrls(selections: JobSelections): string[] {
+  return [
+    ...new Set([...(selections.subjects || []), ...(selections.references || [])].filter(Boolean)),
+  ];
+}
+
+/** Chuẩn hóa state composer — chỉ giữ `subjects`, bỏ `references`. */
+export function normalizeComponentSelections(selections: JobSelections): JobSelections {
+  const urls = collectComponentUrls(selections);
+  const next = { ...selections };
+  if (urls.length) next.subjects = urls;
+  else delete next.subjects;
+  delete next.references;
+  return next;
+}
+
 function getModesList(model: GommoModel): ModelOption[] {
   if (Array.isArray(model.modes) && model.modes.length) return normalizeOptions(model.modes);
   if (Array.isArray(model.mode) && model.mode.length) return normalizeOptions(model.mode);
@@ -138,6 +170,14 @@ function getReferenceLimitsFromModel(model: GommoModel): {
   return { image, video, total: image + (video || 0) };
 }
 
+/** Gom/vmedia: thành phần tham chiếu (ảnh/video/audio) luôn gửi qua `subjects[]`. */
+export function componentMediaField(
+  _model: GommoModel,
+  _schema: ModelSchema,
+): 'subjects' {
+  return 'subjects';
+}
+
 export function analyzeModel(model: GommoModel, jobType: JobType): ModelSchema {
   const ratios = normalizeOptions(model.ratios);
   const modes = getModesList(model);
@@ -145,7 +185,10 @@ export function analyzeModel(model: GommoModel, jobType: JobType): ModelSchema {
   const durations = normalizeOptions(model.durations || model.duration);
   const refLimits = getReferenceLimitsFromModel(model);
   const refLimit = refLimits.image || refLimits.total;
-  const maxSubject = Number(model.maxSubject) || 0;
+  const maxSubjectRaw = Number(model.maxSubject) || 0;
+  const maxSubject = Math.max(maxSubjectRaw, refLimits.image || 0, refLimit || 0);
+  const hasComponentMedia =
+    maxSubject > 0 || refLimit > 0 || Boolean(model.withSubject) || Boolean(model.withReference);
   const configs = model.configs || {};
 
   return {
@@ -170,13 +213,14 @@ export function analyzeModel(model: GommoModel, jobType: JobType): ModelSchema {
       prompt: !['tts'].includes(jobType),
       text: jobType === 'tts',
       musicName: jobType === 'music',
+      musicStyle: jobType === 'music',
       ratio: ratios.length > 0,
       mode: modes.length > 0,
       resolution: resolutions.length > 0,
       duration: durations.length > 0,
       templateId: Boolean((configs.templates as { enabled?: boolean })?.enabled),
-      subjects: Boolean(model.withSubject) && maxSubject > 0,
-      references: refLimit > 0 || Boolean(model.withReference),
+      subjects: hasComponentMedia,
+      references: false,
       startFrame: Boolean(model.startImage),
       endFrame: Boolean(model.startImageAndEnd),
       motion: Boolean(model.withMotion),
@@ -204,6 +248,8 @@ export function buildJobPayload(
   const payload: Record<string, unknown> = {
     domain: domain || DEFAULT_DOMAIN,
     project_id: projectId || 'default',
+    language: 'VI',
+    ...gommoDeviceFields(),
   };
 
   if (!schema.available) {
@@ -215,14 +261,41 @@ export function buildJobPayload(
 
   if (jobType === 'music') {
     if (selections.name) payload.name = selections.name;
-    if (selections.prompt) payload.prompt = selections.prompt;
+    const style = (selections.style || '').trim();
+    const lyrics = (selections.prompt || '').trim();
+    const styleValue = style || (!selections.instrumental ? lyrics : '');
+    if (styleValue) {
+      payload.styles = styleValue;
+      payload.style = styleValue;
+      payload.tags = styleValue;
+    }
+    if (selections.instrumental) {
+      delete payload.prompt;
+    } else if (style && lyrics) {
+      payload.prompt = lyrics;
+    } else if (!style && lyrics) {
+      delete payload.prompt;
+    }
     if (selections.gender != null) payload.gender = selections.gender;
   }
 
-  if (selections.ratio) payload.ratio = selections.ratio;
-  if (selections.mode) payload.mode = selections.mode;
-  if (selections.resolution) payload.resolution = selections.resolution;
-  if (selections.duration) payload.duration = selections.duration;
+  const ratio = schema.fields.ratio
+    ? pickAllowedOption(selections.ratio, schema.options.ratios)
+    : undefined;
+  const mode = schema.fields.mode
+    ? pickAllowedOption(selections.mode, schema.options.modes)
+    : undefined;
+  const resolution = schema.fields.resolution
+    ? pickAllowedOption(selections.resolution, schema.options.resolutions)
+    : undefined;
+  const duration = schema.fields.duration
+    ? pickAllowedOption(selections.duration, schema.options.durations)
+    : undefined;
+
+  if (ratio) payload.ratio = ratio;
+  if (mode) payload.mode = mode;
+  if (resolution) payload.resolution = resolution;
+  if (duration) payload.duration = duration;
   if (selections.template_id) payload.template_id = selections.template_id;
 
   const images = (selections.images || []).filter(Boolean);
@@ -233,14 +306,9 @@ export function buildJobPayload(
     }
   }
 
-  const refs = (selections.references || []).filter(Boolean);
-  if (schema.fields.references && refs.length) {
-    payload.references = refs.map((url) => ({ url }));
-  }
-
-  const subjects = (selections.subjects || []).filter(Boolean);
-  if (schema.fields.subjects && subjects.length) {
-    payload.subjects = subjects.map((url) => ({ url }));
+  const componentUrls = collectComponentUrls(selections);
+  if (componentUrls.length) {
+    payload.subjects = componentUrls.map((url) => ({ url }));
   }
 
   Object.assign(payload, selections.extra || {});
@@ -280,13 +348,60 @@ export function pollMediaForJobType(jobType: JobType): (typeof POLL_MEDIA)[JobTy
 }
 
 export function defaultSelections(schema: ModelSchema): Partial<JobSelections> {
-  const pick = (opts: ModelOption[]) => (opts.length ? opts[0].value : undefined);
   return {
-    ratio: pick(schema.options.ratios),
-    mode: pick(schema.options.modes),
-    resolution: pick(schema.options.resolutions),
-    duration: pick(schema.options.durations),
+    ratio: pickAllowedOption(undefined, schema.options.ratios),
+    mode: pickAllowedOption(undefined, schema.options.modes),
+    resolution: pickAllowedOption(undefined, schema.options.resolutions),
+    duration: pickAllowedOption(undefined, schema.options.durations),
   };
+}
+
+/** Merge selection cũ với schema mới — bỏ enum không còn hợp lệ. */
+export function mergeSelectionsForSchema(
+  prev: JobSelections,
+  schema: ModelSchema,
+  extras?: Partial<JobSelections>,
+): JobSelections {
+  const defs = defaultSelections(schema);
+  const merged: JobSelections = {
+    ...prev,
+    ...extras,
+    ratio: pickAllowedOption(prev.ratio, schema.options.ratios) ?? defs.ratio,
+    mode: pickAllowedOption(prev.mode, schema.options.modes) ?? defs.mode,
+    resolution:
+      pickAllowedOption(prev.resolution, schema.options.resolutions) ?? defs.resolution,
+    duration: pickAllowedOption(prev.duration, schema.options.durations) ?? defs.duration,
+  };
+  return normalizeComponentSelections(merged);
+}
+
+const ENUM_FIELD_LABELS: Record<string, string> = {
+  ratio: 'ratio',
+  mode: 'mode',
+  resolution: 'resolution',
+  duration: 'duration',
+};
+
+/** Client-side guard trước POST — null nếu hợp lệ. */
+export function validateSelectionsForSchema(
+  selections: JobSelections,
+  schema: ModelSchema,
+): string | null {
+  const checks: Array<[keyof typeof ENUM_FIELD_LABELS, string | undefined, ModelOption[], boolean]> = [
+    ['ratio', selections.ratio, schema.options.ratios, schema.fields.ratio],
+    ['mode', selections.mode, schema.options.modes, schema.fields.mode],
+    ['resolution', selections.resolution, schema.options.resolutions, schema.fields.resolution],
+    ['duration', selections.duration, schema.options.durations, schema.fields.duration],
+  ];
+
+  for (const [label, current, options, enabled] of checks) {
+    if (!enabled || !current || !options.length) continue;
+    if (options.some((o) => o.value === current)) continue;
+    const allowed = options.map((o) => o.value).join(', ');
+    return `Tùy chọn '${ENUM_FIELD_LABELS[label]}' không hợp lệ (${current}). Giá trị cho phép: ${allowed}.`;
+  }
+
+  return null;
 }
 
 const MODELS_CACHE = new Map<string, { at: number; models: GommoModel[] }>();

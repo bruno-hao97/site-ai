@@ -6,6 +6,25 @@ import type { HistoryEntry } from '../services/historyStore';
 import type { JobType } from '../services/api';
 import { jobTypeToHistoryType, studioRouteForType } from '../constants/studioTypes';
 
+export function feedPreviewKind(item: FeedItem): 'image' | 'video' {
+  const t = (item.type || '').toLowerCase();
+  if (t === 'image' || t === 'image-upscale' || t === 'remove-bg') return 'image';
+  return 'video';
+}
+
+export function canOpenFeedPreview(item: FeedItem): boolean {
+  return Boolean(feedMediaUrl(item) || feedThumb(item));
+}
+
+export function navigateFeedItemReuse(
+  navigate: NavigateFunction,
+  item: FeedItem,
+  onClose?: () => void,
+): void {
+  navigateReuseFeedItem(navigate, item);
+  onClose?.();
+}
+
 export type ReuseHistoryState = {
   type: JobType;
   prompt?: string;

@@ -21,7 +21,15 @@ function parseSiteConfig(text: string): SiteConfigResponse {
   return JSON.parse(start >= 0 ? text.slice(start) : text) as SiteConfigResponse;
 }
 
-/** Thay branding VMedia bằng trungtamai.vn. */
+/** Thay branding VMedia / upstream bằng trungtamai.vn (popup, chat bubble, …). */
+export function rebrandSiteText(text: string): string {
+  return rebrandHomeNotif(text)
+    .replace(/\bMoonix\b/gi, 'trợ lý AI')
+    .replace(/\bMoon Agent\b/gi, 'trợ lý AI')
+    .replace(/\b79AI\b/gi, SITE_BRAND_LABEL);
+}
+
+/** @deprecated Dùng rebrandSiteText */
 export function rebrandHomeNotif(html: string): string {
   return html
     .replace(/VMedia\.AI/gi, SITE_BRAND_LABEL)
@@ -50,7 +58,7 @@ export async function fetchHomeNotif(domain = DEFAULT_DOMAIN): Promise<string | 
     const raw = parsed.domainInfo?.home_notif?.trim() || '';
     if (!raw) return null;
 
-    cachedHomeNotif = rebrandHomeNotif(raw);
+    cachedHomeNotif = rebrandSiteText(raw);
     return cachedHomeNotif;
   } catch {
     return null;

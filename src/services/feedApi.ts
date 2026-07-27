@@ -2,6 +2,7 @@ import { GOMMO_AUTH_BASE, GOMMO_AUTH_PATH, UpstreamMeError } from './upstreamMe'
 import { clearAuth, loadAuth, resolveProjectId } from './authStore';
 import { GOMMO_CHAT_CONFIG } from './gommoChatConfig';
 import { buildDeviceInfo } from './audioVoices';
+import { listHistory, type HistoryEntry } from './historyStore';
 
 async function feedRequest<T extends { success?: boolean; message?: string }>(
   gommoUrl: string,
@@ -91,6 +92,8 @@ export interface FeedItem {
   download_url?: string;
   thumbnail_url?: string;
   thumbnail_end_url?: string;
+  url_preview?: string;
+  url?: string;
   prompt?: string;
   credit_fee?: number;
   like_count?: number;
@@ -339,15 +342,36 @@ export async function fetchMyImages(params: FetchMineParams = {}): Promise<MineP
   return { items, nextAfterId: parsed.next_after_id ?? last?.id_base ?? '' };
 }
 
+function isVideoMediaUrl(url: string): boolean {
+  const base = url.split('?')[0].split('#')[0].toLowerCase();
+  return /\.(mp4|webm|mov|m4v|m3u8|avi)(\?|$)/i.test(base) || base.includes('/video/');
+}
+
+export function isAudioMediaUrl(url: string): boolean {
+  const base = url.split('?')[0].split('#')[0].toLowerCase();
+  return /\.(mp3|wav|ogg|m4a|aac|flac|opus)(\?|$)/i.test(base) || base.includes('/audio/');
+}
+
 export function feedModelLabel(item: FeedItem): string {
   return item.modelInfo?.name?.trim() || item.model?.trim() || '';
 }
 
 export function feedThumb(item: FeedItem): string | null {
+  const t = (item.type || '').toLowerCase();
+  const media = item.download_url || item.resolutions?.find((r) => r.url)?.url || '';
+  const looksAudio =
+    t === 'music' || t === 'tts' || t.includes('audio') || (media && isAudioMediaUrl(media));
+
+  if (looksAudio) {
+    const cover = item.thumbnail_url?.trim() || item.url_preview?.trim();
+    if (cover && !isAudioMediaUrl(cover) && !isVideoMediaUrl(cover)) return cover;
+    return null;
+  }
+
   if (item.thumbnail_url?.trim()) return item.thumbnail_url;
   const finished = item.resolutions?.find((r) => r.url);
-  if (finished?.url) return finished.url;
-  if (item.download_url?.trim()) return item.download_url;
+  if (finished?.url && !isAudioMediaUrl(finished.url)) return finished.url;
+  if (item.download_url?.trim() && !isAudioMediaUrl(item.download_url)) return item.download_url;
   return null;
 }
 
@@ -391,4 +415,109 @@ export async function deleteFeedPost(idBase: string): Promise<void> {
   if (parsed.success === false) {
     throw new UpstreamMeError(parsed.message || 'Xóa thất bại');
   }
+}
+
+function historyEntryToFeedItem(entry: HistoryEntry): FeedItem {
+  const url = (entry.resultUrl || '').trim();
+  const feedType = entry.type;
+  const cover = (entry.meta?.coverUrl || entry.meta?.cover_url || '').trim();
+  const visualThumb =
+    feedType === 'image' || feedType === 'video' || feedType === 'avatar-lipsync'
+      ? url || undefined
+      : cover || undefined;
+  return {
+    id_base: entry.id,
+    type: feedType,
+    status: url ? 'FINISH' : 'processing',
+    prompt: entry.prompt || undefined,
+    model: entry.modelSlug || entry.modelName || undefined,
+    download_url: url || undefined,
+    thumbnail_url: visualThumb,
+    created_time: entry.createdAt
+      ? Math.floor(new Date(entry.createdAt).getTime() / 1000)
+      : undefined,
+    duration: entry.meta?.duration || undefined,
+    resolutions: url ? [{ type: feedType, status: 'FINISH', url }] : undefined,
+  };
+}
+
+function paginateFeedItems(items: FeedItem[], params: FetchMineParams): MinePage {
+  const { limit = 30, afterId = '' } = params;
+  let start = 0;
+  if (afterId) {
+    const idx = items.findIndex((i) => i.id_base === afterId);
+    start = idx >= 0 ? idx + 1 : items.length;
+  }
+  const slice = items.slice(start, start + limit);
+  const last = slice[slice.length - 1];
+  return { items: slice, nextAfterId: last?.id_base ?? '' };
+}
+
+/** Job nhạc — local history (site-ai direct Gommo). */
+export async function fetchMyMusic(params: FetchMineParams = {}): Promise<MinePage> {
+  const items = listHistory('music')
+    .map(historyEntryToFeedItem)
+    .sort((a, b) => mineFeedTime(b) - mineFeedTime(a));
+  return paginateFeedItems(items, params);
+}
+
+/** Job TTS / âm thanh — local history. */
+export async function fetchMyAudio(params: FetchMineParams = {}): Promise<MinePage> {
+  const items = listHistory('tts')
+    .map(historyEntryToFeedItem)
+    .sort((a, b) => mineFeedTime(b) - mineFeedTime(a));
+  return paginateFeedItems(items, params);
+}
+
+export function feedIsAudioItem(item: FeedItem): boolean {
+  const t = (item.type || '').toLowerCase();
+  if (t === 'music' || t === 'tts' || t.includes('audio')) return true;
+  const media = feedMediaUrl(item);
+  return Boolean(media && isAudioMediaUrl(media));
+}
+
+function mineFeedTime(item: FeedItem): number {
+  const v = item.created_time;
+  const n = typeof v === 'string' ? Number(v) : v ?? 0;
+  return Number.isFinite(n) ? Number(n) : 0;
+}
+
+export function feedPosterUrl(item: FeedItem): string | null {
+  const thumb = feedThumb(item);
+  if (thumb && !isVideoMediaUrl(thumb)) return thumb;
+  return null;
+}
+
+export function feedDisplayQty(item: FeedItem): number {
+  const refs = feedSourceCount(item);
+  const resCount = item.resolutions?.filter((r) => r.url || r.status === 'FINISH').length ?? 0;
+  return Math.max(1, refs > 1 ? refs : resCount > 1 ? resCount : refs || 1);
+}
+
+export function feedIsFailed(item: FeedItem): boolean {
+  const media = feedMediaUrl(item);
+  const s = (item.status || '').toUpperCase();
+  if (media && (s.includes('SUCCESS') || s === 'FINISH' || s === 'FINISHED' || s === '')) {
+    return false;
+  }
+  if (!s) return false;
+  if (s.includes('SUCCESS') || s === 'FINISH' || s === 'FINISHED' || s.includes('PROCESSING')) {
+    return false;
+  }
+  return (
+    s.includes('FAIL')
+    || s.includes('ERROR')
+    || s.includes('REJECT')
+    || s.includes('CANCEL')
+    || s.includes('BLOCK')
+    || s.includes('NSFW')
+    || s.includes('DENIED')
+  );
+}
+
+export function feedIsDisplayable(item: FeedItem): boolean {
+  if (feedThumb(item) || feedMediaUrl(item)) return true;
+  if (feedIsFailed(item)) return true;
+  const s = (item.status || '').toUpperCase();
+  return s.includes('PROCESS') || s.includes('PENDING') || s.includes('QUEUE');
 }

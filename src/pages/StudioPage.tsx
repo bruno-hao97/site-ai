@@ -72,14 +72,20 @@ import {
 import {
   analyzeModel,
   buildJobPayload,
-  defaultSelections,
+  mergeSelectionsForSchema,
   modelSlug,
+  normalizeComponentSelections,
   parseModelsList,
+  pickAllowedOption,
   type JobSelections,
   type ModelOption,
   type ModelSchema,
 } from '../services/modelSchema';
 import { createJobAndPoll, type PollProgress } from '../services/polling';
+import {
+  formatAcceptedPendingMessage,
+  isJobAcceptedPendingError,
+} from '../services/jobInfraErrors';
 import {
   addHistoryEntry,
   isMediaUrl,
@@ -123,6 +129,7 @@ import type { TranslationKey } from '../i18n';
 import type { TranslateFn } from '../i18n/LanguageProvider';
 import ComposerMediaSlot from '../components/ComposerMediaSlot';
 import ComposerMediaPickButton from '../components/ComposerMediaPickButton';
+import MusicTrackList, { type MusicTrackItem } from '../components/MusicTrackList';
 import { mediaKindFromUrl, validateMediaUrl } from '../services/mediaUrlValidation';
 import {
   computeMotionPriceQuote,
@@ -691,9 +698,16 @@ function OptionDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const { triggerRef, panelRef, pos } = useAnchoredDropdown(open, setOpen);
-
-  const current = options.find((o) => o.value === value) ?? null;
+  const resolved = pickAllowedOption(value, options) ?? options[0]?.value ?? '';
+  const current = options.find((o) => o.value === resolved) ?? null;
   const panelStyle = anchoredPanelStyle(pos);
+
+  useEffect(() => {
+    if (!options.length) return;
+    if (value && options.some((o) => o.value === value)) return;
+    const next = pickAllowedOption(value, options);
+    if (next && next !== value) onChange(next);
+  }, [options, value, onChange]);
 
   return (
     <div className="opt-dropdown" ref={triggerRef}>
@@ -713,7 +727,7 @@ function OptionDropdown({
           <div className="opt-dropdown-panel" ref={panelRef} style={panelStyle}>
             <div className="opt-dropdown-list">
               {options.map((o) => {
-                const active = o.value === value;
+                const active = o.value === resolved;
                 return (
                   <button
                     key={o.value}
@@ -803,6 +817,7 @@ export default function StudioPage({
   const [historyUrlMap, setHistoryUrlMap] = useState<Record<string, string>>({});
   const [historyTick, setHistoryTick] = useState(0);
   useHistoryUpdated(() => setHistoryTick((n) => n + 1));
+
   const abortRef = useRef<AbortController | null>(null);
   const sessionStartRef = useRef(Date.now());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1187,21 +1202,18 @@ export default function StudioPage({
     const s = analyzeModel(currentModel, jobType);
     setSchema(s);
     setSelections((prev) => {
-      const defs = defaultSelections(s);
       const defaults = defaultSelectionsForType(jobType);
-      return {
-        ...defs,
-        prompt: prev.prompt || defaults.prompt,
-        text: prev.text || defaults.text,
-        name: prev.name || defaults.name,
-        mode: prev.mode || defs.mode,
-        ratio: prev.ratio || defs.ratio,
-        resolution: prev.resolution || defs.resolution,
-        duration: prev.duration || defs.duration,
-        images: prev.images?.length ? prev.images : defs.images,
-        references: prev.references?.length ? prev.references : defs.references,
-        subjects: prev.subjects?.length ? prev.subjects : defs.subjects,
-      };
+      return mergeSelectionsForSchema(
+        {
+          ...prev,
+          prompt: prev.prompt || defaults.prompt,
+          text: prev.text || defaults.text,
+          name: prev.name || defaults.name,
+          style: prev.style || defaults.style,
+          images: prev.images?.length ? prev.images : undefined,
+        },
+        s,
+      );
     });
   }, [currentModel, jobType]);
 
@@ -1246,15 +1258,17 @@ export default function StudioPage({
     slug: string,
     promptOverride?: string,
     modelOverride?: GommoModel,
+    coverUrl?: string | null,
   ) {
     const prompt = promptOverride ?? historyPromptFromSelections(jobType, selections);
     const model = modelOverride ?? currentModel;
-    const meta = {
+    const meta: Record<string, string> = {
       mode: selections.mode || '',
       resolution: selections.resolution || '',
       ratio: selections.ratio || '',
       duration: selections.duration || '',
     };
+    if (coverUrl?.trim()) meta.coverUrl = coverUrl.trim();
     const createdAt = new Date().toISOString();
 
     addHistoryEntry({
@@ -1291,12 +1305,16 @@ export default function StudioPage({
     modelOverride?: GommoModel,
   ): Promise<boolean> {
     const model = modelOverride ?? currentModel!;
-    const jobSchema = modelOverride ? analyzeModel(model, jobType) : schema!;
-    const runSelections: JobSelections = { ...selections, prompt, ...overrides };
+    let runSelections = normalizeComponentSelections({
+      ...selections,
+      prompt,
+      ...overrides,
+    });
     if (refUrl) {
-      if (jobSchema.fields.references) runSelections.references = [refUrl];
-      else if (jobSchema.fields.subjects) runSelections.subjects = [refUrl];
-      else runSelections.images = [refUrl];
+      runSelections = normalizeComponentSelections({
+        ...runSelections,
+        subjects: [refUrl],
+      });
     }
     const { payload } = buildJobPayload(model, jobType, runSelections, {
       domain: auth?.domain,
@@ -1314,16 +1332,40 @@ export default function StudioPage({
     loadRecentJobs();
 
     try {
-      const finalUrl = await generateViaGommo(slug, payload, pendingId);
+      const { resultUrl: finalUrl, coverUrl, acceptedPending, providerJobId } =
+        await generateViaGommo(slug, payload, pendingId);
 
       if (finalUrl) {
         setResultUrl(finalUrl);
         updateLocalJob(localId, { status: 'success', result_url: finalUrl });
-        recordSuccess(finalUrl, slug, prompt, model);
+        recordSuccess(finalUrl, slug, prompt, model, coverUrl);
         setPendingJobs((prev) => prev.filter((p) => p.id !== pendingId));
         loadRecentJobs();
         return true;
       }
+
+      if (acceptedPending) {
+        const info = formatAcceptedPendingMessage(providerJobId);
+        setError('');
+        setProgress(info);
+        updateLocalJob(localId, { status: 'processing' });
+        setPendingJobs((prev) =>
+          prev.map((p) =>
+            p.id === pendingId ? { ...p, status: 'processing', progress: 40 } : p,
+          ),
+        );
+        loadRecentJobs();
+        window.setTimeout(() => {
+          setPendingJobs((prev) => prev.filter((p) => p.id !== pendingId));
+          setProgress((cur) =>
+            cur.includes('Đã gửi lên VMedia')
+              ? 'Job đang chạy trên VMedia — kiểm tra thư viện trước khi tạo thêm.'
+              : cur,
+          );
+        }, 45_000);
+        return true;
+      }
+
       const errMsg = 'Job thất bại';
       setError(errMsg);
       updateLocalJob(localId, { status: 'failed', error: errMsg });
@@ -1333,6 +1375,22 @@ export default function StudioPage({
       loadRecentJobs();
       return false;
     } catch (err) {
+      if (isJobAcceptedPendingError(err)) {
+        const info = err.message;
+        setError('');
+        setProgress(info);
+        updateLocalJob(localId, { status: 'processing' });
+        setPendingJobs((prev) =>
+          prev.map((p) =>
+            p.id === pendingId ? { ...p, status: 'processing', progress: 40 } : p,
+          ),
+        );
+        loadRecentJobs();
+        window.setTimeout(() => {
+          setPendingJobs((prev) => prev.filter((p) => p.id !== pendingId));
+        }, 45_000);
+        return true;
+      }
       const msg = err instanceof GommoApiError || err instanceof Error ? err.message : String(err);
       setError(msg);
       updateLocalJob(localId, { status: 'failed', error: msg });
@@ -1354,10 +1412,10 @@ export default function StudioPage({
     if (
       !isMotionView &&
       !isEditView &&
-      schema.fields.references &&
+      schema.fields.subjects &&
       (!schema.fields.startFrame || inputMode === 'component')
     ) {
-      const refs = (selections.references || []).filter(Boolean);
+      const refs = (selections.subjects || []).filter(Boolean);
       const imgC = refs.filter((u) => urlMediaKind(u) !== 'video').length;
       const vidC = refs.filter((u) => urlMediaKind(u) === 'video').length;
       const limits = getReferenceLimits(currentModel, schema, jobType);
@@ -1367,6 +1425,14 @@ export default function StudioPage({
       }
       if (vidC > limits.video) {
         setError(`Quá nhiều video tham chiếu (tối đa ${limits.video}).`);
+        return;
+      }
+    }
+
+    if (isMusicComposer) {
+      const style = (selections.style || '').trim();
+      if (style.length < 3) {
+        setError(t('composer.musicStyleTooShort'));
         return;
       }
     }
@@ -1652,8 +1718,20 @@ export default function StudioPage({
     slug: string,
     payload: Record<string, unknown>,
     pendingId?: string,
-  ): Promise<string | null> {
-    const { pollResult, resultUrl: url, createEnvelope } = await createJobAndPoll(
+  ): Promise<{
+    resultUrl: string | null;
+    coverUrl?: string | null;
+    acceptedPending?: boolean;
+    providerJobId?: string;
+  }> {
+    const {
+      pollResult,
+      resultUrl: url,
+      coverUrl,
+      createEnvelope,
+      acceptedOnProvider,
+      providerJobId,
+    } = await createJobAndPoll(
       client!,
       jobType,
       slug,
@@ -1674,7 +1752,29 @@ export default function StudioPage({
 
     const snap = extractPollSnapshot(createEnvelope as Parameters<typeof extractPollSnapshot>[0]);
     const finalUrl = url ?? snap.resultUrl;
-    if (finalUrl) return finalUrl;
+    if (finalUrl) {
+      return {
+        resultUrl: finalUrl,
+        coverUrl: coverUrl ?? snap.coverUrl,
+        providerJobId: providerJobId || snap.idBase,
+      };
+    }
+
+    if (
+      acceptedOnProvider &&
+      (pollResult?.acceptedPending || pollResult?.infraError || pollResult?.timeout)
+    ) {
+      return {
+        resultUrl: null,
+        coverUrl: coverUrl ?? snap.coverUrl,
+        acceptedPending: true,
+        providerJobId: providerJobId || snap.idBase,
+      };
+    }
+
+    if (pollResult?.success === false && pollResult.error) {
+      throw new Error(pollResult.error);
+    }
     throw new Error(pollResult?.error || 'Job thất bại');
   }
 
@@ -2650,6 +2750,63 @@ export default function StudioPage({
             </div>
           )}
 
+          {schema?.fields.musicStyle && (
+            <div className="composer-field">
+              <div className="composer-label-row">
+                <span className="composer-label">{t('composer.musicStyle')}</span>
+                <div className="composer-desc-tools">
+                  <button
+                    type="button"
+                    aria-label={t('composer.clearPrompt')}
+                    onClick={() => updateSelection('style', '')}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={t('composer.paste')}
+                    onClick={async () => {
+                      try {
+                        const text = await navigator.clipboard.readText();
+                        if (text) updateSelection('style', text);
+                      } catch {
+                        /* ignore */
+                      }
+                    }}
+                  >
+                    <Clipboard size={14} />
+                  </button>
+                </div>
+              </div>
+              <textarea
+                className="composer-textarea"
+                rows={3}
+                placeholder={t('composer.musicStylePlaceholder')}
+                value={selections.style || ''}
+                onChange={(e) => updateSelection('style', e.target.value)}
+              />
+            </div>
+          )}
+
+          {isMusicComposer && (
+            <label className="composer-switch-row">
+              <span className="composer-switch-text">
+                <span>
+                  <strong>{t('composer.musicInstrumental')}</strong>
+                  <small>{t('composer.musicInstrumentalHint')}</small>
+                </span>
+              </span>
+              <span className={`composer-switch ${selections.instrumental ? 'on' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(selections.instrumental)}
+                  onChange={(e) => updateSelection('instrumental', e.target.checked)}
+                />
+                <span className="composer-switch-knob" />
+              </span>
+            </label>
+          )}
+
           {composerMode === 'ai' && schema?.fields.prompt && (
             <div className="composer-ai-panel">
               <div className="composer-label-row">
@@ -2918,7 +3075,9 @@ export default function StudioPage({
             </div>
           )}
 
-          {schema?.fields.prompt && !(multiShotEnabled && schema.fields.multiShots) && (
+          {schema?.fields.prompt &&
+            !(multiShotEnabled && schema.fields.multiShots) &&
+            !(isMusicComposer && selections.instrumental) && (
             <div className="composer-field">
               <div className="composer-label-row">
                 <span className="composer-label composer-prompt-label">
@@ -2931,7 +3090,7 @@ export default function StudioPage({
                       </span>
                     </>
                   ) : schema.fields.musicName ? (
-                    t('composer.musicStyle')
+                    t('composer.musicLyrics')
                   ) : (
                     t('composer.prompt')
                   )}
@@ -2983,7 +3142,7 @@ export default function StudioPage({
                   multiPrompt && composerMode === 'auto'
                     ? 'Prompt 1\n=====\nPrompt 2\n=====\nPrompt 3'
                     : schema.fields.musicName
-                      ? 'Mô tả phong cách nhạc…'
+                      ? t('composer.musicLyricsPlaceholder')
                       : 'Mô tả nội dung của bạn…'
                 }
                 value={selections.prompt || ''}
@@ -3185,6 +3344,7 @@ export default function StudioPage({
                   </button>
                 </div>
               )}
+              {!isMusicComposer && (
               <label className="composer-zoom">
                 <input
                   type="range"
@@ -3194,10 +3354,59 @@ export default function StudioPage({
                   onChange={(e) => setZoom(Number(e.target.value))}
                 />
               </label>
+              )}
             </div>
           </div>
 
-          {mainTab === 'history' ? (
+          {isMusicComposer ? (
+            (() => {
+              const pendingItems: MusicTrackItem[] =
+                mainTab === 'current'
+                  ? pendingJobs.map((p) => ({
+                      id: p.id,
+                      title: p.prompt || selections.name || 'Đang tạo…',
+                      status: p.status === 'failed' ? 'failed' : 'processing',
+                      progress: p.progress,
+                    }))
+                  : [];
+              const source =
+                mainTab === 'folder' ? composerResults : displayedResults;
+              const doneItems: MusicTrackItem[] = source.map((e) => ({
+                id: e.id,
+                title: e.prompt || e.modelName || 'Bản nhạc',
+                modelLabel: e.modelName || e.modelSlug,
+                createdAt: e.createdAt,
+                resultUrl: e.resultUrl,
+                coverUrl: e.meta?.coverUrl || e.meta?.cover_url,
+                status: 'success' as const,
+              }));
+              const items = [...pendingItems, ...doneItems];
+              return (
+                <>
+                  <MusicTrackList
+                    items={items}
+                    emptyText={
+                      mainTab === 'folder'
+                        ? 'Chưa có bài nào trong thư viện nhạc.'
+                        : t('composer.gallery.empty', { type: typeLabel() })
+                    }
+                    selectedIds={selectedIds}
+                    onToggleSelect={toggleSelect}
+                    onReuse={(id) => {
+                      const entry = composerResults.find((e) => e.id === id);
+                      if (entry) applyReuse(entry);
+                    }}
+                    onDelete={(id) => {
+                      removeHistoryEntry(id);
+                      setHistoryTick((n) => n + 1);
+                      clearSelection();
+                    }}
+                    onOpen={(url) => window.open(url, '_blank', 'noopener,noreferrer')}
+                  />
+                </>
+              );
+            })()
+          ) : mainTab === 'history' ? (
             <ComposerHistory
               jobType={jobType}
               zoom={zoom}
@@ -3527,9 +3736,9 @@ export default function StudioPage({
             <p className="muted">Chọn model.</p>
           ) : (
             <form onSubmit={handleSubmit} className="form">
-              {schema.fields.prompt && (
+              {schema.fields.prompt && !(schema.fields.musicName && selections.instrumental) && (
                 <label className="field">
-                  <span className="label">Prompt</span>
+                  <span className="label">{schema.fields.musicName ? 'Lời bài hát' : 'Prompt'}</span>
                   <textarea
                     rows={3}
                     value={selections.prompt || ''}
@@ -3554,6 +3763,26 @@ export default function StudioPage({
                     value={selections.name || ''}
                     onChange={(e) => updateSelection('name', e.target.value)}
                   />
+                </label>
+              )}
+              {schema.fields.musicStyle && (
+                <label className="field">
+                  <span className="label">Phong cách (styles)</span>
+                  <textarea
+                    rows={2}
+                    value={selections.style || ''}
+                    onChange={(e) => updateSelection('style', e.target.value)}
+                  />
+                </label>
+              )}
+              {schema.fields.musicName && (
+                <label className="field composer-switch-row">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(selections.instrumental)}
+                    onChange={(e) => updateSelection('instrumental', e.target.checked)}
+                  />
+                  <span className="label" style={{ margin: 0 }}>Không lời (instrumental)</span>
                 </label>
               )}
               {schema.fields.ratio && (

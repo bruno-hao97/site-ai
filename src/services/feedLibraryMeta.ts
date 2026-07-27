@@ -54,6 +54,31 @@ export function feedCategoryLabel(item: FeedItem): string {
   return item.category_name?.trim() || '';
 }
 
+/** Ngày ngắn kiểu vmedia: "22-07". */
+export function feedCreatedShortLabel(item: FeedItem): string {
+  if (item.created_time == null) return '';
+  let ts = typeof item.created_time === 'string' ? Number(item.created_time) : item.created_time;
+  if (!Number.isFinite(ts) || ts <= 0) return '';
+  if (ts < 1e12) ts *= 1000;
+  try {
+    const d = new Date(ts);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${day}-${month}`;
+  } catch {
+    return '';
+  }
+}
+
+/** Thumbnail ảnh/object tham chiếu (icon sản phẩm góc phải). */
+export function feedRefThumb(item: FeedItem): string | null {
+  const fromImages = item.images?.[0]?.url?.trim();
+  if (fromImages) return fromImages;
+  const fromObjects = item.objects?.[0]?.url?.trim();
+  if (fromObjects) return fromObjects;
+  return null;
+}
+
 export function feedCreatedDateLabel(item: FeedItem): string {
   if (item.created_time == null) return '';
   let ts = typeof item.created_time === 'string' ? Number(item.created_time) : item.created_time;

@@ -22,6 +22,7 @@ import {
 import { DEFAULT_DOMAIN } from '../services/settingsStore';
 import { extractPollSnapshot } from '../services/mediaGenerationStatus';
 import { createJobAndPoll, type PollProgress } from '../services/polling';
+import { isJobAcceptedPendingError } from '../services/jobInfraErrors';
 import { isLoggedIn, getGommoClient } from '../services/authStore';
 import { hasToken, loadSettings } from '../services/settingsStore';
 import UrlField from '../components/UrlField';
@@ -111,9 +112,10 @@ export default function ApiPlaygroundPage() {
     setSchema(s);
     setSelections((prev) => ({
       ...defaultSelections(s),
-      prompt: prev.prompt || (jobType === 'music' ? 'upbeat electronic' : 'a cinematic portrait'),
+      prompt: prev.prompt || (jobType === 'music' ? '' : 'a cinematic portrait'),
       text: prev.text || 'Xin chào, đây là thử nghiệm TTS.',
       name: prev.name || 'Demo track',
+      style: prev.style || (jobType === 'music' ? 'upbeat electronic dance' : undefined),
     }));
   }, [currentModel, jobType]);
 
@@ -192,6 +194,8 @@ export default function ApiPlaygroundPage() {
       if (url) {
         setResultUrl(url);
         setProgress('Hoàn tất — có result_url');
+      } else if (result.pollResult?.acceptedPending || isJobAcceptedPendingError(result.pollResult?.error)) {
+        setProgress(result.pollResult?.error || 'Đã gửi lên VMedia — đang xử lý.');
       } else if (result.pollResult?.timeout) {
         setError('Hết thời gian poll (~5 phút)');
       } else if (result.pollResult && !result.pollResult.success) {
@@ -299,9 +303,9 @@ export default function ApiPlaygroundPage() {
             <p className="muted">Chọn model từ danh sách bên trái.</p>
           ) : (
             <form onSubmit={handleSubmit} className="form">
-              {schema.fields.prompt && (
+              {schema.fields.prompt && !(schema.fields.musicName && selections.instrumental) && (
                 <label className="field">
-                  <span className="label">Prompt</span>
+                  <span className="label">{schema.fields.musicName ? 'Lyrics' : 'Prompt'}</span>
                   <textarea
                     rows={3}
                     value={selections.prompt || ''}
@@ -326,6 +330,26 @@ export default function ApiPlaygroundPage() {
                     value={selections.name || ''}
                     onChange={(e) => updateSelection('name', e.target.value)}
                   />
+                </label>
+              )}
+              {schema.fields.musicStyle && (
+                <label className="field">
+                  <span className="label">Style (styles)</span>
+                  <textarea
+                    rows={2}
+                    value={selections.style || ''}
+                    onChange={(e) => updateSelection('style', e.target.value)}
+                  />
+                </label>
+              )}
+              {schema.fields.musicName && (
+                <label className="field">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(selections.instrumental)}
+                    onChange={(e) => updateSelection('instrumental', e.target.checked)}
+                  />
+                  <span>Không lời (instrumental)</span>
                 </label>
               )}
 

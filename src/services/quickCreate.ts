@@ -7,8 +7,9 @@ import {
   type JobSelections,
   type ModelSchema,
 } from './modelSchema';
-import { createJobAndPoll } from './polling';
+import { createJobAndPoll, type PollProgress } from './polling';
 import type { GommoModel, JobType } from './api';
+import { requireJobResultUrl } from './jobInfraErrors';
 
 /** Có thể tạo job khi đã đăng nhập Gommo. */
 export function canQuickCreate(): boolean {
@@ -27,6 +28,22 @@ export function buildQuickSchema(model: GommoModel, type: JobType): ModelSchema 
 export async function uploadQuickImage(file: File): Promise<string | null> {
   if (!loadAuth()) return null;
   const { url } = await getGommoClient().uploadImage(file);
+  return url;
+}
+
+export async function uploadQuickVideo(file: File): Promise<string | null> {
+  if (!loadAuth()) return null;
+  const { url } = await getGommoClient().uploadVideo(file);
+  return url;
+}
+
+/** Tải ảnh hoặc video tùy MIME — dùng cho quick bar khi mode video. */
+export async function uploadQuickMedia(file: File): Promise<string | null> {
+  if (!loadAuth()) return null;
+  const client = getGommoClient();
+  const { url } = file.type.startsWith('video/')
+    ? await client.uploadVideo(file)
+    : await client.uploadImage(file);
   return url;
 }
 
@@ -55,7 +72,7 @@ export async function quickGenerate({
     projectId: auth.projectId,
   });
 
-  const { pollResult, resultUrl } = await createJobAndPoll(
+  const { pollResult, resultUrl, acceptedOnProvider, providerJobId } = await createJobAndPoll(
     client,
     type,
     slug,
@@ -65,11 +82,17 @@ export async function quickGenerate({
         onProgress?.('Đang tạo job…');
         return;
       }
-      const prog = p as { status?: string; phase?: string };
+      const prog = p as PollProgress;
       onProgress?.(`Đang xử lý… ${prog.status || prog.phase || ''}`.trim());
     },
     signal,
   );
-  if (resultUrl) return resultUrl;
-  throw new Error(pollResult?.error || 'Job thất bại');
+
+  return requireJobResultUrl({
+    resultUrl,
+    acceptedOnProvider,
+    providerJobId,
+    pollResult,
+    failMessage: 'Job thất bại',
+  });
 }

@@ -5,12 +5,14 @@ import {
   type StatusPhase,
 } from './mediaGenerationStatus';
 import { pollMediaForJobType } from './modelSchema';
+import { formatAcceptedPendingMessage, isInfraJobError } from './jobInfraErrors';
 
 export interface PollProgress {
   attempt: number;
   phase: StatusPhase;
   status: string;
   resultUrl: string | null;
+  coverUrl?: string | null;
   idBase?: string;
   envelope: unknown;
 }
@@ -18,9 +20,12 @@ export interface PollProgress {
 export interface PollResult {
   success: boolean;
   timeout?: boolean;
+  infraError?: boolean;
+  acceptedPending?: boolean;
   error?: string;
   status?: string;
   resultUrl?: string | null;
+  coverUrl?: string | null;
   idBase?: string;
 }
 
@@ -43,35 +48,79 @@ export async function startPolling(
     signal?: AbortSignal;
   } = {},
 ): Promise<PollResult> {
+  let lastInfraError = '';
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     if (signal?.aborted) {
-      return { success: false, error: 'Poll đã bị hủy' };
+      return { success: false, error: 'Poll đã bị hủy', idBase: jobId };
     }
 
-    const envelope = await client.pollOnce(jobId, media);
-    const snap = extractPollSnapshot(envelope);
-    const phase = classifyGatewayStatus(snap.status, snap.resultUrl);
+    try {
+      const envelope = await client.pollOnce(jobId, media);
+      const snap = extractPollSnapshot(envelope);
+      const phase = classifyGatewayStatus(snap.status, snap.resultUrl);
 
-    onProgress?.({
-      attempt,
-      phase,
-      status: snap.status,
-      resultUrl: snap.resultUrl,
-      idBase: snap.idBase,
-      envelope,
-    });
+      onProgress?.({
+        attempt,
+        phase,
+        status: snap.status,
+        resultUrl: snap.resultUrl,
+        coverUrl: snap.coverUrl,
+        idBase: snap.idBase || jobId,
+        envelope,
+      });
 
-    if (phase === 'success') {
-      return { success: true, ...snap };
-    }
-    if (phase === 'failed') {
-      return { success: false, error: snap.status || 'failed', ...snap };
+      if (phase === 'success') {
+        return { success: true, ...snap, idBase: snap.idBase || jobId };
+      }
+      if (phase === 'failed') {
+        return {
+          success: false,
+          error: snap.status || 'failed',
+          ...snap,
+          idBase: snap.idBase || jobId,
+        };
+      }
+    } catch (err) {
+      if (isInfraJobError(err) && attempt < maxAttempts) {
+        lastInfraError = err instanceof Error ? err.message : String(err);
+        onProgress?.({
+          attempt,
+          phase: 'running',
+          status: 'PROCESSING',
+          resultUrl: null,
+          idBase: jobId,
+          envelope: null,
+        });
+      } else if (isInfraJobError(err)) {
+        lastInfraError = err instanceof Error ? err.message : String(err);
+        break;
+      } else {
+        throw err;
+      }
     }
 
     await sleep(intervalMs);
   }
 
-  return { success: false, timeout: true, error: 'Hết thời gian poll (~5 phút)' };
+  if (lastInfraError) {
+    return {
+      success: false,
+      timeout: true,
+      infraError: true,
+      acceptedPending: true,
+      idBase: jobId,
+      error: formatAcceptedPendingMessage(jobId),
+    };
+  }
+
+  return {
+    success: false,
+    timeout: true,
+    acceptedPending: true,
+    idBase: jobId,
+    error: 'Hết thời gian poll (~5 phút)',
+  };
 }
 
 export async function createJobAndPoll(
@@ -85,29 +134,47 @@ export async function createJobAndPoll(
   createEnvelope: unknown;
   pollResult?: PollResult;
   resultUrl?: string | null;
+  coverUrl?: string | null;
+  acceptedOnProvider: boolean;
+  providerJobId?: string;
 }> {
   onProgress?.({ phase: 'creating' });
   const createEnvelope = await client.createJob(type, modelId, fields);
   const snap = extractPollSnapshot(createEnvelope);
+  const providerJobId = snap.idBase?.trim() || undefined;
+  const acceptedOnProvider = Boolean(providerJobId);
 
   if (snap.resultUrl && classifyGatewayStatus(snap.status, snap.resultUrl) === 'success') {
-    return { createEnvelope, resultUrl: snap.resultUrl };
+    return {
+      createEnvelope,
+      resultUrl: snap.resultUrl,
+      coverUrl: snap.coverUrl,
+      acceptedOnProvider: true,
+      providerJobId,
+    };
   }
 
   const pollMedia = pollMediaForJobType(type);
   if (!pollMedia) {
-    return { createEnvelope, resultUrl: snap.resultUrl };
-  }
-
-  const jobId = snap.idBase;
-  if (!jobId) {
     return {
       createEnvelope,
-      pollResult: { success: false, error: 'Không có id_base để poll' },
+      resultUrl: snap.resultUrl,
+      coverUrl: snap.coverUrl,
+      acceptedOnProvider,
+      providerJobId,
     };
   }
 
-  const pollResult = await startPolling(client, jobId, pollMedia, {
+  if (!providerJobId) {
+    return {
+      createEnvelope,
+      pollResult: { success: false, error: 'Không có id_base để poll' },
+      coverUrl: snap.coverUrl,
+      acceptedOnProvider: false,
+    };
+  }
+
+  const pollResult = await startPolling(client, providerJobId, pollMedia, {
     onProgress,
     signal,
   });
@@ -116,6 +183,9 @@ export async function createJobAndPoll(
     createEnvelope,
     pollResult,
     resultUrl: pollResult.resultUrl ?? snap.resultUrl,
+    coverUrl: pollResult.coverUrl ?? snap.coverUrl,
+    acceptedOnProvider: true,
+    providerJobId,
   };
 }
 
