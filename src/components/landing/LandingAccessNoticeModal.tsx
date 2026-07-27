@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { fetchHomeNotif } from '../../services/siteConfig';
+import { useNavigate } from 'react-router-dom';
+import { bindHomeNotifPricingLinks, fetchHomeNotif } from '../../services/siteConfig';
 import LandingHomeNotifFallback from './LandingHomeNotifFallback';
 
 interface LandingAccessNoticeModalProps {
@@ -13,6 +14,7 @@ export default function LandingAccessNoticeModal({
   onConfirm,
   onClose,
 }: LandingAccessNoticeModalProps) {
+  const navigate = useNavigate();
   const [html, setHtml] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -33,14 +35,21 @@ export default function LandingAccessNoticeModal({
   useEffect(() => {
     if (!open || !html || !notifRef.current) return;
     const root = notifRef.current;
+    const unbindPricing = bindHomeNotifPricingLinks(root, () => {
+      onClose();
+      navigate('/pricing');
+    });
     const closes = root.querySelectorAll<HTMLElement>('.vm-close, #vm-close');
     const onCloseClick = (e: Event) => {
       e.preventDefault();
       onClose();
     };
     closes.forEach((el) => el.addEventListener('click', onCloseClick));
-    return () => closes.forEach((el) => el.removeEventListener('click', onCloseClick));
-  }, [open, html, onClose]);
+    return () => {
+      unbindPricing();
+      closes.forEach((el) => el.removeEventListener('click', onCloseClick));
+    };
+  }, [open, html, onClose, navigate]);
 
   useEffect(() => {
     if (!open) return;
