@@ -84,7 +84,9 @@ import {
 import { createJobAndPoll, type PollProgress } from '../services/polling';
 import {
   formatAcceptedPendingMessage,
+  isAcceptedPendingProgressMessage,
   isJobAcceptedPendingError,
+  JOB_PENDING_PROGRESS_HINT,
 } from '../services/jobInfraErrors';
 import {
   addHistoryEntry,
@@ -1358,9 +1360,7 @@ export default function StudioPage({
         window.setTimeout(() => {
           setPendingJobs((prev) => prev.filter((p) => p.id !== pendingId));
           setProgress((cur) =>
-            cur.includes('Đã gửi lên VMedia')
-              ? 'Job đang chạy trên VMedia — kiểm tra thư viện trước khi tạo thêm.'
-              : cur,
+            isAcceptedPendingProgressMessage(cur) ? JOB_PENDING_PROGRESS_HINT : cur,
           );
         }, 45_000);
         return true;

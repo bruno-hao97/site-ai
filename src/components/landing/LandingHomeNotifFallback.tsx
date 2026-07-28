@@ -168,7 +168,7 @@ export default function LandingHomeNotifFallback({ onClose }: LandingHomeNotifFa
             tone="help"
           />
           <ActionTile
-            href="https://www.facebook.com/VMediaAI"
+            href="https://facebook.com"
             name="Fanpage"
             sub="Tin tức & cập nhật"
             tone="facebook"

@@ -22,7 +22,7 @@ import {
 import { DEFAULT_DOMAIN } from '../services/settingsStore';
 import { extractPollSnapshot } from '../services/mediaGenerationStatus';
 import { createJobAndPoll, type PollProgress } from '../services/polling';
-import { isJobAcceptedPendingError } from '../services/jobInfraErrors';
+import { formatAcceptedPendingMessage, isJobAcceptedPendingError } from '../services/jobInfraErrors';
 import { isLoggedIn, getGommoClient } from '../services/authStore';
 import { hasToken, loadSettings } from '../services/settingsStore';
 import UrlField from '../components/UrlField';
@@ -195,7 +195,7 @@ export default function ApiPlaygroundPage() {
         setResultUrl(url);
         setProgress('Hoàn tất — có result_url');
       } else if (result.pollResult?.acceptedPending || isJobAcceptedPendingError(result.pollResult?.error)) {
-        setProgress(result.pollResult?.error || 'Đã gửi lên VMedia — đang xử lý.');
+        setProgress(result.pollResult?.error || formatAcceptedPendingMessage());
       } else if (result.pollResult?.timeout) {
         setError('Hết thời gian poll (~5 phút)');
       } else if (result.pollResult && !result.pollResult.success) {
