@@ -108,6 +108,10 @@ function storageKey(): string {
   return `qc_chat_model:${authUserKey()}`;
 }
 
+function chatPageStorageKey(): string {
+  return `chat_page_model:${authUserKey()}`;
+}
+
 export function loadQuickChatModelId(): string {
   try {
     const raw = localStorage.getItem(storageKey());
@@ -123,6 +127,26 @@ export function saveQuickChatModelId(modelId: string): void {
   try {
     if (!CHAT_AI_MODELS.some((m) => m.id === modelId && m.selectable)) return;
     localStorage.setItem(storageKey(), modelId);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadChatPageModelId(): string {
+  try {
+    const raw = localStorage.getItem(chatPageStorageKey());
+    if (raw && CHAT_AI_MODELS.some((m) => m.id === raw && m.selectable)) return raw;
+    if (raw) localStorage.removeItem(chatPageStorageKey());
+  } catch {
+    /* ignore */
+  }
+  return loadQuickChatModelId();
+}
+
+export function saveChatPageModelId(modelId: string): void {
+  try {
+    if (!CHAT_AI_MODELS.some((m) => m.id === modelId && m.selectable)) return;
+    localStorage.setItem(chatPageStorageKey(), modelId);
   } catch {
     /* ignore */
   }

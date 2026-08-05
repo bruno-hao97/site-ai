@@ -8,6 +8,7 @@ const en: TranslationMap = {
   'nav.video': 'Video',
   'nav.audio': 'Audio',
   'nav.music': 'Music',
+  'nav.chat': 'Chat',
   'nav.workflow': 'Workflow',
   'header.openMenu': 'Open menu',
   'header.pricing': 'Pricing',

@@ -34,6 +34,7 @@ import ApiPlaygroundPage from './pages/ApiPlaygroundPage';
 import DashboardPage from './pages/DashboardPage';
 import WalletPage from './pages/WalletPage';
 import PricingPage from './pages/PricingPage';
+import ChatPage from './pages/ChatPage';
 import AccountLayout from './pages/account/AccountLayout';
 import AccountSettingsPage from './pages/account/AccountSettingsPage';
 import AccountPromoPage from './pages/account/AccountPromoPage';
@@ -51,6 +52,7 @@ const MAIN_NAV: { to: string; labelKey: TranslationKey }[] = [
   { to: '/video', labelKey: 'nav.video' },
   { to: '/audio', labelKey: 'nav.audio' },
   { to: '/music', labelKey: 'nav.music' },
+  { to: '/chat', labelKey: 'nav.chat' },
   { to: '/workflow', labelKey: 'nav.workflow' },
 ];
 
@@ -175,18 +177,24 @@ function AppShell() {
   const BARE_PAGES = ['/', '/login', '/register'];
   const isBarePage = BARE_PAGES.includes(location.pathname);
   const isWorkflow = location.pathname === '/workflow';
+  const isChat = location.pathname === '/chat';
   const isFullBleed =
     location.pathname in STUDIO_NAV ||
     location.pathname === '/audio' ||
-    isWorkflow;
-  const hideHeader = isBarePage || isWorkflow;
-  const showQuickChat = isLoggedIn() && !isBarePage && !isWorkflow;
+    isWorkflow ||
+    isChat;
+  const hideHeader = isBarePage || isWorkflow || isChat;
+  const showQuickChat = isLoggedIn() && !isBarePage && !isWorkflow && !isChat;
 
   return (
     <div className={isBarePage ? '' : 'app'}>
       {!hideHeader && <AppHeader />}
       <main
-        className={isBarePage ? '' : `app-main ${isFullBleed ? 'app-main-full' : ''} ${isWorkflow ? 'app-main-workflow' : ''}`}
+        className={
+          isBarePage
+            ? ''
+            : `app-main ${isFullBleed ? 'app-main-full' : ''} ${isWorkflow ? 'app-main-workflow' : ''} ${isChat ? 'app-main-chat' : ''}`
+        }
       >
         <Routes>
           <Route path="/" element={<LandingPage />} />
@@ -196,6 +204,7 @@ function AppShell() {
             <Route path="/home" element={<HomePage />} />
             <Route path="/explore" element={<ExplorePage />} />
             <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/chat" element={<ChatPage />} />
             <Route path="/workflow" element={<WorkflowPage />} />
             <Route path="/audio" element={<AudioPage />} />
             {Object.entries(STUDIO_NAV).map(([path, type]) => (

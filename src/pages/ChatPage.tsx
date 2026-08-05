@@ -1,0 +1,474 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import ChatAiModelPickerModal from '../components/ChatAiModelPickerModal';
+import ChatSidebar from '../components/chat/ChatSidebar';
+import ChatTopBar from '../components/chat/ChatTopBar';
+import ChatHero from '../components/chat/ChatHero';
+import ChatCompose, { type ChatAttachmentPreview } from '../components/chat/ChatCompose';
+import ChatSuggestions from '../components/chat/ChatSuggestions';
+import ChatMessageList from '../components/chat/ChatMessageList';
+import ChatMarketplaceStrip from '../components/chat/ChatMarketplaceStrip';
+import { askGommo, isGommoChatConfigured, type ChatAttachment, type ChatTurn } from '../services/gommoChat';
+import {
+  loadChatPageModelId,
+  resolveChatAiModel,
+  saveChatPageModelId,
+} from '../services/chatAiModels';
+import {
+  loadChatPageAgentId,
+  resolveChatAgent,
+} from '../services/chatAgents';
+import { resolveQuickChatContext } from '../services/quickChatContext';
+import {
+  CHAT_MARKETPLACE_APPS,
+  CHAT_STUDIO_PROMPT_KEY,
+  CHAT_SUGGESTIONS,
+  MINI_APP_PROMPT_KEY,
+  type ChatActionPill,
+} from '../services/chatPageData';
+import { uploadQuickImage } from '../services/quickCreate';
+import { notifyCreditsUpdated, refreshSession, resolveProjectId } from '../services/authStore';
+import {
+  deleteChatSession,
+  deriveSessionTitle,
+  listChatSessions,
+  loadChatSession,
+  newChatMessageId,
+  newChatSessionId,
+  onChatSessionsUpdated,
+  saveChatSession,
+  type ChatMessage,
+  type ChatSessionSummary,
+} from '../services/chatSessionsLocal';
+
+type ChatView = 'landing' | 'thread';
+
+export default function ChatPage() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const [sessions, setSessions] = useState<ChatSessionSummary[]>(() => listChatSessions());
+  const [sessionId, setSessionId] = useState(() => newChatSessionId());
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [sessionTitle, setSessionTitle] = useState('Chat mới');
+  const [input, setInput] = useState('');
+  const [attachment, setAttachment] = useState<ChatAttachmentPreview | null>(null);
+  const [thinking, setThinking] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [modelId, setModelId] = useState(() => loadChatPageModelId());
+  const [agentId] = useState(() => loadChatPageAgentId());
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [errorBanner, setErrorBanner] = useState<string | null>(null);
+
+  const abortRef = useRef<AbortController | null>(null);
+  const selectedModel = resolveChatAiModel(modelId);
+  const selectedAgent = resolveChatAgent(agentId);
+  const chatCtx = resolveQuickChatContext('/chat');
+  const view: ChatView = messages.length === 0 ? 'landing' : 'thread';
+
+  const refreshSessions = useCallback(() => {
+    setSessions(listChatSessions());
+  }, []);
+
+  useEffect(() => {
+    document.title = sessionTitle === 'Chat mới' ? 'Chat · AGI Center' : `${sessionTitle} · Chat`;
+    return () => {
+      document.title = 'AGI Center';
+    };
+  }, [sessionTitle]);
+
+  useEffect(() => onChatSessionsUpdated(refreshSessions), [refreshSessions]);
+
+  const syncSessionUrl = useCallback(
+    (id: string, replace = false) => {
+      setSearchParams({ session: id }, { replace });
+    },
+    [setSearchParams],
+  );
+
+  const loadSessionById = useCallback(
+    (id: string, pushUrl = true) => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+      const data = loadChatSession(id);
+      if (!data) return false;
+      setSessionId(data.sessionId);
+      setMessages(data.messages);
+      setSessionTitle(data.title);
+      if (data.modelId) setModelId(data.modelId);
+      setInput('');
+      setAttachment(null);
+      setErrorBanner(null);
+      if (pushUrl) syncSessionUrl(id, true);
+      return true;
+    },
+    [syncSessionUrl],
+  );
+
+  useEffect(() => {
+    const urlSession = searchParams.get('session');
+    if (urlSession) {
+      loadSessionById(urlSession, false);
+    } else {
+      syncSessionUrl(sessionId, true);
+    }
+    const create = searchParams.get('create');
+    if (create !== 'mini_app') return;
+    try {
+      const prompt = sessionStorage.getItem(MINI_APP_PROMPT_KEY);
+      if (prompt) {
+        setInput(prompt);
+        sessionStorage.removeItem(MINI_APP_PROMPT_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('create');
+      return next;
+    }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (attachment?.url.startsWith('blob:')) URL.revokeObjectURL(attachment.url);
+    };
+  }, [attachment]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSidebarOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  const persistSession = useCallback(
+    (nextMessages: ChatMessage[], title?: string, midStream = false) => {
+      const titleToUse = title ?? sessionTitle;
+      saveChatSession({
+        sessionId,
+        title: titleToUse,
+        updatedAt: Date.now(),
+        messages: nextMessages,
+        modelId,
+        agentId,
+      });
+      if (!midStream) refreshSessions();
+    },
+    [sessionId, sessionTitle, modelId, agentId, refreshSessions],
+  );
+
+  const startNewChat = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    if (attachment?.url.startsWith('blob:')) URL.revokeObjectURL(attachment.url);
+    setAttachment(null);
+    setInput('');
+    setMessages([]);
+    setSessionTitle('Chat mới');
+    const id = newChatSessionId();
+    setSessionId(id);
+    setSidebarOpen(false);
+    setErrorBanner(null);
+    syncSessionUrl(id, true);
+  }, [attachment, syncSessionUrl]);
+
+  const handleDeleteSession = useCallback(
+    (id: string) => {
+      if (!window.confirm('Xóa cuộc trò chuyện này?')) return;
+      deleteChatSession(id);
+      if (id === sessionId) startNewChat();
+    },
+    [sessionId, startNewChat],
+  );
+
+  const patchAssistant = (id: string, content: string) => {
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, content } : m)));
+  };
+
+  const refreshCredits = async () => {
+    try {
+      await refreshSession();
+      notifyCreditsUpdated();
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const sendMessage = async (textOverride?: string) => {
+    const text = (textOverride ?? input).trim();
+    if ((!text && !attachment) || thinking || uploading) return;
+
+    if (!isGommoChatConfigured()) {
+      setErrorBanner('Bạn cần đăng nhập để dùng Chat AI.');
+      return;
+    }
+
+    setErrorBanner(null);
+    setInput('');
+    const previewUrl = attachment?.url;
+    const userMsg: ChatMessage = {
+      id: newChatMessageId(),
+      role: 'user',
+      content: text,
+      imageUrl: previewUrl,
+    };
+    const assistantId = newChatMessageId();
+    const isFirstTurn = messages.length === 0;
+    const nextTitle = isFirstTurn ? deriveSessionTitle(text || attachment?.name || 'Chat mới') : sessionTitle;
+    if (isFirstTurn) {
+      setSessionTitle(nextTitle);
+      syncSessionUrl(sessionId, true);
+    }
+
+    const history: ChatTurn[] = messages.map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      text: m.content,
+      attachments: m.imageUrl && !m.imageUrl.startsWith('blob:')
+        ? [{ type: 'image' as const, url: m.imageUrl }]
+        : undefined,
+    }));
+
+    let apiAttachments: ChatAttachment[] | undefined;
+    if (attachment?.file) {
+      try {
+        setUploading(true);
+        const cdnUrl = await uploadQuickImage(attachment.file);
+        if (!cdnUrl) throw new Error('Không upload được ảnh.');
+        apiAttachments = [
+          {
+            type: 'image',
+            url: cdnUrl,
+            name: attachment.name,
+            mime_type: attachment.file.type,
+          },
+        ];
+        userMsg.imageUrl = cdnUrl;
+      } catch (err) {
+        setUploading(false);
+        const msg = err instanceof Error ? err.message : String(err);
+        setErrorBanner(`Lỗi upload ảnh: ${msg}`);
+        setInput(text);
+        return;
+      } finally {
+        setUploading(false);
+      }
+    } else if (attachment?.url && !attachment.url.startsWith('blob:')) {
+      apiAttachments = [{ type: 'image', url: attachment.url, name: attachment.name }];
+    }
+
+    const nextMessages: ChatMessage[] = [
+      ...messages,
+      userMsg,
+      { id: assistantId, role: 'assistant', content: '' },
+    ];
+    setMessages(nextMessages);
+    persistSession(nextMessages, nextTitle, true);
+
+    if (attachment?.url.startsWith('blob:')) URL.revokeObjectURL(attachment.url);
+    setAttachment(null);
+
+    const ac = new AbortController();
+    abortRef.current = ac;
+    setThinking(true);
+
+    let acc = '';
+    try {
+      await askGommo(text || 'Mô tả ảnh này giúp tôi.', {
+        history,
+        firstTurn: isFirstTurn,
+        sessionId,
+        attachments: apiAttachments,
+        signal: ac.signal,
+        config: {
+          model: selectedModel.model,
+          server: selectedModel.server,
+          agentId: selectedAgent.agentId,
+          projectId: resolveProjectId(),
+          systemPrompt: chatCtx.systemPrompt,
+        },
+        onDelta: (chunk) => {
+          acc += chunk;
+          patchAssistant(assistantId, acc);
+        },
+      });
+      if (!acc.trim()) patchAssistant(assistantId, '(Không có nội dung trả lời.)');
+      const finalMessages = nextMessages.map((m) =>
+        m.id === assistantId ? { ...m, content: acc.trim() || '(Không có nội dung trả lời.)' } : m,
+      );
+      persistSession(finalMessages, nextTitle);
+      void refreshCredits();
+    } catch (err) {
+      if (ac.signal.aborted) {
+        const partial = acc.trim() || '(Đã dừng.)';
+        patchAssistant(assistantId, partial);
+        persistSession(
+          nextMessages.map((m) => (m.id === assistantId ? { ...m, content: partial } : m)),
+          nextTitle,
+        );
+      } else {
+        const msg = err instanceof Error ? err.message : String(err);
+        patchAssistant(assistantId, `⚠️ Lỗi: ${msg}`);
+        setErrorBanner(msg);
+        persistSession(
+          nextMessages.map((m) => (m.id === assistantId ? { ...m, content: `⚠️ Lỗi: ${msg}` } : m)),
+          nextTitle,
+        );
+      }
+    } finally {
+      setThinking(false);
+      abortRef.current = null;
+    }
+  };
+
+  const onPickFile = (file: File | null) => {
+    if (!file) return;
+    if (attachment?.url.startsWith('blob:')) URL.revokeObjectURL(attachment.url);
+    setAttachment({ url: URL.createObjectURL(file), name: file.name, file });
+  };
+
+  const onRemoveAttachment = () => {
+    if (attachment?.url.startsWith('blob:')) URL.revokeObjectURL(attachment.url);
+    setAttachment(null);
+  };
+
+  const onSelectModel = (id: string) => {
+    setModelId(id);
+    saveChatPageModelId(id);
+  };
+
+  const handleShare = async () => {
+    const url = `${window.location.origin}/chat?session=${encodeURIComponent(sessionId)}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: sessionTitle, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        setErrorBanner(null);
+        window.alert('Đã sao chép link cuộc trò chuyện.');
+      }
+    } catch {
+      /* cancelled */
+    }
+  };
+
+  const handleActionPill = (pill: ChatActionPill) => {
+    const prompt = pill.prompt ?? '';
+    if (pill.route) {
+      try {
+        sessionStorage.setItem(CHAT_STUDIO_PROMPT_KEY, input.trim() || prompt);
+      } catch {
+        /* ignore */
+      }
+      navigate(pill.route);
+      return;
+    }
+    setInput(prompt + input);
+    textareaFocus();
+  };
+
+  const textareaFocus = () => {
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLTextAreaElement>('.chat-compose-input')?.focus();
+    });
+  };
+
+  const handleMarketplaceApp = (appId: string) => {
+    const app = CHAT_MARKETPLACE_APPS.find((a) => a.id === appId);
+    setInput(
+      app
+        ? `Hướng dẫn tôi dùng mini app "${app.title}": ${app.description}`
+        : `Hướng dẫn tôi dùng mini app "${appId}".`,
+    );
+    textareaFocus();
+  };
+
+  return (
+    <div className="chat-page">
+      <ChatSidebar
+        sessions={sessions}
+        activeSessionId={sessionId}
+        agentId={agentId}
+        onSelectSession={(id) => loadSessionById(id)}
+        onNewChat={startNewChat}
+        onDeleteSession={handleDeleteSession}
+        mobileOpen={sidebarOpen}
+        onCloseMobile={() => setSidebarOpen(false)}
+      />
+
+      <div className="chat-main">
+        <ChatTopBar
+          model={selectedModel}
+          agent={selectedAgent}
+          sessionTitle={sessionTitle}
+          onOpenModelPicker={() => setModelPickerOpen(true)}
+          onNewChat={startNewChat}
+          onOpenSidebar={() => setSidebarOpen(true)}
+          onShare={handleShare}
+        />
+
+        {errorBanner && (
+          <div className="chat-error-banner" role="alert">
+            {errorBanner}
+            <button type="button" onClick={() => setErrorBanner(null)} aria-label="Đóng">
+              ×
+            </button>
+          </div>
+        )}
+
+        {view === 'landing' ? (
+          <div className="chat-landing">
+            <ChatHero model={selectedModel} />
+            <ChatCompose
+              value={input}
+              onChange={setInput}
+              attachment={attachment}
+              onPickFile={onPickFile}
+              onRemoveAttachment={onRemoveAttachment}
+              onSend={() => void sendMessage()}
+              onStop={() => abortRef.current?.abort()}
+              onActionPill={handleActionPill}
+              thinking={thinking}
+              uploading={uploading}
+            />
+            <ChatSuggestions
+              suggestions={CHAT_SUGGESTIONS}
+              onSelect={(prompt) => void sendMessage(prompt)}
+              onFill={setInput}
+              disabled={thinking || uploading}
+            />
+            <ChatMarketplaceStrip onOpenApp={handleMarketplaceApp} />
+          </div>
+        ) : (
+          <div className="chat-thread">
+            <ChatMessageList messages={messages} thinking={thinking} />
+            <ChatCompose
+              value={input}
+              onChange={setInput}
+              attachment={attachment}
+              onPickFile={onPickFile}
+              onRemoveAttachment={onRemoveAttachment}
+              onSend={() => void sendMessage()}
+              onStop={() => abortRef.current?.abort()}
+              onActionPill={handleActionPill}
+              thinking={thinking}
+              uploading={uploading}
+              compact
+            />
+          </div>
+        )}
+      </div>
+
+      <ChatAiModelPickerModal
+        open={modelPickerOpen}
+        selectedId={modelId}
+        onSelect={onSelectModel}
+        onClose={() => setModelPickerOpen(false)}
+      />
+    </div>
+  );
+}

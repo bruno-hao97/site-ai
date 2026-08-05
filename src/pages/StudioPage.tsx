@@ -62,6 +62,7 @@ import {
   notifyCreditsUpdated,
   refreshSession,
 } from '../services/authStore';
+import { consumeChatStudioPrompt } from '../services/chatPageData';
 
 import {
   addLocalJob,
@@ -1236,6 +1237,12 @@ export default function StudioPage({
   function updateSelection<K extends keyof JobSelections>(key: K, value: JobSelections[K]) {
     setSelections((s) => ({ ...s, [key]: value }));
   }
+
+  useEffect(() => {
+    const fromChat = consumeChatStudioPrompt();
+    if (fromChat) updateSelection('prompt', fromChat);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function updateUrlList(key: 'images' | 'references' | 'subjects', index: number, value: string) {
     setSelections((s) => {

@@ -8,6 +8,7 @@ const vi: TranslationMap = {
   'nav.video': 'Video',
   'nav.audio': 'Giọng nói',
   'nav.music': 'Nhạc',
+  'nav.chat': 'Chat',
   'nav.workflow': 'Workflow',
   'header.openMenu': 'Mở menu',
   'header.pricing': 'Bảng giá',

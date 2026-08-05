@@ -2,9 +2,17 @@ import { loadAuth } from './authStore';
 import { DEFAULT_DOMAIN } from './settingsStore';
 import { GOMMO_CHAT_CONFIG, type GommoChatConfig } from './gommoChatConfig';
 
+export interface ChatAttachment {
+  type: 'image';
+  url: string;
+  name?: string;
+  mime_type?: string;
+}
+
 export interface ChatTurn {
   role: 'user' | 'model';
   text: string;
+  attachments?: ChatAttachment[];
 }
 
 export interface AskOptions {
@@ -16,6 +24,8 @@ export interface AskOptions {
   sessionId: string;
   /** Snapshot JSON graph hiện tại (gửi kèm cho model). */
   workflowSnapshot?: string;
+  /** Ảnh đính kèm lượt hiện tại (CDN URL, không blob). */
+  attachments?: ChatAttachment[];
   onDelta?: (chunk: string) => void;
   signal?: AbortSignal;
   config?: Partial<GommoChatConfig>;
@@ -37,9 +47,23 @@ function uuid(): string {
   });
 }
 
+function serializeAttachments(attachments?: ChatAttachment[]): ChatAttachment[] {
+  if (!attachments?.length) return [];
+  return attachments.map((a) => ({
+    type: 'image' as const,
+    url: a.url,
+    ...(a.name ? { name: a.name } : {}),
+    ...(a.mime_type ? { mime_type: a.mime_type } : {}),
+  }));
+}
+
 function serializeMessages(history: ChatTurn[]): string {
   return JSON.stringify(
-    history.map((t) => ({ role: t.role, text: t.text, attachments: [] })),
+    history.map((t) => ({
+      role: t.role,
+      text: t.text,
+      attachments: serializeAttachments(t.attachments),
+    })),
   );
 }
 
@@ -48,7 +72,14 @@ async function saveMessage(
   cfg: GommoChatConfig,
   token: string,
   domain: string,
-  args: { messageId: string; sessionId: string; role: 'user' | 'model'; text: string; metadata: Record<string, unknown> },
+  args: {
+    messageId: string;
+    sessionId: string;
+    role: 'user' | 'model';
+    text: string;
+    attachments?: ChatAttachment[];
+    metadata: Record<string, unknown>;
+  },
 ): Promise<void> {
   try {
     const form = new URLSearchParams();
@@ -59,7 +90,7 @@ async function saveMessage(
     form.set('session_id', args.sessionId);
     form.set('role', args.role);
     form.set('text', args.text);
-    form.set('attachments', '[]');
+    form.set('attachments', JSON.stringify(serializeAttachments(args.attachments)));
     form.set('timestamp', String(Date.now()));
     form.set('metadata', JSON.stringify(args.metadata));
     form.set('device_id', cfg.deviceId);
@@ -99,7 +130,11 @@ export async function askGommo(userText: string, opts: AskOptions): Promise<stri
     userText +
     snapshotBlock;
 
-  const fullHistory: ChatTurn[] = [...opts.history, { role: 'user', text: sendText }];
+  const userAttachments = serializeAttachments(opts.attachments);
+  const fullHistory: ChatTurn[] = [
+    ...opts.history,
+    { role: 'user', text: sendText, attachments: userAttachments.length ? userAttachments : undefined },
+  ];
 
   // Timeout: linked abort + tự hủy sau timeoutMs.
   const ac = new AbortController();
@@ -114,6 +149,7 @@ export async function askGommo(userText: string, opts: AskOptions): Promise<stri
         sessionId: opts.sessionId,
         role: 'user',
         text: userText,
+        attachments: userAttachments.length ? userAttachments : undefined,
         metadata: { version: 1 },
       });
     }

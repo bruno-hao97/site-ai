@@ -7,6 +7,7 @@ export type QuickChatContextId =
   | 'video'
   | 'audio'
   | 'music'
+  | 'chat'
   | 'general';
 
 export interface QuickChatContext {
@@ -19,11 +20,21 @@ export interface QuickChatContext {
   systemPrompt: string;
 }
 
-const BRAND_RULES =
+/** System prompt thương hiệu dùng cho trang Chat (/chat). */
+export const CHAT_BRAND_IDENTITY =
   `Bạn là trợ lý AI của ${SITE_BRAND_LABEL} (Trung tâm AI).\n` +
   'Trả lời bằng tiếng Việt, rõ ràng, hữu ích.\n' +
   'KHÔNG tự xưng Moonix, Moon Agent, VMedia, vmedia.ai hay bất kỳ thương hiệu upstream nào.\n' +
   `Khi giới thiệu bản thân, chỉ nói bạn là trợ lý AI của ${SITE_BRAND_LABEL}.\n`;
+
+const BRAND_RULES = CHAT_BRAND_IDENTITY;
+
+const CHAT_PAGE_PROMPT =
+  CHAT_BRAND_IDENTITY +
+  'Bạn là trợ lý chat chính của nền tảng — hỗ trợ hỏi đáp, viết prompt, gợi ý workflow, so sánh model AI.\n' +
+  'Trả lời súc tích, thân thiện, có thể dùng markdown nhẹ (danh sách, bold) khi cần.\n' +
+  'KHÔNG giả vờ đang chỉnh canvas workflow trừ khi người dùng hỏi về workflow.\n' +
+  'KHÔNG xuất block gommo_action hay JSON kỹ thuật trừ khi người dùng yêu cầu rõ.';
 
 const GENERAL_PROMPT =
   BRAND_RULES +
@@ -101,6 +112,14 @@ const CONTEXTS: Record<QuickChatContextId, QuickChatContext> = {
     emptyHint: 'Hỏi về mood, genre hoặc gen nhạc.',
     systemPrompt: MUSIC_PROMPT,
   },
+  chat: {
+    id: 'chat',
+    label: 'Chat',
+    subtitle: SITE_BRAND_LABEL,
+    placeholder: 'Bạn muốn hỏi điều gì…',
+    emptyHint: 'Bạn muốn hỏi điều gì hôm nay?',
+    systemPrompt: CHAT_PAGE_PROMPT,
+  },
   general: {
     id: 'general',
     label: 'Chat',
@@ -113,6 +132,7 @@ const CONTEXTS: Record<QuickChatContextId, QuickChatContext> = {
 
 /** Map pathname → ngữ cảnh chat. */
 export function resolveQuickChatContext(pathname: string): QuickChatContext {
+  if (pathname === '/chat') return CONTEXTS.chat;
   if (pathname === '/workflow') return CONTEXTS.workflow;
   if (pathname === '/image') return CONTEXTS.image;
   if (pathname === '/video') return CONTEXTS.video;

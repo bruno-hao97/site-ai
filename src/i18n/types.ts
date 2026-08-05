@@ -8,6 +8,7 @@ export type TranslationKey =
   | 'nav.video'
   | 'nav.audio'
   | 'nav.music'
+  | 'nav.chat'
   | 'nav.workflow'
   | 'header.openMenu'
   | 'header.pricing'
