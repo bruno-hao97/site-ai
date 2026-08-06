@@ -12,15 +12,6 @@ export interface ChatActionPill {
   prompt?: string;
 }
 
-export interface ChatMarketplaceApp {
-  id: string;
-  title: string;
-  description: string;
-  rating: number;
-  free: boolean;
-  accent: string;
-}
-
 export const CHAT_SUGGESTIONS: ChatSuggestion[] = [
   {
     id: 'chatbot-script',
@@ -54,42 +45,6 @@ export const CHAT_ACTION_PILLS: ChatActionPill[] = [
   { id: 'workflow', label: 'Workflow', route: '/workflow', prompt: 'Tạo workflow: ' },
   { id: 'code', label: 'Code', prompt: 'Giúp tôi viết code: ' },
   { id: 'design', label: 'Design', prompt: 'Gợi ý thiết kế UI/UX: ' },
-];
-
-/** Mock marketplace — thay bằng miniApps API khi có. */
-export const CHAT_MARKETPLACE_APPS: ChatMarketplaceApp[] = [
-  {
-    id: 'storyboard',
-    title: 'AI Storyboard Director',
-    description: 'Biến ý tưởng thành storyboard từng cảnh.',
-    rating: 5.0,
-    free: true,
-    accent: '#6366f1',
-  },
-  {
-    id: 'copywriter',
-    title: 'Copywriter Pro',
-    description: 'Viết caption, ads và email marketing.',
-    rating: 4.9,
-    free: true,
-    accent: '#ec4899',
-  },
-  {
-    id: 'code-review',
-    title: 'Code Review Buddy',
-    description: 'Review PR và gợi ý refactor nhanh.',
-    rating: 4.8,
-    free: true,
-    accent: '#14b8a6',
-  },
-  {
-    id: 'brand-kit',
-    title: 'Brand Kit Generator',
-    description: 'Sinh palette, font pairing và tone of voice.',
-    rating: 4.7,
-    free: true,
-    accent: '#f59e0b',
-  },
 ];
 
 /** Key sessionStorage cho deep link ?create=mini_app */

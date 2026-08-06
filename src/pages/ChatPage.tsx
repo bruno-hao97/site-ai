@@ -8,6 +8,7 @@ import ChatCompose, { type ChatAttachmentPreview } from '../components/chat/Chat
 import ChatSuggestions from '../components/chat/ChatSuggestions';
 import ChatMessageList from '../components/chat/ChatMessageList';
 import ChatMarketplaceStrip from '../components/chat/ChatMarketplaceStrip';
+import ChatMarketsModal from '../components/chat/ChatMarketsModal';
 import { askGommo, isGommoChatConfigured, type ChatAttachment, type ChatTurn } from '../services/gommoChat';
 import {
   loadChatPageModelId,
@@ -20,12 +21,12 @@ import {
 } from '../services/chatAgents';
 import { resolveQuickChatContext } from '../services/quickChatContext';
 import {
-  CHAT_MARKETPLACE_APPS,
   CHAT_STUDIO_PROMPT_KEY,
   CHAT_SUGGESTIONS,
   MINI_APP_PROMPT_KEY,
   type ChatActionPill,
 } from '../services/chatPageData';
+import { fetchMiniAppInfo, type MarketplaceApp } from '../services/miniAppsApi';
 import { uploadQuickImage } from '../services/quickCreate';
 import { notifyCreditsUpdated, refreshSession, resolveProjectId } from '../services/authStore';
 import {
@@ -58,6 +59,7 @@ export default function ChatPage() {
   const [modelId, setModelId] = useState(() => loadChatPageModelId());
   const [agentId] = useState(() => loadChatPageAgentId());
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [marketsOpen, setMarketsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
 
@@ -131,6 +133,35 @@ export default function ChatPage() {
     }, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const miniAppId = searchParams.get('mini_app')?.trim();
+    if (!miniAppId) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const app = await fetchMiniAppInfo(miniAppId);
+        if (cancelled) return;
+        setInput(
+          app.description
+            ? `Hướng dẫn tôi dùng mini app "${app.name}": ${app.description}`
+            : `Hướng dẫn tôi dùng mini app "${app.name}".`,
+        );
+      } catch {
+        if (!cancelled) setInput(`Hướng dẫn tôi dùng mini app "${miniAppId}".`);
+      }
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('mini_app');
+        return next;
+      }, { replace: true });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     return () => {
@@ -377,12 +408,11 @@ export default function ChatPage() {
     });
   };
 
-  const handleMarketplaceApp = (appId: string) => {
-    const app = CHAT_MARKETPLACE_APPS.find((a) => a.id === appId);
+  const handleMarketplaceApp = (app: MarketplaceApp) => {
     setInput(
-      app
+      app.description
         ? `Hướng dẫn tôi dùng mini app "${app.title}": ${app.description}`
-        : `Hướng dẫn tôi dùng mini app "${appId}".`,
+        : `Hướng dẫn tôi dùng mini app "${app.title}".`,
     );
     textareaFocus();
   };
@@ -441,7 +471,10 @@ export default function ChatPage() {
               onFill={setInput}
               disabled={thinking || uploading}
             />
-            <ChatMarketplaceStrip onOpenApp={handleMarketplaceApp} />
+            <ChatMarketplaceStrip
+              onOpenApp={handleMarketplaceApp}
+              onViewAll={() => setMarketsOpen(true)}
+            />
           </div>
         ) : (
           <div className="chat-thread">
@@ -468,6 +501,12 @@ export default function ChatPage() {
         selectedId={modelId}
         onSelect={onSelectModel}
         onClose={() => setModelPickerOpen(false)}
+      />
+
+      <ChatMarketsModal
+        open={marketsOpen}
+        onClose={() => setMarketsOpen(false)}
+        onOpenApp={handleMarketplaceApp}
       />
     </div>
   );
