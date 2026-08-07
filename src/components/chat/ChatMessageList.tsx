@@ -1,8 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Bot } from 'lucide-react';
 import type { ChatMessage } from '../../services/chatSessionsLocal';
-import { rebrandSiteText } from '../../services/siteConfig';
-import { renderChatMarkdown } from './chatMarkdown';
+import { stripChatDisplayText } from '../../services/chatSanitize';
 
 interface Props {
   messages: ChatMessage[];
@@ -20,7 +19,7 @@ export default function ChatMessageList({ messages, thinking }: Props) {
     <div className="chat-message-list" ref={listRef}>
       {messages.map((m) => {
         const shown =
-          m.role === 'assistant' ? rebrandSiteText(m.content) : m.content;
+          m.role === 'assistant' ? stripChatDisplayText(m.content) : m.content;
         const streaming = m.role === 'assistant' && !m.content && thinking;
         return (
           <div key={m.id} className={`chat-message chat-message--${m.role}`}>
@@ -41,7 +40,12 @@ export default function ChatMessageList({ messages, thinking }: Props) {
                 </span>
               ) : (
                 <span className="chat-message-text">
-                  {m.role === 'assistant' ? renderChatMarkdown(shown) : shown}
+                  {shown.split('\n').map((line, i, arr) => (
+                    <span key={i}>
+                      {line}
+                      {i < arr.length - 1 && <br />}
+                    </span>
+                  ))}
                 </span>
               )}
             </div>

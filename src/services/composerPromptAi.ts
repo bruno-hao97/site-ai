@@ -1,5 +1,6 @@
 import type { JobType } from './api';
 import { askGommo, isGommoChatConfigured } from './gommoChat';
+import { WORKFLOW_CHAT_CONFIG } from './gommoChatConfig';
 import { parseShotsFromText, type ComposerShot } from './composerShots';
 
 const ENHANCE_SYSTEM =
@@ -56,6 +57,7 @@ async function callComposerAi(
     sessionId: crypto.randomUUID(),
     signal: opts?.signal,
     config: {
+      ...WORKFLOW_CHAT_CONFIG,
       systemPrompt: system,
       persistHistory: false,
       timeoutMs: action === 'shots' ? 120_000 : 90_000,

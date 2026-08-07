@@ -1,6 +1,7 @@
 import { parseShotsFromText, type ComposerShot } from './composerShots';
 import { canUseComposerPromptAi } from './composerPromptAi';
 import { askGommo, isGommoChatConfigured, type ChatTurn } from './gommoChat';
+import { WORKFLOW_CHAT_CONFIG } from './gommoChatConfig';
 
 export const VIDEO_AGENT_WELCOME =
   'Tôi là **Video Agent** (Gemini). Hãy mô tả ý tưởng video — tôi sẽ phân tích và soạn **kịch bản / prompt** (1 cảnh hoặc nhiều cảnh).\n\n' +
@@ -71,6 +72,7 @@ export async function askVideoAgent(
     signal: opts.signal,
     onDelta: opts.onDelta,
     config: {
+      ...WORKFLOW_CHAT_CONFIG,
       systemPrompt: VIDEO_AGENT_SYSTEM,
       persistHistory: false,
       timeoutMs: 120_000,

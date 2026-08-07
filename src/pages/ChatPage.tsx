@@ -28,7 +28,11 @@ import {
 } from '../services/chatPageData';
 import { fetchMiniAppInfo, type MarketplaceApp } from '../services/miniAppsApi';
 import { uploadQuickImage } from '../services/quickCreate';
-import { notifyCreditsUpdated, refreshSession, resolveProjectId } from '../services/authStore';
+import { notifyCreditsUpdated, refreshSession } from '../services/authStore';
+import {
+  MOON_CHAT_AGENT_ID,
+  MOON_CHAT_PROJECT_ID,
+} from '../services/gommoChatConfig';
 import {
   deleteChatSession,
   deriveSessionTitle,
@@ -309,7 +313,7 @@ export default function ChatPage() {
 
     let acc = '';
     try {
-      await askGommo(text || 'Mô tả ảnh này giúp tôi.', {
+      acc = await askGommo(text || 'Mô tả ảnh này giúp tôi.', {
         history,
         firstTurn: isFirstTurn,
         sessionId,
@@ -318,18 +322,19 @@ export default function ChatPage() {
         config: {
           model: selectedModel.model,
           server: selectedModel.server,
-          agentId: selectedAgent.agentId,
-          projectId: resolveProjectId(),
+          agentId: selectedAgent.agentId || MOON_CHAT_AGENT_ID,
+          projectId: MOON_CHAT_PROJECT_ID,
+          chatApiMode: apiAttachments?.length ? 'stream' : 'agent',
           systemPrompt: chatCtx.systemPrompt,
         },
-        onDelta: (chunk) => {
-          acc += chunk;
-          patchAssistant(assistantId, acc);
+        onDelta: (display) => {
+          acc = display;
+          patchAssistant(assistantId, display);
         },
       });
-      if (!acc.trim()) patchAssistant(assistantId, '(Không có nội dung trả lời.)');
+      patchAssistant(assistantId, acc);
       const finalMessages = nextMessages.map((m) =>
-        m.id === assistantId ? { ...m, content: acc.trim() || '(Không có nội dung trả lời.)' } : m,
+        m.id === assistantId ? { ...m, content: acc } : m,
       );
       persistSession(finalMessages, nextTitle);
       void refreshCredits();

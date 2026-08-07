@@ -1,5 +1,5 @@
 import { authUserKey } from './authStore';
-import { GOMMO_CHAT_CONFIG } from './gommoChatConfig';
+import { MOON_CHAT_AGENT_ID } from './gommoChatConfig';
 
 export interface ChatAgent {
   id: string;
@@ -8,12 +8,12 @@ export interface ChatAgent {
   description: string;
 }
 
-/** Agent chat mặc định — khớp Moon trên mockup. */
+/** Agent chat mặc định — Moon agent Gommo. */
 export const CHAT_AGENTS: ChatAgent[] = [
   {
     id: 'moon',
-    name: 'Moon',
-    agentId: GOMMO_CHAT_CONFIG.agentId,
+    name: 'Chat AI',
+    agentId: MOON_CHAT_AGENT_ID,
     description: 'Trợ lý AI đa năng',
   },
 ];

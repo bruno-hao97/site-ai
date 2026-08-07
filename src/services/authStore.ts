@@ -1,10 +1,12 @@
 import { GommoClient } from './api';
 import { fetchUpstreamMe, type UpstreamMeResponse } from './upstreamMe';
-import { GOMMO_CHAT_CONFIG } from './gommoChatConfig';
+import { WORKFLOW_CHAT_PROJECT_ID } from './gommoChatConfig';
 import { loadSettings, normalizeDomain, saveSettings } from './settingsStore';
 
 const SESSION_KEY = 'gommo_session';
 export const DEFAULT_PROJECT_ID = 'default';
+
+export { WORKFLOW_CHAT_PROJECT_ID };
 
 export interface AuthState {
   access_token: string;
@@ -36,7 +38,7 @@ export function resolveProjectId(override?: string): string {
     pickProjectId(override) ||
     pickProjectId(loadAuth()?.projectId) ||
     pickProjectId(loadSettings().projectId) ||
-    pickProjectId(GOMMO_CHAT_CONFIG.projectId) ||
+    pickProjectId(WORKFLOW_CHAT_PROJECT_ID) ||
     DEFAULT_PROJECT_ID
   );
 }

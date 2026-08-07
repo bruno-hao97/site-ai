@@ -7,6 +7,11 @@ import {
   resolveChatAiModel,
   saveQuickChatModelId,
 } from '../services/chatAiModels';
+import {
+  MOON_CHAT_AGENT_ID,
+  MOON_CHAT_PROJECT_ID,
+  WORKFLOW_CHAT_CONFIG,
+} from '../services/gommoChatConfig';
 import { resolveQuickChatContext } from '../services/quickChatContext';
 import { formatAgentDisplayContent } from '../services/agentDisplayContent';
 import { rebrandSiteText } from '../services/siteConfig';
@@ -137,23 +142,36 @@ export default function QuickChatWidget() {
     setAttachment(null);
     setThinking(true);
 
-    let acc = '';
-    try {
-      await askGommo(text || 'Mô tả ảnh này giúp tôi.', {
-        history,
-        firstTurn,
-        sessionId,
-        config: {
+    const isWorkflow = chatCtx.id === 'workflow';
+    const chatConfig = isWorkflow
+      ? {
+          ...WORKFLOW_CHAT_CONFIG,
           model: chatModel.model,
           server: chatModel.server,
           systemPrompt: chatCtx.systemPrompt,
-        },
-        onDelta: (chunk) => {
-          acc += chunk;
-          patchAssistant(assistantId, acc);
+        }
+      : {
+          model: chatModel.model,
+          server: chatModel.server,
+          agentId: MOON_CHAT_AGENT_ID,
+          projectId: MOON_CHAT_PROJECT_ID,
+          chatApiMode: 'agent' as const,
+          systemPrompt: chatCtx.systemPrompt,
+        };
+
+    let acc = '';
+    try {
+      acc = await askGommo(text || 'Mô tả ảnh này giúp tôi.', {
+        history,
+        firstTurn,
+        sessionId,
+        config: chatConfig,
+        onDelta: (display) => {
+          acc = display;
+          patchAssistant(assistantId, display);
         },
       });
-      if (!acc.trim()) patchAssistant(assistantId, '(Không có nội dung trả về.)');
+      patchAssistant(assistantId, acc);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       patchAssistant(assistantId, `⚠️ Lỗi: ${msg}`);

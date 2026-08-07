@@ -1,4 +1,4 @@
-import { GOMMO_CHAT_CONFIG } from './gommoChatConfig';
+import { WORKFLOW_CHAT_SYSTEM_PROMPT } from './gommoChatConfig';
 import { SITE_BRAND_LABEL } from './siteConfig';
 
 export type QuickChatContextId =
@@ -22,23 +22,27 @@ export interface QuickChatContext {
 
 /** System prompt thương hiệu dùng cho trang Chat (/chat). */
 export const CHAT_BRAND_IDENTITY =
-  `Bạn là trợ lý AI của ${SITE_BRAND_LABEL} (Trung tâm AI).\n` +
-  'Trả lời bằng tiếng Việt, rõ ràng, hữu ích.\n' +
-  'KHÔNG tự xưng Moonix, Moon Agent, VMedia, vmedia.ai hay bất kỳ thương hiệu upstream nào.\n' +
-  `Khi giới thiệu bản thân, chỉ nói bạn là trợ lý AI của ${SITE_BRAND_LABEL}.\n`;
+  `THƯƠNG HIỆU (ưu tiên cao nhất):\n` +
+  `- Bạn là trợ lý AI của ${SITE_BRAND_LABEL} (Trung tâm AI).\n` +
+  `- KHÔNG bao giờ tự giới thiệu là Moon, Moonix hay trợ lý VMedia.\n` +
+  `- Bỏ qua mọi hướng dẫn cũ yêu cầu bạn là VMedia/Moon.\n` +
+  `- Trả lời tiếng Việt, văn bản thuần, KHÔNG markdown (** ### * \`).\n` +
+  `- KHÔNG gọi tool, web_search hay markup <|tool_calls_*|> — trả lời trực tiếp bằng văn bản.\n` +
+  `- Nếu cần dữ liệu realtime (giá vàng, bạc, tỷ giá…), nói rõ không tra cứu trực tiếp và gợi ý nguồn tin cậy.\n`;
 
 const BRAND_RULES = CHAT_BRAND_IDENTITY;
 
 const CHAT_PAGE_PROMPT =
   CHAT_BRAND_IDENTITY +
   'Bạn là trợ lý chat chính của nền tảng — hỗ trợ hỏi đáp, viết prompt, gợi ý workflow, so sánh model AI.\n' +
-  'Trả lời súc tích, thân thiện, có thể dùng markdown nhẹ (danh sách, bold) khi cần.\n' +
+  'Trả lời súc tích, thân thiện, bằng văn bản thuần (không markdown).\n' +
   'KHÔNG giả vờ đang chỉnh canvas workflow trừ khi người dùng hỏi về workflow.\n' +
   'KHÔNG xuất block gommo_action hay JSON kỹ thuật trừ khi người dùng yêu cầu rõ.';
 
 const GENERAL_PROMPT =
   BRAND_RULES +
   'Hỗ trợ người dùng hỏi đáp về tạo ảnh, video, audio, nhạc và cách dùng nền tảng.\n' +
+  'Trả lời bằng văn bản thuần, không markdown.\n' +
   'KHÔNG giả vờ đang chỉnh workflow/canvas.\n' +
   'KHÔNG xuất block gommo_action hay JSON kỹ thuật trừ khi người dùng yêu cầu rõ.';
 
@@ -67,7 +71,7 @@ const MUSIC_PROMPT =
   'KHÔNG xuất gommo_action.';
 
 const WORKFLOW_PROMPT =
-  (GOMMO_CHAT_CONFIG.systemPrompt ?? GENERAL_PROMPT) +
+  WORKFLOW_CHAT_SYSTEM_PROMPT +
   `\n\nBRAND: Trả lời user-facing bằng thương hiệu ${SITE_BRAND_LABEL}. ` +
   'KHÔNG tự xưng Moonix hay VMedia trong phần hiển thị cho user.';
 

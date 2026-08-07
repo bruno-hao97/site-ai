@@ -22,6 +22,7 @@ import {
   type AgentMessage,
   type AgentState,
 } from '../../services/workflowAgentStore';
+import { WORKFLOW_CHAT_CONFIG } from '../../services/gommoChatConfig';
 import { askGommo, isGommoChatConfigured, type ChatTurn } from '../../services/gommoChat';
 import {
   applyWorkflowActions,
@@ -143,15 +144,19 @@ export default function WorkflowAgentPanel({
     let acc = '';
     const chatModel = resolveAgentChatModel(state.chatModelId);
     try {
-      await askGommo(text, {
+      acc = await askGommo(text, {
         history,
         firstTurn,
         sessionId: session.id,
         workflowSnapshot: snapshot,
-        config: { model: chatModel.model, server: chatModel.server },
-        onDelta: (chunk) => {
-          acc += chunk;
-          patchAssistant(session.id, assistantMsg.id, { content: acc });
+        config: {
+          ...WORKFLOW_CHAT_CONFIG,
+          model: chatModel.model,
+          server: chatModel.server,
+        },
+        onDelta: (display) => {
+          acc = display;
+          patchAssistant(session.id, assistantMsg.id, { content: display });
         },
       });
 

@@ -143,6 +143,7 @@ import {
 } from '../services/workflowIoPorts';
 import { runImageUpscale } from '../services/imageUpscale';
 import { askGommo, isGommoChatConfigured } from '../services/gommoChat';
+import { WORKFLOW_CHAT_CONFIG } from '../services/gommoChatConfig';
 import { formatAgentDisplayContent } from '../services/agentDisplayContent';
 import {
   AGENT_CHAT_MODELS,
@@ -2889,7 +2890,11 @@ function Flow() {
               sessionId: `wf-node-${node.id}`,
               workflowSnapshot: snapshot,
               signal,
-              config: { model: chatModel.model, server: chatModel.server },
+              config: {
+                ...WORKFLOW_CHAT_CONFIG,
+                model: chatModel.model,
+                server: chatModel.server,
+              },
               onDelta: () => updateNode(node.id, { statusText: 'Đang nhận phản hồi…' }),
             });
             const reply = formatAgentDisplayContent(raw) || raw.trim();
