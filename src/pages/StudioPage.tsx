@@ -1423,16 +1423,24 @@ export default function StudioPage({
       (!schema.fields.startFrame || inputMode === 'component')
     ) {
       const refs = (selections.subjects || []).filter(Boolean);
-      const imgC = refs.filter((u) => urlMediaKind(u) !== 'video').length;
-      const vidC = refs.filter((u) => urlMediaKind(u) === 'video').length;
-      const limits = getReferenceLimits(currentModel, schema, jobType);
-      if (imgC > limits.image) {
-        setError(`Quá nhiều ảnh tham chiếu (tối đa ${limits.image}).`);
-        return;
-      }
-      if (vidC > limits.video) {
-        setError(`Quá nhiều video tham chiếu (tối đa ${limits.video}).`);
-        return;
+      if (schema.fields.references) {
+        const imgC = refs.filter((u) => urlMediaKind(u) !== 'video').length;
+        const vidC = refs.filter((u) => urlMediaKind(u) === 'video').length;
+        const limits = getReferenceLimits(currentModel, schema, jobType);
+        if (imgC > limits.image) {
+          setError(`Quá nhiều ảnh tham chiếu (tối đa ${limits.image}).`);
+          return;
+        }
+        if (vidC > limits.video) {
+          setError(`Quá nhiều video tham chiếu (tối đa ${limits.video}).`);
+          return;
+        }
+      } else {
+        const max = schema.limits.maxSubject || 1;
+        if (refs.length > max) {
+          setError(`Quá nhiều ảnh nhân vật (tối đa ${max}).`);
+          return;
+        }
       }
     }
 
