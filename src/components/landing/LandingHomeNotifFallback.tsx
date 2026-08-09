@@ -1,4 +1,4 @@
-import { SITE_BRAND_LABEL } from '../../services/siteConfig';
+import { HOME_NOTIF_CONTACT, SITE_BRAND_LABEL } from '../../services/siteConfig';
 
 interface LandingHomeNotifFallbackProps {
   onClose?: () => void;
@@ -156,19 +156,19 @@ export default function LandingHomeNotifFallback({ onClose }: LandingHomeNotifFa
           }}
         >
           <ActionTile
-            href="https://zalo.me/g/kvofaugxbrfpliv2fdbm"
+            href={HOME_NOTIF_CONTACT.zaloGroup}
             name="Nhóm Zalo"
             sub="Cộng đồng hỗ trợ"
             tone="zalo"
           />
           <ActionTile
-            href="https://zalo.me/0862809999"
+            href={HOME_NOTIF_CONTACT.zaloSupport}
             name="Zalo hỗ trợ"
-            sub="0862 809 999"
+            sub={HOME_NOTIF_CONTACT.zaloSupportLabel}
             tone="help"
           />
           <ActionTile
-            href="https://facebook.com"
+            href={HOME_NOTIF_CONTACT.facebook}
             name="Fanpage"
             sub="Tin tức & cập nhật"
             tone="facebook"

@@ -5,6 +5,14 @@ import { GOMMO_AUTH_PATH } from './upstreamMe';
 export const SITE_BRAND_LABEL = 'trungtamai.vn';
 export const SITE_PUBLIC_URL = 'https://trungtamai.vn';
 
+/** Liên hệ chính thức — popup home_notif (upstream + fallback). */
+export const HOME_NOTIF_CONTACT = {
+  zaloGroup: 'https://zalo.me/g/6q2aihayik9rfw5gz2kd',
+  zaloSupport: 'https://zalo.me/0996358358',
+  zaloSupportLabel: '0996.358.358',
+  facebook: 'https://www.facebook.com/share/1HZ4SswRBc/?mibextid=wwXIfr',
+} as const;
+
 interface SiteConfigResponse {
   success?: boolean;
   domainInfo?: {
@@ -38,19 +46,48 @@ function isHomeNotifPricingLink(a: HTMLAnchorElement): boolean {
   return a.classList.contains('vm-action') && /\/prices?\b/i.test(href);
 }
 
-/** Ô "Nạp tiền & bảng giá" upstream → /pricing, bỏ target _blank. */
-function rewriteHomeNotifPricingHref(html: string): string {
-  return html.replace(/<a\b([^>]*\bclass="[^"]*\bvm-price\b[^"]*"[^>]*)>/gi, (_match, attrs: string) => {
+function rewriteAnchorHrefByClass(
+  html: string,
+  className: string,
+  href: string,
+  stripTarget = false,
+): string {
+  const classRe = new RegExp(`<a\\b([^>]*\\bclass="[^"]*\\b${className}\\b[^"]*"[^>]*)>`, 'gi');
+  return html.replace(classRe, (_match, attrs: string) => {
     let next = attrs
-      .replace(/\bhref="[^"]*"/gi, `href="${HOME_NOTIF_PRICING_HREF}"`)
-      .replace(/\bhref='[^']*'/gi, `href='${HOME_NOTIF_PRICING_HREF}'`)
-      .replace(/\btarget="[^"]*"/gi, '')
-      .replace(/\btarget='[^']*'/gi, '')
-      .replace(/\brel="[^"]*"/gi, '')
-      .replace(/\brel='[^']*'/gi, '');
-    if (!/\bhref=/i.test(next)) next = ` href="${HOME_NOTIF_PRICING_HREF}"${next}`;
+      .replace(/\bhref="[^"]*"/gi, `href="${href}"`)
+      .replace(/\bhref='[^']*'/gi, `href='${href}'`);
+    if (stripTarget) {
+      next = next
+        .replace(/\btarget="[^"]*"/gi, '')
+        .replace(/\btarget='[^']*'/gi, '')
+        .replace(/\brel="[^"]*"/gi, '')
+        .replace(/\brel='[^']*'/gi, '');
+    }
+    if (!/\bhref=/i.test(next)) next = ` href="${href}"${next}`;
     return `<a${next}>`;
   });
+}
+
+/** Ô "Nạp tiền & bảng giá" upstream → /pricing, bỏ target _blank. */
+function rewriteHomeNotifPricingHref(html: string): string {
+  return rewriteAnchorHrefByClass(html, 'vm-price', HOME_NOTIF_PRICING_HREF, true);
+}
+
+/** Zalo / Fanpage upstream → kênh trungtamai.vn. */
+function rewriteHomeNotifContactLinks(html: string): string {
+  return rewriteAnchorHrefByClass(
+    rewriteAnchorHrefByClass(
+      rewriteAnchorHrefByClass(html, 'vm-zalo', HOME_NOTIF_CONTACT.zaloGroup),
+      'vm-help',
+      HOME_NOTIF_CONTACT.zaloSupport,
+    ),
+    'vm-facebook',
+    HOME_NOTIF_CONTACT.facebook,
+  )
+    .replace(/https?:\/\/zalo\.me\/g\/kvofaugxbrfpliv2fdbm/gi, HOME_NOTIF_CONTACT.zaloGroup)
+    .replace(/https?:\/\/zalo\.me\/0?862809999/gi, HOME_NOTIF_CONTACT.zaloSupport)
+    .replace(/0862[\s.]*809[\s.]*999/g, HOME_NOTIF_CONTACT.zaloSupportLabel);
 }
 
 /** Gắn /pricing cùng tab; onPricingClick dùng React Router navigate. */
@@ -80,12 +117,14 @@ export function bindHomeNotifPricingLinks(
 
 /** @deprecated Dùng rebrandSiteText */
 export function rebrandHomeNotif(html: string): string {
-  return rewriteHomeNotifPricingHref(
-    html
-      .replace(/VMedia\.AI/gi, SITE_BRAND_LABEL)
-      .replace(/VMedia/gi, SITE_BRAND_LABEL)
-      .replace(/https?:\/\/vmedia\.ai/gi, SITE_PUBLIC_URL)
-      .replace(/vmedia\.ai/gi, SITE_BRAND_LABEL),
+  return rewriteHomeNotifContactLinks(
+    rewriteHomeNotifPricingHref(
+      html
+        .replace(/VMedia\.AI/gi, SITE_BRAND_LABEL)
+        .replace(/VMedia/gi, SITE_BRAND_LABEL)
+        .replace(/https?:\/\/vmedia\.ai/gi, SITE_PUBLIC_URL)
+        .replace(/vmedia\.ai/gi, SITE_BRAND_LABEL),
+    ),
   );
 }
 
