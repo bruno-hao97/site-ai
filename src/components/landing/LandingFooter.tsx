@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { SITE_SUPPORT_PHONE, SITE_SUPPORT_PHONE_LABEL } from '../../services/siteConfig';
 
 const footerLinks = {
   'Nền tảng': [
@@ -13,7 +14,7 @@ const footerLinks = {
   ],
   'Công ty': [
     { label: 'Về chúng tôi', href: '#' },
-    { label: 'Hotline: 0996 369369', href: 'tel:0996369369' },
+    { label: `Hotline: ${SITE_SUPPORT_PHONE_LABEL}`, href: `tel:${SITE_SUPPORT_PHONE}` },
   ],
 } as const;
 

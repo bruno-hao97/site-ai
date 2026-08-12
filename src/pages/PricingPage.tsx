@@ -18,6 +18,7 @@ import {
   type SubscriptionPlan,
   type SubscriptionPlanType,
 } from '../services/subscriptionPlans';
+import { SITE_SUPPORT_PHONE, SITE_SUPPORT_PHONE_LABEL } from '../services/siteConfig';
 
 type PlanFieldKey =
   | 'video_day'
@@ -596,7 +597,7 @@ export default function PricingPage() {
                 <h3>Hỗ trợ 24/7</h3>
                 <p className="muted">
                   Đội ngũ hỗ trợ liên tục, xử lý nhanh vấn đề gói và thanh toán. Hotline:{' '}
-                  <a href="tel:0996369369">0996 369369</a>
+                  <a href={`tel:${SITE_SUPPORT_PHONE}`}>{SITE_SUPPORT_PHONE_LABEL}</a>
                 </p>
               </article>
               <article className="panel">

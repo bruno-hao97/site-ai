@@ -5,11 +5,15 @@ import { GOMMO_AUTH_PATH } from './upstreamMe';
 export const SITE_BRAND_LABEL = 'trungtamai.vn';
 export const SITE_PUBLIC_URL = 'https://trungtamai.vn';
 
+/** Hotline / Zalo hỗ trợ chính thức — dùng thống nhất trên toàn site. */
+export const SITE_SUPPORT_PHONE = '0996358358';
+export const SITE_SUPPORT_PHONE_LABEL = '0996.358.358';
+
 /** Liên hệ chính thức — popup home_notif (upstream + fallback). */
 export const HOME_NOTIF_CONTACT = {
   zaloGroup: 'https://zalo.me/g/6q2aihayik9rfw5gz2kd',
-  zaloSupport: 'https://zalo.me/0996358358',
-  zaloSupportLabel: '0996.358.358',
+  zaloSupport: `https://zalo.me/${SITE_SUPPORT_PHONE}`,
+  zaloSupportLabel: SITE_SUPPORT_PHONE_LABEL,
   facebook: 'https://www.facebook.com/share/1HZ4SswRBc/?mibextid=wwXIfr',
 } as const;
 
@@ -87,7 +91,10 @@ function rewriteHomeNotifContactLinks(html: string): string {
   )
     .replace(/https?:\/\/zalo\.me\/g\/kvofaugxbrfpliv2fdbm/gi, HOME_NOTIF_CONTACT.zaloGroup)
     .replace(/https?:\/\/zalo\.me\/0?862809999/gi, HOME_NOTIF_CONTACT.zaloSupport)
-    .replace(/0862[\s.]*809[\s.]*999/g, HOME_NOTIF_CONTACT.zaloSupportLabel);
+    .replace(/https?:\/\/zalo\.me\/0?996369369/gi, HOME_NOTIF_CONTACT.zaloSupport)
+    .replace(/0862[\s.]*809[\s.]*999/g, HOME_NOTIF_CONTACT.zaloSupportLabel)
+    .replace(/0996[\s.]*369[\s.]*369/g, SITE_SUPPORT_PHONE_LABEL)
+    .replace(/tel:0?996369369/gi, `tel:${SITE_SUPPORT_PHONE}`);
 }
 
 /** Gắn /pricing cùng tab; onPricingClick dùng React Router navigate. */

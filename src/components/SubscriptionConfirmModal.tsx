@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Crown, Loader2, X } from 'lucide-react';
 import type { SubscriptionPlan, SubscriptionPlanModel } from '../services/subscriptionPlans';
+import { SITE_SUPPORT_PHONE, SITE_SUPPORT_PHONE_LABEL } from '../services/siteConfig';
 
 interface PlanHighlight {
   label: string;
@@ -190,7 +191,7 @@ export default function SubscriptionConfirmModal({
 
             <div className="pricing-confirm-support">
               <p>
-                Hỗ trợ: <a href="tel:0996369369">0996 369369</a>
+                Hỗ trợ: <a href={`tel:${SITE_SUPPORT_PHONE}`}>{SITE_SUPPORT_PHONE_LABEL}</a>
               </p>
               <p>Cộng đồng: Zalo · Facebook · TikTok</p>
             </div>

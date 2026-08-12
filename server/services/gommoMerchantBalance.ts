@@ -76,7 +76,7 @@ export function assertMerchantCanCover(input: {
   const detail = `need≥${fmt(required)} pkg=${fmt(input.creditsToSend)} available=${fmt(Math.max(0, available))} balance=${fmt(input.merchantBalance)} reserved=${fmt(input.reservedCredits)}`;
   console.warn('[topup] merchant balance insufficient', detail);
   throw new MerchantBalanceError(
-    'Hệ thống đang tạm dừng nhận thanh toán để đảm bảo giao dịch ổn định. Vui lòng thử lại sau ít phút hoặc liên hệ hỗ trợ 0996 369369 nếu cần gấp.',
+    `Hệ thống đang tạm dừng nhận thanh toán để đảm bảo giao dịch ổn định. Vui lòng thử lại sau ít phút hoặc liên hệ hỗ trợ 0996.358.358 nếu cần gấp.`,
     detail,
   );
 }
