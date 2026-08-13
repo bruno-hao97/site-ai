@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, Loader2 } from 'lucide-react';
-import { getGommoClient, loadAuth } from '../services/authStore';
 import type { GommoModel, JobType } from '../services/api';
 import type { CreditPackage } from '../services/topupApi';
+import { fetchModelCatalog } from '../services/modelCatalog';
 
 interface Props {
   creditPackages: CreditPackage[];
+  variant?: 'app' | 'magnific';
 }
 
 interface ModelCategory {
@@ -82,7 +83,7 @@ function formatEquivalentVnd(credits: number, creditPackage: CreditPackage): str
   return `${Math.round(value).toLocaleString('vi-VN')}đ`;
 }
 
-export default function ModelCreditComparison({ creditPackages }: Props) {
+export default function ModelCreditComparison({ creditPackages, variant = 'app' }: Props) {
   const [categories, setCategories] = useState<ModelCategory[]>([]);
   const [openTypes, setOpenTypes] = useState<Set<JobType>>(new Set(['image']));
   const [loading, setLoading] = useState(true);
@@ -90,31 +91,33 @@ export default function ModelCreditComparison({ creditPackages }: Props) {
 
   useEffect(() => {
     let active = true;
-    const auth = loadAuth();
-    if (!auth?.access_token) {
-      setLoading(false);
-      setError('Đăng nhập để xem bảng giá model.');
-      return;
-    }
-
-    const client = getGommoClient();
     setLoading(true);
     setError('');
 
-    void Promise.allSettled(
-      CATEGORIES.map(async (category) => {
-        const envelope = await client.fetchModels(category.type);
-        return { ...category, models: client.listModels(envelope) };
-      }),
-    ).then((results) => {
-      if (!active) return;
-      const loaded = results.flatMap((result) =>
-        result.status === 'fulfilled' && result.value.models.length ? [result.value] : [],
-      );
-      setCategories(loaded);
-      if (!loaded.length) setError('Chưa có dữ liệu giá model.');
-      setLoading(false);
-    });
+    void fetchModelCatalog(CATEGORIES.map((c) => c.type))
+      .then((catalog) => {
+        if (!active) return;
+        const byType = new Map<JobType, GommoModel[]>();
+        for (const entry of catalog) {
+          const list = byType.get(entry.jobType) ?? [];
+          list.push(entry.model);
+          byType.set(entry.jobType, list);
+        }
+        const loaded = CATEGORIES.flatMap((category) => {
+          const models = byType.get(category.type) ?? [];
+          return models.length ? [{ ...category, models }] : [];
+        });
+        setCategories(loaded);
+        if (!loaded.length) setError('Chưa có dữ liệu giá model.');
+      })
+      .catch((err) => {
+        if (!active) return;
+        setCategories([]);
+        setError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
 
     return () => {
       active = false;
@@ -135,12 +138,18 @@ export default function ModelCreditComparison({ creditPackages }: Props) {
     });
   }
 
+  const isMagnific = variant === 'magnific';
+
   return (
-    <section className="pricing-model-compare">
+    <section className={`pricing-model-compare${isMagnific ? ' pricing-model-compare--magnific' : ''}`}>
       <div className="pricing-model-compare-head">
         <div>
-          <p className="kicker">Model Pricing</p>
-          <h2>So sánh giá Model theo gói Credit</h2>
+          {!isMagnific ? <p className="kicker">Model Pricing</p> : null}
+          <h2>
+            {isMagnific
+              ? 'So sánh chi phí theo gói credit'
+              : 'So sánh giá Model theo gói Credit'}
+          </h2>
         </div>
         <p>Chi phí quy đổi dựa trên số credit nhận được của từng gói.</p>
       </div>
@@ -183,7 +192,10 @@ export default function ModelCreditComparison({ creditPackages }: Props) {
                           <th>Chế độ</th>
                           <th>Giá Credit</th>
                           {packageColumns.map((creditPackage) => (
-                            <th key={creditPackage.id}>
+                            <th
+                              key={creditPackage.id}
+                              className={creditPackage.featured ? 'featured-col' : undefined}
+                            >
                               <span>{creditPackage.name}</span>
                               <small>{creditPackage.credits.toLocaleString('vi-VN')} c</small>
                             </th>

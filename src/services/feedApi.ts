@@ -2,6 +2,7 @@ import { GOMMO_AUTH_BASE, GOMMO_AUTH_PATH, UpstreamMeError } from './upstreamMe'
 import { clearAuth, loadAuth, resolveProjectId } from './authStore';
 import { GOMMO_CHAT_CONFIG } from './gommoChatConfig';
 import { buildDeviceInfo } from './audioVoices';
+import { DEFAULT_DOMAIN, normalizeDomain } from './settingsStore';
 import { listHistory, type HistoryEntry } from './historyStore';
 
 async function feedRequest<T extends { success?: boolean; message?: string }>(
@@ -20,14 +21,36 @@ async function feedRequest<T extends { success?: boolean; message?: string }>(
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body,
   });
-  return parseFeedRes<T>(res);
+  return parseFeedRes<T>(res, true);
+}
+
+/** Feed công khai — token tùy chọn (public-videos chạy được không Bearer). */
+async function publicFeedRequest<T extends { success?: boolean; message?: string }>(
+  gommoUrl: string,
+  fields: Record<string, string>,
+): Promise<T> {
+  const auth = loadAuth();
+  const body = new URLSearchParams({
+    domain: normalizeDomain(auth?.domain || DEFAULT_DOMAIN),
+    ...feedDeviceFields(),
+    ...fields,
+  });
+  if (auth?.access_token?.trim()) {
+    body.set('access_token', auth.access_token.trim());
+  }
+  const res = await fetch(gommoUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  });
+  return parseFeedRes<T>(res, Boolean(auth?.access_token));
 }
 
 async function parseFeedRes<T extends { success?: boolean; message?: string }>(
   res: Response,
+  signedIn: boolean,
 ): Promise<T> {
-  // Token (Gommo hoặc JWT backend) hết hạn → đăng xuất, về trang login.
-  if (res.status === 401 || res.status === 403) {
+  if (signedIn && (res.status === 401 || res.status === 403)) {
     clearAuth();
     if (typeof window !== 'undefined') window.location.href = '/login';
   }
@@ -194,7 +217,7 @@ export async function fetchPublicVideos(params: FetchPublicVideosParams = {}): P
   };
   if (afterId) fields.after_id = afterId;
 
-  const parsed = await feedRequest<PublicVideosResponse>(
+  const parsed = await publicFeedRequest<PublicVideosResponse>(
     `${GOMMO_AUTH_BASE}${GOMMO_AUTH_PATH}/ai/public-videos`,
     fields,
   );
@@ -248,7 +271,7 @@ interface MyImageItem {
   file_size?: number;
 }
 
-function gommoDeviceFields(): Record<string, string> {
+function feedDeviceFields(): Record<string, string> {
   return {
     device_id: GOMMO_CHAT_CONFIG.deviceId,
     device_name: GOMMO_CHAT_CONFIG.deviceName,
@@ -257,7 +280,7 @@ function gommoDeviceFields(): Record<string, string> {
 }
 
 function mineFields(extra: Record<string, string>): Record<string, string> {
-  const fields = { ...extra, ...gommoDeviceFields() };
+  const fields = { ...extra, ...feedDeviceFields() };
   const projectId = resolveProjectId();
   if (projectId && projectId !== 'default') {
     fields.project_id = projectId;
@@ -407,7 +430,7 @@ export async function deleteFeedPost(idBase: string): Promise<void> {
   const id = idBase.trim();
   if (!id) throw new UpstreamMeError('Thiếu id_base', 400);
 
-  const fields = { id_base: id, ...gommoDeviceFields() };
+  const fields = { id_base: id, ...feedDeviceFields() };
   const parsed = await feedRequest<{ success?: boolean; message?: string }>(
     `${GOMMO_AUTH_BASE}${GOMMO_AUTH_PATH}/ai/post-delete`,
     fields,

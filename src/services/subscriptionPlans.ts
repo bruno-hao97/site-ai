@@ -131,20 +131,21 @@ function parsePlansPayload(input: unknown): PlansPayload {
 
 export async function fetchSubscriptionPlans(type: SubscriptionPlanType): Promise<SubscriptionPlan[]> {
   const auth = loadAuth();
-  if (!auth?.access_token) throw new Error('Chưa đăng nhập — thiếu access token');
 
   const body = new URLSearchParams({
     action_type: 'plans',
     type,
     domain: PRICING_DOMAIN,
-    access_token: auth.access_token.trim(),
     ...gommoDeviceFields(),
-  }).toString();
+  });
+  if (auth?.access_token?.trim()) {
+    body.set('access_token', auth.access_token.trim());
+  }
 
   const res = await fetch(PLANS_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
+    body: body.toString(),
   });
   const text = await res.text();
 

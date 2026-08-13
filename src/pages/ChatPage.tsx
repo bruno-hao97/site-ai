@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { SITE_DISPLAY_NAME } from '../services/siteConfig';
 import ChatAiModelPickerModal from '../components/ChatAiModelPickerModal';
 import ChatSidebar from '../components/chat/ChatSidebar';
 import ChatTopBar from '../components/chat/ChatTopBar';
@@ -78,9 +79,9 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    document.title = sessionTitle === 'Chat mới' ? 'Chat · AGI Center' : `${sessionTitle} · Chat`;
+    document.title = sessionTitle === 'Chat mới' ? `Chat · ${SITE_DISPLAY_NAME}` : `${sessionTitle} · Chat`;
     return () => {
-      document.title = 'AGI Center';
+      document.title = SITE_DISPLAY_NAME;
     };
   }, [sessionTitle]);
 

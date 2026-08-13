@@ -17,8 +17,12 @@ import ProtectedRoute from './components/ProtectedRoute';
 import QuickChatWidget from './components/QuickChatWidget';
 import UserMenuDropdown from './components/user/UserMenuDropdown';
 import LandingPage from './pages/LandingPage';
+import ModelsPage from './pages/ModelsPage';
+import PublicPricingPage from './pages/PublicPricingPage';
+import PrivacyPage from './pages/PrivacyPage';
+import TermsPage from './pages/TermsPage';
+import LegalShellLayout from './components/legal/LegalShellLayout';
 import HomePage from './pages/HomePage';
-import ExplorePage from './pages/ExplorePage';
 import ProjectsPage from './pages/ProjectsPage';
 import WorkflowPage from './pages/WorkflowPage';
 import LoginPage from './pages/LoginPage';
@@ -33,7 +37,6 @@ import StudioHistoryPage from './pages/StudioHistoryPage';
 import ApiPlaygroundPage from './pages/ApiPlaygroundPage';
 import DashboardPage from './pages/DashboardPage';
 import WalletPage from './pages/WalletPage';
-import PricingPage from './pages/PricingPage';
 import ChatPage from './pages/ChatPage';
 import AccountLayout from './pages/account/AccountLayout';
 import AccountSettingsPage from './pages/account/AccountSettingsPage';
@@ -46,7 +49,7 @@ import type { TranslationKey } from './i18n';
 
 const MAIN_NAV: { to: string; labelKey: TranslationKey }[] = [
   { to: '/home', labelKey: 'nav.home' },
-  { to: '/explore', labelKey: 'nav.explore' },
+  { to: '/home', labelKey: 'nav.explore' },
   { to: '/projects', labelKey: 'nav.projects' },
   { to: '/image', labelKey: 'nav.image' },
   { to: '/video', labelKey: 'nav.video' },
@@ -174,8 +177,9 @@ function AppShell() {
     if (loggedIn) void setupOneSignalFromAuth();
   }, [loggedIn]);
 
-  const BARE_PAGES = ['/', '/login', '/register'];
-  const isBarePage = BARE_PAGES.includes(location.pathname);
+  const isBarePage =
+    ['/', '/login', '/register', '/privacy', '/terms'].includes(location.pathname) ||
+    ((location.pathname === '/models' || location.pathname === '/pricing') && !loggedIn);
   const isWorkflow = location.pathname === '/workflow';
   const isChat = location.pathname === '/chat';
   const isFullBleed =
@@ -198,11 +202,18 @@ function AppShell() {
       >
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/featured" element={<Navigate to={{ pathname: '/', hash: 'product' }} replace />} />
+          <Route path="/explore" element={<Navigate to={{ pathname: '/', hash: 'community' }} replace />} />
+          <Route path="/models" element={<ModelsPage />} />
+          <Route path="/pricing" element={<PublicPricingPage />} />
+          <Route element={<LegalShellLayout />}>
+            <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/terms" element={<TermsPage />} />
+          </Route>
           <Route path="/login" element={isLoggedIn() ? <Navigate to="/home" /> : <LoginPage />} />
           <Route path="/register" element={isLoggedIn() ? <Navigate to="/home" /> : <RegisterPage />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/home" element={<HomePage />} />
-            <Route path="/explore" element={<ExplorePage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/workflow" element={<WorkflowPage />} />
@@ -237,9 +248,8 @@ function AppShell() {
             </Route>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/wallet" element={<WalletPage />} />
-            <Route path="/pricing" element={<PricingPage />} />
           </Route>
-          <Route path="*" element={<Navigate to="/" />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
       {showQuickChat && <QuickChatWidget />}

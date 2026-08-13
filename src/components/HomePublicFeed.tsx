@@ -4,7 +4,6 @@ import ComposerLibraryPreviewModal, {
   type ComposerPreviewHandlers,
 } from './ComposerLibraryPreviewModal';
 import FeedMasonryCard from './FeedMasonryCard';
-import { isLoggedIn } from '../services/authStore';
 import { feedMediaUrl, feedThumb, fetchPublicVideos, type FeedItem } from '../services/feedApi';
 import { UpstreamMeError } from '../services/upstreamMe';
 import {
@@ -32,11 +31,6 @@ export default function HomePublicFeed() {
 
   const loadMore = useCallback(async () => {
     if (loading || done) return;
-    if (!isLoggedIn()) {
-      setError('Chưa đăng nhập.');
-      setDone(true);
-      return;
-    }
 
     setLoading(true);
     setError('');

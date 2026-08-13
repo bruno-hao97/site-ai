@@ -1,47 +1,44 @@
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/landing.css';
 import { appEntryPath } from '../lib/landingConfig';
-import LandingAccessNoticeModal from '../components/landing/LandingAccessNoticeModal';
+import { landingPageClassName } from '../lib/landingShell';
 import { LandingAccessContext } from '../components/landing/LandingAccessContext';
 import LandingNavbar from '../components/landing/LandingNavbar';
 import HeroSection from '../components/landing/HeroSection';
+import ProductTabsSection from '../components/landing/ProductTabsSection';
 import MarqueeSection from '../components/landing/MarqueeSection';
-import FeaturesSection from '../components/landing/FeaturesSection';
-import MultimodalSection from '../components/landing/MultimodalSection';
-import ModelsSection from '../components/landing/ModelsSection';
+import CommunityGallerySection from '../components/landing/CommunityGallerySection';
+import ModelCategoriesSection from '../components/landing/ModelCategoriesSection';
+import VideoShowcaseSection from '../components/landing/VideoShowcaseSection';
+import EnterpriseFeaturesSection from '../components/landing/EnterpriseFeaturesSection';
 import PricingSection from '../components/landing/PricingSection';
+import FaqSection from '../components/landing/FaqSection';
+import FinalCtaSection from '../components/landing/FinalCtaSection';
 import LandingFooter from '../components/landing/LandingFooter';
 
 export default function LandingPage() {
   const navigate = useNavigate();
-  const [noticeOpen, setNoticeOpen] = useState(true);
 
   const requestAccess = useCallback(() => {
     navigate(appEntryPath());
   }, [navigate]);
 
-  const dismissNotice = useCallback(() => {
-    setNoticeOpen(false);
-  }, []);
-
   return (
     <LandingAccessContext.Provider value={requestAccess}>
-      <div className="landing-page">
+      <div className={landingPageClassName()}>
         <LandingNavbar />
         <HeroSection />
+        <ProductTabsSection />
         <MarqueeSection />
-        <FeaturesSection />
-        <MultimodalSection />
-        <ModelsSection />
+        <CommunityGallerySection />
+        <ModelCategoriesSection />
+        <VideoShowcaseSection />
+        <EnterpriseFeaturesSection />
         <PricingSection />
+        <FaqSection />
+        <FinalCtaSection />
         <LandingFooter />
-
-        <LandingAccessNoticeModal
-          open={noticeOpen}
-          onConfirm={dismissNotice}
-          onClose={dismissNotice}
-        />
       </div>
     </LandingAccessContext.Provider>
   );

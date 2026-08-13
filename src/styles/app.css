@@ -114,6 +114,24 @@ code {
   display: block;
   flex-shrink: 0;
 }
+
+/* Icon tròn — logo-mark.png (auth / header nhỏ) */
+.brand-mark {
+  --brand-mark-height: 56px;
+  display: inline-flex;
+  height: var(--brand-mark-height);
+  flex-shrink: 0;
+}
+
+.brand-mark-img {
+  height: 100%;
+  width: auto;
+  display: block;
+}
+
+.brand-mark-link {
+  text-decoration: none;
+}
 .nav { display: flex; gap: 1rem; flex: 1; }
 .nav a { color: var(--muted); }
 .nav a:hover { color: var(--text); }
