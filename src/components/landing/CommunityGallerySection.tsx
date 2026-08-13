@@ -46,10 +46,10 @@ export default function CommunityGallerySection() {
               <h2>Cộng đồng sáng tạo</h2>
               <p>Ảnh và video thật từ người dùng Trung tâm AI.</p>
             </div>
-            <Link to="/explore" className="landing-link-btn">
+            <a href="#community" className="landing-link-btn">
               Xem thêm
               <ArrowRight size={14} />
-            </Link>
+            </a>
           </div>
 
           <div className="community-gallery-grid">
@@ -78,14 +78,15 @@ export default function CommunityGallerySection() {
               ? galleryItems.map((item, index) => {
                   const thumb = feedThumb(item);
                   return (
-                    <Link
+                    <div
                       key={item.id_base}
-                      to="/explore"
                       className={galleryCellClass(index)}
                       style={thumb ? { backgroundImage: `url(${thumb})` } : undefined}
+                      role="img"
+                      aria-label={item.type === 'image' ? 'Ảnh cộng đồng' : 'Video cộng đồng'}
                     >
                       {!thumb ? <span>{item.type === 'image' ? 'Ảnh' : 'Video'}</span> : null}
-                    </Link>
+                    </div>
                   );
                 })
               : null}

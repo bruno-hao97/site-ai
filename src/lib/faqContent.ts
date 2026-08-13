@@ -1,18 +1,18 @@
 export const FAQ_ITEMS = [
   {
-    q: 'Credits hoạt động như thế nào?',
-    a: 'Mỗi plan mở quyền truy cập model và hạn mức theo ngày/tháng. Khi chạy model tính theo credit, hệ thống sẽ trừ trực tiếp vào quota/credit của gói.',
+    q: 'Credit hoạt động như thế nào?',
+    a: 'Bạn nạp credit một lần qua PayOS. Mỗi lần tạo ảnh, video, TTS hoặc nhạc, hệ thống trừ credit theo giá model — không có phí thuê bao ẩn.',
   },
   {
-    q: 'Gói có tự gia hạn không?',
-    a: 'Tùy phương thức thanh toán trên cổng nạp. Bạn nên hiển thị trạng thái gia hạn ở trang tài khoản để người dùng kiểm soát.',
+    q: 'Credit có hết hạn không?',
+    a: 'Credit nạp có hiệu lực 3 tháng kể từ ngày thanh toán thành công. Bạn có thể nạp thêm bất cứ lúc nào khi sắp hết.',
   },
   {
-    q: 'Tôi có thể đổi gói sau khi mua?',
-    a: 'Có. Bạn có thể xử lý theo rule nội bộ: nâng cấp thì cộng phần còn lại, hạ cấp thì áp dụng từ chu kỳ tiếp theo.',
+    q: 'Thanh toán qua PayOS an toàn không?',
+    a: 'PayOS xử lý thanh toán qua ngân hàng / ví điện tử. Sau khi webhook xác nhận, credit được cộng tự động vào tài khoản của bạn.',
   },
   {
-    q: 'Các gói unlimited hoạt động ra sao?',
-    a: 'Unlimited thường áp dụng cho quota chính (video/image) nhưng vẫn giới hạn concurrent, queue và loại model để giữ ổn định hạ tầng.',
+    q: 'Tôi có thể nạp nhiều gói không?',
+    a: 'Có. Mỗi lần nạp cộng dồn credit vào số dư. Gói lớn hơn thường có % thưởng credit cao hơn — xem chi tiết trên từng thẻ gói.',
   },
 ] as const;

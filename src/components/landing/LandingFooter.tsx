@@ -1,22 +1,52 @@
 import { Link } from 'react-router-dom';
-import { SITE_SUPPORT_PHONE, SITE_SUPPORT_PHONE_LABEL } from '../../services/siteConfig';
+import {
+  HOME_NOTIF_CONTACT,
+  SITE_DISPLAY_NAME,
+  SITE_SUPPORT_EMAIL,
+  SITE_SUPPORT_PHONE,
+  SITE_SUPPORT_PHONE_LABEL,
+} from '../../services/siteConfig';
 
-const footerLinks = {
+type FooterLink =
+  | { label: string; to: string }
+  | { label: string; href: string; external?: boolean };
+
+const footerLinks: Record<string, FooterLink[]> = {
   'Nền tảng': [
-    { label: 'Models', href: '#models' },
-    { label: 'Bảng giá', href: '#pricing' },
-    { label: 'Tài liệu', href: '#features' },
-    { label: 'Phiên chuyển API', href: '#features' },
+    { label: 'Models', to: '/models' },
+    { label: 'Tính năng', href: '/#product' },
+    { label: 'Bảng giá', to: '/pricing' },
+    { label: 'Khám phá', href: '/#community' },
+  ],
+  'Pháp lý & Hỗ trợ': [
+    { label: 'Chính sách bảo mật', to: '/privacy' },
+    { label: 'Điều khoản dịch vụ', to: '/terms' },
+    { label: `Liên hệ: ${SITE_SUPPORT_PHONE_LABEL}`, href: `tel:${SITE_SUPPORT_PHONE}` },
+    { label: `Email: ${SITE_SUPPORT_EMAIL}`, href: `mailto:${SITE_SUPPORT_EMAIL}` },
   ],
   'Bảng giá': [
-    { label: 'Giá cả', href: '#pricing' },
-    { label: 'Gói dịch vụ', href: '#pricing' },
+    { label: 'Nạp credit', to: '/pricing' },
+    { label: 'Gói dịch vụ', to: '/pricing' },
   ],
   'Công ty': [
-    { label: 'Về chúng tôi', href: '#' },
-    { label: `Hotline: ${SITE_SUPPORT_PHONE_LABEL}`, href: `tel:${SITE_SUPPORT_PHONE}` },
+    { label: 'Zalo hỗ trợ', href: HOME_NOTIF_CONTACT.zaloSupport, external: true },
+    { label: 'Fanpage', href: HOME_NOTIF_CONTACT.facebook, external: true },
   ],
-} as const;
+};
+
+function FooterLinkItem({ link }: { link: FooterLink }) {
+  if ('to' in link) {
+    return <Link to={link.to}>{link.label}</Link>;
+  }
+  return (
+    <a
+      href={link.href}
+      {...(link.external ? { target: '_blank', rel: 'noreferrer' } : {})}
+    >
+      {link.label}
+    </a>
+  );
+}
 
 export default function LandingFooter() {
   return (
@@ -25,15 +55,11 @@ export default function LandingFooter() {
         <div className="footer-grid">
           <div className="footer-logo-col">
             <Link to="/" className="logo-row" style={{ marginBottom: 12 }}>
-              <img src="/logo.png" alt="AI Center" className="logo-img" />
+              <img src="/logo.png" alt={SITE_DISPLAY_NAME} className="logo-img" />
             </Link>
             <p className="footer-tagline">
-              Nền tảng AI đa phương thức — ảnh, video, âm nhạc, text và code trong một cổng API thống nhất.
+              Nền tảng AI đa phương thức — ảnh, video, âm nhạc, giọng nói và chat trong một studio.
             </p>
-            <div className="social-icons">
-              <a href="https://facebook.com" target="_blank" rel="noreferrer" className="social-icon" aria-label="Facebook">f</a>
-              <a href="https://github.com" target="_blank" rel="noreferrer" className="social-icon" aria-label="GitHub">⌘</a>
-            </div>
           </div>
 
           {Object.entries(footerLinks).map(([heading, links]) => (
@@ -42,7 +68,7 @@ export default function LandingFooter() {
               <ul>
                 {links.map((link) => (
                   <li key={link.label}>
-                    <a href={link.href}>{link.label}</a>
+                    <FooterLinkItem link={link} />
                   </li>
                 ))}
               </ul>
@@ -51,7 +77,9 @@ export default function LandingFooter() {
         </div>
 
         <div className="footer-bottom">
-          <span className="copyright">© {new Date().getFullYear()} AI Center. All rights reserved.</span>
+          <span className="copyright">
+            © {new Date().getFullYear()} {SITE_DISPLAY_NAME}. All rights reserved.
+          </span>
         </div>
       </div>
     </footer>

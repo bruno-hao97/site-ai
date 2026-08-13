@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { ShieldCheck } from 'lucide-react';
-import LegalPageLayout from '../components/legal/LegalPageLayout';
+import LegalDocument from '../components/legal/LegalDocument';
 import { SITE_BRAND_LABEL, SITE_DISPLAY_NAME } from '../services/siteConfig';
 
 export default function PrivacyPage() {
@@ -12,7 +12,7 @@ export default function PrivacyPage() {
   }, []);
 
   return (
-    <LegalPageLayout title="Chính sách bảo mật" icon={ShieldCheck} active="privacy">
+    <LegalDocument title="Chính sách bảo mật" icon={ShieldCheck}>
       <section className="legal-section">
         <h2>1. Dữ liệu chúng tôi thu thập</h2>
         <p>
@@ -48,6 +48,6 @@ export default function PrivacyPage() {
           cung cấp.
         </p>
       </section>
-    </LegalPageLayout>
+    </LegalDocument>
   );
 }

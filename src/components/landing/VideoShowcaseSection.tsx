@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom';
 import { motion, useInView } from 'framer-motion';
 import { ArrowRight, Play } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
@@ -45,9 +44,9 @@ function ShowcaseCell({ item, wide }: { item: FeedItem; wide?: boolean }) {
   }, [videoUrl]);
 
   return (
-    <Link
+    <a
       ref={cellRef}
-      to="/explore"
+      href="#community"
       className={`video-showcase-cell${wide ? ' wide' : ''}`}
     >
       {videoUrl ? (
@@ -64,7 +63,7 @@ function ShowcaseCell({ item, wide }: { item: FeedItem; wide?: boolean }) {
       ) : poster ? (
         <img className="video-showcase-media" src={poster} alt="" loading="lazy" />
       ) : null}
-    </Link>
+    </a>
   );
 }
 
@@ -96,10 +95,10 @@ export default function VideoShowcaseSection() {
               <h2>Bắt đầu từ ý tưởng — xuất video trong vài phút</h2>
               <p>Text-to-video, image-to-video và avatar lipsync trong một studio.</p>
             </div>
-            <Link to="/explore" className="landing-link-btn">
+            <a href="#community" className="landing-link-btn">
               Khám phá video
               <ArrowRight size={14} />
-            </Link>
+            </a>
           </div>
 
           <div className="video-showcase-grid">

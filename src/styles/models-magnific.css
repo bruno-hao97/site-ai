@@ -1,0 +1,167 @@
+/* /models guest — light catalog skin (matches /pricing) */
+
+.models-page-magnific .models-magnific-catalog {
+  padding: clamp(3rem, 7vw, 5rem) 0 clamp(2.5rem, 5vw, 4rem);
+}
+
+.models-page-magnific .model-dir-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.models-page-magnific .model-dir-kicker {
+  color: var(--section-muted);
+}
+
+.models-page-magnific .model-dir-header h1 {
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: var(--section-text);
+}
+
+.models-page-magnific .model-dir-lead {
+  color: var(--section-muted);
+  font-size: clamp(1rem, 1.8vw, 1.125rem);
+}
+
+.models-page-magnific .model-dir-lead strong {
+  color: var(--section-text);
+}
+
+.models-page-magnific .model-dir-search {
+  border: 1px solid var(--section-border);
+  background: var(--section-card);
+  color: var(--section-text);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+.models-page-magnific .model-dir-search::placeholder {
+  color: var(--section-muted);
+}
+
+.models-page-magnific .model-dir-search-icon {
+  color: var(--section-muted);
+}
+
+.models-page-magnific .model-dir-filter {
+  border: 1px solid var(--section-border);
+  background: var(--section-card);
+  color: var(--section-muted);
+  font-weight: 500;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.models-page-magnific .model-dir-filter:hover {
+  border-color: rgba(18, 18, 18, 0.2);
+  color: var(--section-text);
+}
+
+.models-page-magnific .model-dir-filter.active {
+  border-color: var(--pricing-charcoal);
+  background: var(--pricing-charcoal);
+  color: #ffffff;
+}
+
+.models-page-magnific .model-dir-card {
+  background: var(--section-card);
+  border: 1px solid var(--section-border);
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.04);
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+.models-page-magnific .model-dir-card:hover {
+  border-color: rgba(18, 18, 18, 0.14);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.07);
+}
+
+.models-page-magnific .model-dir-provider {
+  color: var(--section-muted);
+}
+
+.models-page-magnific .model-dir-badge.new {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+}
+
+.models-page-magnific .model-dir-badge.sale {
+  background: rgba(18, 18, 18, 0.08);
+  color: var(--section-text);
+}
+
+.models-page-magnific .model-dir-name {
+  color: var(--section-text);
+}
+
+.models-page-magnific .model-dir-desc {
+  color: var(--section-muted);
+}
+
+.models-page-magnific .model-dir-tag {
+  background: rgba(15, 23, 42, 0.05);
+  color: var(--section-muted);
+  border: 1px solid var(--section-border);
+}
+
+.models-page-magnific .model-dir-foot {
+  border-top-color: var(--section-border);
+}
+
+.models-page-magnific .model-dir-price strong {
+  color: var(--section-text);
+}
+
+.models-page-magnific .model-dir-price span,
+.models-page-magnific .model-dir-price-muted {
+  color: var(--section-muted);
+}
+
+.models-page-magnific .model-dir-cta {
+  border: 1.5px solid var(--pricing-charcoal);
+  background: transparent;
+  color: var(--pricing-charcoal);
+  border-radius: 999px;
+  font-weight: 600;
+  transition: background 0.15s, color 0.15s;
+}
+
+.models-page-magnific .model-dir-cta:hover {
+  background: var(--pricing-charcoal);
+  color: #ffffff;
+}
+
+.models-page-magnific .model-dir-loading,
+.models-page-magnific .model-dir-error,
+.models-page-magnific .model-dir-empty {
+  color: var(--section-muted);
+}
+
+.models-page-magnific .model-dir-error {
+  color: #dc2626;
+}
+
+.models-page-magnific .models-magnific-pricing-link {
+  display: flex;
+  justify-content: center;
+  margin: 0 auto 8px;
+  max-width: 640px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--section-border);
+  background: var(--section-card);
+  font-size: 14px;
+  color: var(--section-muted);
+  text-align: center;
+  text-decoration: none;
+}
+
+.models-page-magnific .models-magnific-pricing-link strong {
+  color: var(--section-text);
+}
+
+.models-page-magnific .models-magnific-pricing-link:hover {
+  border-color: rgba(18, 18, 18, 0.18);
+  text-decoration: none;
+  color: var(--section-text);
+}

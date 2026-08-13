@@ -1,7 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { motion, useInView } from 'framer-motion';
-import { ArrowRight } from 'lucide-react';
 import { PRODUCT_TABS } from '../../lib/landingProductContent';
 
 const TAB_SPRING = { type: 'spring' as const, stiffness: 420, damping: 36 };
@@ -75,10 +73,6 @@ export default function ProductTabsSection() {
                     </article>
                   ))}
                 </div>
-                <Link to="/featured" className="product-tabs-more">
-                  Xem chi tiết tính năng
-                  <ArrowRight size={14} />
-                </Link>
               </div>
 
               <div className="product-tabs-mock" aria-hidden="true">

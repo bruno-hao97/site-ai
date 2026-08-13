@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { ScrollText } from 'lucide-react';
-import LegalPageLayout from '../components/legal/LegalPageLayout';
+import LegalDocument from '../components/legal/LegalDocument';
 import { SITE_BRAND_LABEL, SITE_DISPLAY_NAME } from '../services/siteConfig';
 
 export default function TermsPage() {
@@ -12,7 +12,7 @@ export default function TermsPage() {
   }, []);
 
   return (
-    <LegalPageLayout title="Điều khoản dịch vụ" icon={ScrollText} active="terms">
+    <LegalDocument title="Điều khoản dịch vụ" icon={ScrollText}>
       <section className="legal-section">
         <h2>1. Chấp nhận điều khoản</h2>
         <p>
@@ -50,6 +50,6 @@ export default function TermsPage() {
           cung cấp cho cơ quan có thẩm quyền theo quy định pháp luật.
         </p>
       </section>
-    </LegalPageLayout>
+    </LegalDocument>
   );
 }

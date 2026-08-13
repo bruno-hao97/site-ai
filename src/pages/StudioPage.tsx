@@ -10,7 +10,7 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Check,
   ChevronDown,
@@ -766,6 +766,7 @@ export default function StudioPage({
 }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { t } = useLocale();
   const [jobType, setJobType] = useState<JobType>(initialType);
   const [models, setModels] = useState<GommoModel[]>([]);
@@ -1193,6 +1194,14 @@ export default function StudioPage({
       setSelectedSlug(reuse.modelSlug);
     }
   }, [models, jobType, location.state]);
+
+  useEffect(() => {
+    const fromQuery = searchParams.get('model')?.trim();
+    if (!fromQuery || !models.length) return;
+    if (models.some((m) => modelSlug(m) === fromQuery)) {
+      setSelectedSlug(fromQuery);
+    }
+  }, [models, searchParams]);
 
   // Luôn chọn sẵn 1 model khi vào trang / đổi loại job (giống 79AI): ưu tiên model
   // dùng gần đây còn khả dụng, rồi tới model đầu tiên đang ON.

@@ -1,67 +1,85 @@
-import { motion } from 'framer-motion';
-import { ArrowRight, Hexagon, Sparkles, Zap } from 'lucide-react';
-import { useLandingAccess } from './LandingAccessContext';
-
-export default function HeroSection() {
-  const requestAccess = useLandingAccess();
-
-  return (
-    <section className="hero">
-      <div className="hero-grid" aria-hidden="true" />
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="hero-badge"
-      >
-        <Sparkles size={14} />
-        <span>Model mới có sẵn Kling O1 &amp; Haiwei Babana Pro</span>
-        <ArrowRight size={14} />
-      </motion.div>
-
-      <motion.h1
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 0.1 }}
-      >
-        AI Center
-      </motion.h1>
-
-      <motion.p
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 0.2 }}
-        className="hero-subtitle"
-      >
-        Nơi tập trung những model AI mới nhất,
-        <br />
-        giá tốt nhất thị trường.
-      </motion.p>
-
-      <motion.p
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 0.25 }}
-        className="hero-tagline"
-      >
-        Build. Create. Automate with AI
-      </motion.p>
-
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, delay: 0.35 }}
-        className="hero-buttons"
-      >
-        <button type="button" className="btn-primary" onClick={requestAccess}>
-          <Zap size={16} />
-          Truy cập APP
-        </button>
-        <a href="#features" className="btn-secondary">
-          <Hexagon size={16} />
-          Khám phá API
-        </a>
-      </motion.div>
-    </section>
-  );
-}
+import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { ArrowUpRight } from 'lucide-react';
+import HeroCapabilityTicker from './HeroCapabilityTicker';
+import { registerPathWithNext } from '../../lib/landingConfig';
+import { SITE_DISPLAY_NAME } from '../../services/siteConfig';
+
+const HERO_IMAGE_BASE =
+  'https://media.magnific.com/images/ai/photo-editor/v3/hero/magnific/ai-photo-editor-v3-image-header-desktop.webp';
+
+const HERO_IMAGES = {
+  sm: `${HERO_IMAGE_BASE}?w=640&h=1200&q=75`,
+  md: `${HERO_IMAGE_BASE}?w=1280&h=2400&q=75`,
+  lg: `${HERO_IMAGE_BASE}?w=1974&h=3700&q=75`,
+} as const;
+
+export default function HeroSection() {
+  return (
+    <section className="hero hero-magnific">
+      <div className="hero-magnific-backdrop" aria-hidden="true">
+        <picture>
+          <source media="(min-width: 1280px)" srcSet={HERO_IMAGES.lg} />
+          <source media="(min-width: 768px)" srcSet={HERO_IMAGES.md} />
+          <img
+            className="hero-magnific-photo"
+            src={HERO_IMAGES.sm}
+            srcSet={`${HERO_IMAGES.sm} 640w, ${HERO_IMAGES.md} 1280w, ${HERO_IMAGES.lg} 1974w`}
+            sizes="100vw"
+            alt=""
+            fetchPriority="high"
+            decoding="async"
+          />
+        </picture>
+        <div className="hero-magnific-gradient" />
+      </div>
+
+      <div className="hero-magnific-inner">
+        <div className="hero-magnific-main">
+          <motion.h1
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            Nền tảng sáng tạo AI
+            <br />
+            cho công việc tốt nhất của bạn
+          </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="hero-subtitle hero-magnific-subtitle"
+          >
+            Ảnh, video, giọng nói và chat — {SITE_DISPLAY_NAME}, một studio, trả theo credits.
+          </motion.p>
+
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="hero-buttons hero-magnific-buttons"
+          >
+            <Link to={registerPathWithNext('/home')} className="btn-hero-primary">
+              Bắt đầu ngay
+              <ArrowUpRight size={16} strokeWidth={2.25} />
+            </Link>
+            <a href="#product" className="btn-hero-secondary">
+              Xem studio
+            </a>
+          </motion.div>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, x: 16 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, delay: 0.15 }}
+          className="hero-capability-wrap"
+        >
+          <HeroCapabilityTicker />
+        </motion.div>
+      </div>
+    </section>
+  );
+}
