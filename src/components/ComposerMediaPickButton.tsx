@@ -2,6 +2,7 @@ import { type ReactNode, useRef, useState } from 'react';
 import ComposerMediaAlbumModal from './ComposerMediaAlbumModal';
 import ComposerMediaLinkModal from './ComposerMediaLinkModal';
 import ComposerMediaSourceMenu from './ComposerMediaSourceMenu';
+import ComposerUploadOverlay from './ComposerUploadOverlay';
 
 export default function ComposerMediaPickButton({
   kind,
@@ -11,6 +12,7 @@ export default function ComposerMediaPickButton({
   className,
   title,
   multiple = false,
+  uploading = false,
 }: {
   kind: 'image' | 'video' | 'any';
   onFile: (file: File) => void | Promise<void>;
@@ -19,6 +21,7 @@ export default function ComposerMediaPickButton({
   className?: string;
   title?: string;
   multiple?: boolean;
+  uploading?: boolean;
 }) {
   const anchorRef = useRef<HTMLButtonElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -37,15 +40,25 @@ export default function ComposerMediaPickButton({
         type="button"
         className={className}
         title={title}
-        onClick={() => setMenuOpen(true)}
+        disabled={uploading}
+        aria-busy={uploading}
+        onClick={() => {
+          if (uploading) return;
+          setMenuOpen(true);
+        }}
       >
-        {children}
+        {uploading ? (
+          <ComposerUploadOverlay minimal hint="Đang tải lên" />
+        ) : (
+          children
+        )}
         <input
           ref={fileRef}
           type="file"
           accept={accept}
           hidden
           multiple={multiple}
+          disabled={uploading}
           onChange={(e) => {
             const files = Array.from(e.target.files || []);
             e.target.value = '';

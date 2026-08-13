@@ -391,10 +391,15 @@ export default function WorkflowMediaLibraryPicker({
               type="button"
               className="wf-lib-picker-action-btn"
               disabled={uploading}
+              aria-busy={uploading}
               onClick={() => fileRef.current?.click()}
             >
-              <Upload size={14} />
-              Tải lên
+              {uploading ? (
+                <Loader2 size={14} className="wf-spin" />
+              ) : (
+                <Upload size={14} />
+              )}
+              {uploading ? 'Đang tải…' : 'Tải lên'}
             </button>
             {kind === 'image' && (
               <a

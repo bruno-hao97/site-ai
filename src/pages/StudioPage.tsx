@@ -132,6 +132,7 @@ import type { TranslationKey } from '../i18n';
 import type { TranslateFn } from '../i18n/LanguageProvider';
 import ComposerMediaSlot from '../components/ComposerMediaSlot';
 import ComposerMediaPickButton from '../components/ComposerMediaPickButton';
+import ComposerUploadOverlay from '../components/ComposerUploadOverlay';
 import MusicTrackList, { type MusicTrackItem } from '../components/MusicTrackList';
 import { mediaKindFromUrl, validateMediaUrl } from '../services/mediaUrlValidation';
 import {
@@ -803,6 +804,16 @@ export default function StudioPage({
   const [enhancingPrompt, setEnhancingPrompt] = useState(false);
   const [promptModalOpen, setPromptModalOpen] = useState(false);
   const [componentDragOver, setComponentDragOver] = useState(false);
+  const [mediaUploading, setMediaUploading] = useState<
+    | 'component'
+    | 'frameStart'
+    | 'frameEnd'
+    | 'motionChar'
+    | 'motionVideo'
+    | 'editVideo'
+    | 'multiRef'
+    | null
+  >(null);
   const [multiPrompt, setMultiPrompt] = useState(false);
   const [promptSeparator, setPromptSeparator] = useState('=====');
   const [perPromptRef, setPerPromptRef] = useState(false);
@@ -2078,22 +2089,27 @@ export default function StudioPage({
     }
 
     setError('');
-    const url = await handleUpload(file, kind);
-    if (!url) return;
-    if (target === 'motionVideo' && kind === 'video') {
-      try {
-        const dur = await probeVideoDuration(file);
-        if (dur > 0) setMotionVideoDuration(dur);
-      } catch {
-        /* useEffect sẽ thử đọc từ URL */
+    setMediaUploading(target);
+    try {
+      const url = await handleUpload(file, kind);
+      if (!url) return;
+      if (target === 'motionVideo' && kind === 'video') {
+        try {
+          const dur = await probeVideoDuration(file);
+          if (dur > 0) setMotionVideoDuration(dur);
+        } catch {
+          /* useEffect sẽ thử đọc từ URL */
+        }
       }
+      if (target === 'component') addComponent(url, kind);
+      else if (target === 'frameStart') updateUrlList('images', 0, url);
+      else if (target === 'frameEnd') updateUrlList('images', 1, url);
+      else if (target === 'motionChar') updateUrlList('images', 0, url);
+      else if (target === 'motionVideo') setMotionVideoUrl(url);
+      else if (target === 'editVideo') setEditVideoUrl(url);
+    } finally {
+      setMediaUploading(null);
     }
-    if (target === 'component') addComponent(url, kind);
-    else if (target === 'frameStart') updateUrlList('images', 0, url);
-    else if (target === 'frameEnd') updateUrlList('images', 1, url);
-    else if (target === 'motionChar') updateUrlList('images', 0, url);
-    else if (target === 'motionVideo') setMotionVideoUrl(url);
-    else if (target === 'editVideo') setEditVideoUrl(url);
   }
 
   function ingestMediaUrl(
@@ -2284,6 +2300,7 @@ export default function StudioPage({
         <aside
           className={`composer-side${isVideoAgentView ? ' composer-side-agent' : ''}`}
           onPaste={(e) => {
+            if (mediaUploading) return;
             const file = [...(e.clipboardData?.files ?? [])][0];
             if (!file) return;
             e.preventDefault();
@@ -2532,6 +2549,7 @@ export default function StudioPage({
                   <ComposerMediaSlot
                     kind="image"
                     value={selections.images?.[0]}
+                    uploading={mediaUploading === 'motionChar'}
                     onFile={(file) => ingestMediaFile(file, 'motionChar')}
                     onUrl={(url) => ingestMediaUrl(url, 'motionChar')}
                     emptyIcon={<PersonStanding size={18} />}
@@ -2545,6 +2563,7 @@ export default function StudioPage({
                   <ComposerMediaSlot
                     kind="video"
                     value={motionVideoUrl}
+                    uploading={mediaUploading === 'motionVideo'}
                     onFile={(file) => ingestMediaFile(file, 'motionVideo')}
                     onUrl={(url) => ingestMediaUrl(url, 'motionVideo')}
                     emptyIcon={<Video size={18} />}
@@ -2570,6 +2589,7 @@ export default function StudioPage({
               <ComposerMediaSlot
                 kind="video"
                 value={editVideoUrl}
+                uploading={mediaUploading === 'editVideo'}
                 className="composer-edit-drop"
                 previewClassName="composer-edit-preview"
                 onFile={(file) => ingestMediaFile(file, 'editVideo')}
@@ -2610,6 +2630,7 @@ export default function StudioPage({
                     <ComposerMediaSlot
                       kind="image"
                       value={selections.images?.[0]}
+                      uploading={mediaUploading === 'frameStart'}
                       onFile={(file) => ingestMediaFile(file, 'frameStart')}
                       onUrl={(url) => ingestMediaUrl(url, 'frameStart')}
                       emptyIcon={<Plus size={18} />}
@@ -2623,6 +2644,7 @@ export default function StudioPage({
                       <ComposerMediaSlot
                         kind="image"
                         value={selections.images?.[1]}
+                        uploading={mediaUploading === 'frameEnd'}
                         onFile={(file) => ingestMediaFile(file, 'frameEnd')}
                         onUrl={(url) => ingestMediaUrl(url, 'frameEnd')}
                         emptyIcon={<Plus size={18} />}
@@ -2666,13 +2688,15 @@ export default function StudioPage({
 
                   {canAddComponentAny && (
                     <div
-                      className={`composer-addmedia ${componentDragOver ? 'drag' : ''}`}
+                      className={`composer-addmedia ${componentDragOver ? 'drag' : ''}${mediaUploading === 'component' ? ' is-uploading' : ''}`}
                       onDragOver={(e) => {
+                        if (mediaUploading === 'component') return;
                         e.preventDefault();
                         setComponentDragOver(true);
                       }}
                       onDragLeave={() => setComponentDragOver(false)}
                       onDrop={(e) => {
+                        if (mediaUploading === 'component') return;
                         e.preventDefault();
                         setComponentDragOver(false);
                         const file = e.dataTransfer.files?.[0];
@@ -2705,6 +2729,9 @@ export default function StudioPage({
                       </div>
                       <span className="composer-addmedia-text">{t('composer.addMedia')}</span>
                       <span className="composer-dropzone-hint">{t('composer.addMediaHint')}</span>
+                      {mediaUploading === 'component' && (
+                        <ComposerUploadOverlay minimal hint="Đang tải lên" />
+                      )}
                     </div>
                   )}
 
@@ -2951,8 +2978,13 @@ export default function StudioPage({
                                 setError(err);
                                 return;
                               }
-                              const url = await handleUpload(f, 'image');
-                              if (url) setMultiRefs((prev) => [...prev, url]);
+                              setMediaUploading('multiRef');
+                              try {
+                                const url = await handleUpload(f, 'image');
+                                if (url) setMultiRefs((prev) => [...prev, url]);
+                              } finally {
+                                setMediaUploading(null);
+                              }
                             }}
                             onUrl={(url) => {
                               const err = validateMediaUrl(url, 'image');
@@ -2968,6 +3000,11 @@ export default function StudioPage({
                           </ComposerMediaPickButton>
                         </div>
                         <div className="composer-mp-refgrid">
+                          {mediaUploading === 'multiRef' && (
+                            <div className="composer-mp-refthumb composer-mp-refthumb-pending">
+                              <ComposerUploadOverlay minimal hint="Đang tải lên" />
+                            </div>
+                          )}
                           {multiRefs.map((url, i) => (
                             <div key={`${url}-${i}`} className="composer-mp-refthumb">
                               <img src={url} alt={`ref ${i + 1}`} />

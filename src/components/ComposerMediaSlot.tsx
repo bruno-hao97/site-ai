@@ -2,6 +2,7 @@ import { type ReactNode, useRef, useState } from 'react';
 import ComposerMediaAlbumModal from './ComposerMediaAlbumModal';
 import ComposerMediaLinkModal from './ComposerMediaLinkModal';
 import ComposerMediaSourceMenu from './ComposerMediaSourceMenu';
+import ComposerUploadOverlay from './ComposerUploadOverlay';
 
 type MediaKind = 'image' | 'video' | 'any';
 
@@ -23,6 +24,7 @@ export default function ComposerMediaSlot({
   emptyIcon,
   emptyTitle,
   emptyHint,
+  uploading = false,
   className = 'composer-motion-drop',
   previewClassName = 'composer-motion-preview',
 }: {
@@ -33,6 +35,7 @@ export default function ComposerMediaSlot({
   emptyIcon?: ReactNode;
   emptyTitle: string;
   emptyHint?: string;
+  uploading?: boolean;
   className?: string;
   previewClassName?: string;
 }) {
@@ -49,18 +52,27 @@ export default function ComposerMediaSlot({
     <>
       <div
         ref={anchorRef}
-        className={className}
+        className={`${className}${uploading ? ' is-uploading' : ''}`}
         role="button"
-        tabIndex={0}
-        onClick={() => setMenuOpen(true)}
+        tabIndex={uploading ? -1 : 0}
+        aria-busy={uploading}
+        onClick={() => {
+          if (uploading) return;
+          setMenuOpen(true);
+        }}
         onKeyDown={(e) => {
+          if (uploading) return;
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             setMenuOpen(true);
           }
         }}
-        onDragOver={(e) => e.preventDefault()}
+        onDragOver={(e) => {
+          if (uploading) return;
+          e.preventDefault();
+        }}
         onDrop={(e) => {
+          if (uploading) return;
           e.preventDefault();
           e.stopPropagation();
           const file = e.dataTransfer.files?.[0];
@@ -91,6 +103,7 @@ export default function ComposerMediaSlot({
             {emptyHint && <span className="composer-dropzone-hint">{emptyHint}</span>}
           </>
         )}
+        {uploading && <ComposerUploadOverlay minimal hint="Đang tải lên" />}
       </div>
 
       {menuOpen && (

@@ -4310,8 +4310,100 @@ body.qc-sidebar-open .home-quick-create-dock {
   grid-column: 1 / -1;
 }
 
+/* Upload overlay – spinner trong slot/dropzone (giống VMedia) */
+.composer-upload-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-radius: inherit;
+  background: rgba(0, 0, 0, 0.48);
+  pointer-events: none;
+}
+
+.composer-upload-overlay.is-minimal {
+  background: transparent;
+}
+
+.composer-upload-spinner {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.22);
+  border-top-color: #fff;
+  animation: composer-upload-spin 0.85s linear infinite;
+}
+
+.composer-upload-hint {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+@keyframes composer-upload-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Uploading: hide slot content, show spinner only */
+.composer-motion-drop.is-uploading .composer-dropzone-plus,
+.composer-motion-drop.is-uploading .composer-dropzone-text,
+.composer-motion-drop.is-uploading .composer-dropzone-hint,
+.composer-edit-drop.is-uploading .composer-dropzone-plus,
+.composer-edit-drop.is-uploading .composer-dropzone-text,
+.composer-edit-drop.is-uploading .composer-dropzone-hint {
+  visibility: hidden;
+}
+
+.composer-addmedia.is-uploading .composer-addmedia-btns,
+.composer-addmedia.is-uploading .composer-addmedia-text,
+.composer-addmedia.is-uploading .composer-dropzone-hint {
+  visibility: hidden;
+}
+
+.qc-sb-add.is-uploading,
+.qc-sb-add[aria-busy='true'] {
+  color: transparent;
+}
+
+.qc-sb-add .composer-upload-spinner {
+  width: 22px;
+  height: 22px;
+  border-width: 2px;
+}
+
+.composer-media-pick-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.composer-mp-refthumb-pending {
+  position: relative;
+  min-height: 72px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.url-row .upload-btn.is-uploading {
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+.url-row .upload-btn .composer-upload-spinner {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
 /* "Thêm media" – upload tham chiếu */
 .composer-addmedia {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -5298,6 +5390,7 @@ body.qc-sidebar-open .home-quick-create-dock {
 
 /* Uploader ảnh tham chiếu multi-prompt */
 .composer-mp-addref {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
@@ -5306,6 +5399,7 @@ body.qc-sidebar-open .home-quick-create-dock {
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--accent);
+  overflow: hidden;
   cursor: pointer;
 }
 
@@ -12139,6 +12233,11 @@ input.wf-gen-pill--select {
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(0, 0, 0, 0.35);
   overflow: hidden;
+}
+
+.wf-media-modal-preview-pending {
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .wf-media-modal-preview-cell img,

@@ -175,6 +175,7 @@ export default function HomeQuickCreateBar() {
   const [loadingModels, setLoadingModels] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [refs, setRefs] = useState<string[]>([]);
+  const [mediaUploading, setMediaUploading] = useState(false);
   const [qty, setQty] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [progress, setProgress] = useState('');
@@ -279,6 +280,7 @@ export default function HomeQuickCreateBar() {
   const ingestMediaFile = async (file: File) => {
     if (refs.length >= MAX_MEDIA) return;
     setError('');
+    setMediaUploading(true);
     try {
       const url =
         type === 'video'
@@ -288,6 +290,8 @@ export default function HomeQuickCreateBar() {
       setRefs((prev) => [...prev, url]);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setMediaUploading(false);
     }
   };
 
@@ -439,6 +443,7 @@ export default function HomeQuickCreateBar() {
                   kind={mediaPickKind}
                   className="qc-sb-frame qc-sb-add"
                   title="Thêm media"
+                  uploading={mediaUploading}
                   onFile={ingestMediaFile}
                   onUrl={ingestMediaUrl}
                 >

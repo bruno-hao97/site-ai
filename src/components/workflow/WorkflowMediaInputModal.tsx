@@ -19,6 +19,7 @@ import {
   type MediaSourceTab,
 } from '../../services/workflowMediaInput';
 import WorkflowMediaLibraryPicker from './WorkflowMediaLibraryPicker';
+import ComposerUploadOverlay from '../ComposerUploadOverlay';
 
 const TAB_ICONS: Record<MediaSourceTab, ReactNode> = {
   upload: <Upload size={13} />,
@@ -273,9 +274,14 @@ export default function WorkflowMediaInputModal({
           </p>
         ) : null}
 
-        {mediaCount > 0 ? (
+        {mediaCount > 0 || uploading ? (
           <section className="wf-media-modal-preview-grid-wrap">
             <div className="wf-media-modal-preview-grid">
+              {uploading && (
+                <div className="wf-media-modal-preview-cell wf-media-modal-preview-pending">
+                  <ComposerUploadOverlay minimal hint="Đang tải lên" />
+                </div>
+              )}
               {draft.mediaUrls.map((url, i) => (
                 <div key={`${url}-${i}`} className="wf-media-modal-preview-cell">
                   {kind === 'image' ? (
