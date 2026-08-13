@@ -1,0 +1,144 @@
+.legal-page {
+  min-height: 100vh;
+  background: #050816;
+  color: #e2e8f0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.legal-page a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.legal-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 20px;
+  padding: 16px 24px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.legal-topbar a {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.55);
+  transition: color 0.15s ease;
+}
+
+.legal-topbar a:hover,
+.legal-topbar a.active {
+  color: #fff;
+}
+
+.legal-shell {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 8px 24px 48px;
+}
+
+.legal-card {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 16px;
+  padding: 32px 28px 28px;
+}
+
+.legal-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.legal-card-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: rgba(83, 235, 103, 0.12);
+  color: #53eb67;
+}
+
+.legal-card-head h1 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.legal-section {
+  margin-bottom: 22px;
+}
+
+.legal-section h2 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.legal-section p,
+.legal-section li {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.legal-section ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.legal-section li + li {
+  margin-top: 4px;
+}
+
+.legal-contact {
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.legal-contact-label {
+  margin: 0 0 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.legal-contact-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.legal-contact-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+  transition: color 0.15s ease;
+}
+
+.legal-contact-item:hover {
+  color: #53eb67;
+}
+
+.legal-contact-item svg {
+  color: #53eb67;
+  flex-shrink: 0;
+}
+
+.legal-page-footer {
+  text-align: center;
+  margin-top: 28px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.35);
+}
