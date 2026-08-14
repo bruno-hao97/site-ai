@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowLeftRight, Coins, MessageSquare, User } from 'lucide-react';
 import { notifyCreditsUpdated, refreshSession } from '../../services/authStore';
 import {
@@ -6,15 +6,30 @@ import {
   MIN_TRANSFER_CREDIT,
   sendBalances,
 } from '../../services/transferBalances';
-
-const SAFETY_RULES = [
-  'Giao dịch chuyển credit không thể hoàn tác sau khi thành công.',
-  'Kiểm tra kỹ username người nhận để tránh chuyển nhầm.',
-  'Không chuyển tiền cho người lạ hoặc theo yêu cầu từ nguồn không đáng tin.',
-  `Hạn mức tối thiểu ${MIN_TRANSFER_CREDIT.toLocaleString('vi-VN')} và tối đa ${MAX_TRANSFER_CREDIT.toLocaleString('vi-VN')} credit mỗi lần.`,
-] as const;
+import { useLocale } from '../../i18n';
+import type { TranslationKey } from '../../i18n';
 
 export default function AccountTransferPage() {
+  const { t, locale } = useLocale();
+  const localeTag = locale === 'vi' ? 'vi-VN' : 'en-US';
+  const limitParams = useMemo(
+    () => ({
+      min: MIN_TRANSFER_CREDIT.toLocaleString(localeTag),
+      max: MAX_TRANSFER_CREDIT.toLocaleString(localeTag),
+    }),
+    [localeTag],
+  );
+
+  const safetyRules = useMemo(
+    (): TranslationKey[] => [
+      'account.transfer.warning1',
+      'account.transfer.warning2',
+      'account.transfer.warning3',
+      'account.transfer.warning4',
+    ],
+    [],
+  );
+
   const [username, setUsername] = useState('');
   const [value, setValue] = useState('10000');
   const [message, setMessage] = useState('');
@@ -35,7 +50,7 @@ export default function AccountTransferPage() {
       });
       await refreshSession();
       notifyCreditsUpdated();
-      setSuccess(result.message || 'Chuyển credit thành công');
+      setSuccess(result.message || t('account.transfer.successFallback'));
       setUsername('');
       setMessage('');
     } catch (err) {
@@ -47,7 +62,7 @@ export default function AccountTransferPage() {
 
   return (
     <div className="account-settings">
-      <h1 className="account-content-title">↔ CHUYỂN TIỀN</h1>
+      <h1 className="account-content-title">{t('account.transfer.title')}</h1>
 
       <div className="account-transfer-grid">
         <section className="panel account-card account-transfer-form-card">
@@ -55,12 +70,12 @@ export default function AccountTransferPage() {
             <label className="field">
               <span className="label">
                 <User size={14} aria-hidden />
-                USERNAME NGƯỜI NHẬN
+                {t('account.transfer.recipientLabel')}
               </span>
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Nhập username hoặc số điện thoại"
+                placeholder={t('account.transfer.recipientPlaceholder')}
                 autoComplete="off"
                 disabled={loading}
               />
@@ -69,7 +84,7 @@ export default function AccountTransferPage() {
             <label className="field">
               <span className="label">
                 <Coins size={14} aria-hidden />
-                SỐ LƯỢNG CREDIT
+                {t('account.transfer.amountLabel')}
               </span>
               <input
                 type="number"
@@ -81,23 +96,20 @@ export default function AccountTransferPage() {
                 placeholder={String(MIN_TRANSFER_CREDIT)}
                 disabled={loading}
               />
-              <p className="account-transfer-limits">
-                Min: {MIN_TRANSFER_CREDIT.toLocaleString('vi-VN')} · Max:{' '}
-                {MAX_TRANSFER_CREDIT.toLocaleString('vi-VN')}
-              </p>
+              <p className="account-transfer-limits">{t('account.transfer.limits', limitParams)}</p>
             </label>
 
             <label className="field">
               <span className="label">
                 <MessageSquare size={14} aria-hidden />
-                LỜI NHẮN (BẮT BUỘC)
+                {t('account.transfer.messageLabel')}
               </span>
               <textarea
                 className="account-transfer-message"
                 rows={3}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder="Nhập lời nhắn cho người nhận..."
+                placeholder={t('account.transfer.messagePlaceholder')}
                 disabled={loading}
               />
             </label>
@@ -107,7 +119,7 @@ export default function AccountTransferPage() {
 
             <button type="submit" className="btn account-transfer-submit" disabled={loading}>
               <ArrowLeftRight size={16} aria-hidden />
-              {loading ? 'Đang chuyển…' : 'CHUYỂN NGAY'}
+              {loading ? t('account.transfer.submitting') : t('account.transfer.submit')}
             </button>
           </form>
         </section>
@@ -115,16 +127,18 @@ export default function AccountTransferPage() {
         <aside className="account-transfer-warnings panel">
           <h2>
             <AlertTriangle size={16} aria-hidden />
-            CẢNH BÁO AN TOÀN &amp; QUY TẮC
+            {t('account.transfer.warningsTitle')}
           </h2>
           <ul>
-            {SAFETY_RULES.map((rule) => (
-              <li key={rule}>{rule}</li>
+            {safetyRules.map((key) => (
+              <li key={key}>
+                {key === 'account.transfer.warning4'
+                  ? t(key, limitParams)
+                  : t(key)}
+              </li>
             ))}
           </ul>
-          <p className="account-transfer-warnings-foot">
-            Việc tiếp tục đồng nghĩa với việc bạn đã hiểu các quy tắc an toàn.
-          </p>
+          <p className="account-transfer-warnings-foot">{t('account.transfer.warningsFoot')}</p>
         </aside>
       </div>
     </div>
