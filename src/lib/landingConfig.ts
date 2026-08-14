@@ -5,7 +5,7 @@ export const NAV_LINKS = [
   { href: '/#product', label: 'Tính năng' },
   { to: '/models', label: 'Models' },
   { href: '/#community', label: 'Khám phá' },
-  { href: '/#pricing', label: 'Bảng giá' },
+  { to: '/pricing', label: 'Bảng giá' },
 ] as const;
 
 export function appEntryPath(): string {

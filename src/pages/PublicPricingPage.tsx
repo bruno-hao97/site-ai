@@ -11,6 +11,7 @@ export default function PublicPricingPage() {
   const { t } = useLocale();
 
   useEffect(() => {
+    window.scrollTo(0, 0);
     document.title = t('pricing.pageTitle');
     return () => {
       document.title = 'Trung tâm AI';

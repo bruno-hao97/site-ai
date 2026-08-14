@@ -72,6 +72,17 @@
   color: #0f172a;
 }
 
+.landing-page.landing-page--guest .lang-pill,
+.landing-page.landing-page--guest .landing-lang-pill {
+  color: rgba(15, 23, 42, 0.72);
+  border-color: rgba(15, 23, 42, 0.12);
+}
+
+.landing-page.landing-page--guest .lang-pill:hover {
+  color: #0f172a;
+  background: rgba(15, 23, 42, 0.06);
+}
+
 .landing-page.landing-page--guest .credits-badge {
   color: rgba(15, 23, 42, 0.55);
   border-color: rgba(15, 23, 42, 0.12);

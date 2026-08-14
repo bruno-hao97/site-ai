@@ -181,6 +181,6 @@ export function getNavLinks(t: TranslateFn) {
     { href: '/#product', label: t('landing.nav.features') },
     { to: '/models', label: t('landing.nav.models') },
     { href: '/#community', label: t('landing.nav.explore') },
-    { href: '/#pricing', label: t('landing.nav.pricing') },
+    { to: '/pricing', label: t('landing.nav.pricing') },
   ] as const;
 }
