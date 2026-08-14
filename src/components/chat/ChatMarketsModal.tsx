@@ -10,6 +10,7 @@ import {
   type MarketplaceTabType,
   type MiniAppItem,
 } from '../../services/miniAppsApi';
+import { useLocale } from '../../i18n';
 
 interface Props {
   open: boolean;
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export default function ChatMarketsModal({ open, onClose, onOpenApp }: Props) {
+  const { t } = useLocale();
   const [tab, setTab] = useState<MarketplaceTabType>('all');
   const [query, setQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -46,7 +48,7 @@ export default function ChatMarketsModal({ open, onClose, onOpenApp }: Props) {
       } catch (e) {
         if (!cancelled) {
           setRawItems([]);
-          setError(e instanceof Error ? e.message : 'Không tải được danh sách mini app.');
+          setError(e instanceof Error ? e.message : t('chat.markets.loadError'));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -56,7 +58,7 @@ export default function ChatMarketsModal({ open, onClose, onOpenApp }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [open, debouncedSearch]);
+  }, [open, debouncedSearch, t]);
 
   useEffect(() => {
     if (!open) return;
@@ -86,15 +88,15 @@ export default function ChatMarketsModal({ open, onClose, onOpenApp }: Props) {
         className="chat-markets-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="Markets"
+        aria-label={t('chat.markets.aria')}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="chat-markets-head">
           <div>
-            <h3>Markets</h3>
-            <p>Khám phá hàng ngàn Mini Apps từ cộng đồng — chat, workflow, công cụ AI.</p>
+            <h3>{t('chat.markets.title')}</h3>
+            <p>{t('chat.markets.lead')}</p>
           </div>
-          <button type="button" className="chat-markets-x" onClick={onClose} aria-label="Đóng">
+          <button type="button" className="chat-markets-x" onClick={onClose} aria-label={t('chat.markets.close')}>
             <X size={18} />
           </button>
         </header>
@@ -123,7 +125,7 @@ export default function ChatMarketsModal({ open, onClose, onOpenApp }: Props) {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Tìm Mini App..."
+                placeholder={t('chat.markets.searchPlaceholder')}
                 autoFocus
               />
             </div>
@@ -142,7 +144,7 @@ export default function ChatMarketsModal({ open, onClose, onOpenApp }: Props) {
           ) : error ? (
             <div className="chat-markets-empty">{error}</div>
           ) : items.length === 0 ? (
-            <div className="chat-markets-empty">Không tìm thấy mini app phù hợp.</div>
+            <div className="chat-markets-empty">{t('chat.markets.empty')}</div>
           ) : (
             <div className="chat-markets-grid">
               {items.map((app) => (

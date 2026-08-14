@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import ChatMarketplaceCard from './ChatMarketplaceCard';
 import { fetchTopFreeMarketplaceApps, type MarketplaceApp } from '../../services/miniAppsApi';
 import { isLoggedIn } from '../../services/authStore';
+import { useLocale } from '../../i18n';
 
 interface Props {
   onOpenApp?: (app: MarketplaceApp) => void;
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export default function ChatMarketplaceStrip({ onOpenApp, onViewAll }: Props) {
+  const { t } = useLocale();
   const [apps, setApps] = useState<MarketplaceApp[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +28,7 @@ export default function ChatMarketplaceStrip({ onOpenApp, onViewAll }: Props) {
       } catch (e) {
         if (!cancelled) {
           setApps([]);
-          setError(e instanceof Error ? e.message : 'Không tải được chợ ứng dụng.');
+          setError(e instanceof Error ? e.message : t('chat.marketplace.error'));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -36,17 +38,17 @@ export default function ChatMarketplaceStrip({ onOpenApp, onViewAll }: Props) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   if (!isLoggedIn()) return null;
 
   return (
-    <section className="chat-marketplace" aria-label="Top miễn phí">
+    <section className="chat-marketplace" aria-label={t('chat.marketplace.aria')}>
       <div className="chat-marketplace-head">
-        <h2 className="chat-marketplace-heading">TOP MIỄN PHÍ</h2>
+        <h2 className="chat-marketplace-heading">{t('chat.marketplace.heading')}</h2>
         {onViewAll ? (
           <button type="button" className="chat-marketplace-all" onClick={onViewAll}>
-            Xem tất cả
+            {t('chat.marketplace.viewAll')}
           </button>
         ) : null}
       </div>

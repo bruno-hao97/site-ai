@@ -1,4 +1,5 @@
 import type { ChatSuggestion } from '../../services/chatPageData';
+import { useLocale } from '../../i18n';
 
 interface Props {
   suggestions: ChatSuggestion[];
@@ -8,9 +9,11 @@ interface Props {
 }
 
 export default function ChatSuggestions({ suggestions, onSelect, onFill, disabled }: Props) {
+  const { t } = useLocale();
+
   return (
     <section className="chat-suggestions-section">
-      <h2 className="chat-suggestions-heading">GỢI Ý CHO BẠN</h2>
+      <h2 className="chat-suggestions-heading">{t('chat.suggestions.heading')}</h2>
       <div className="chat-suggestions-grid">
         {suggestions.map((s) => (
           <button
@@ -23,7 +26,7 @@ export default function ChatSuggestions({ suggestions, onSelect, onFill, disable
               e.preventDefault();
               onFill?.(s.prompt);
             }}
-            title="Nhấp để gửi · Chuột phải để điền vào ô nhập"
+            title={t('chat.suggestions.title')}
           >
             <span className="chat-suggestion-card-label">{s.label}</span>
             <span className="chat-suggestion-card-prompt">{s.prompt}</span>

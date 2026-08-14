@@ -5,11 +5,10 @@ import BrandLogo from '../BrandLogo';
 import { getCreditsAi, getDisplayUser } from '../../services/authStore';
 import { loadProjects, type Project } from '../../services/projectStore';
 import { resolveChatAgent } from '../../services/chatAgents';
-import {
-  formatSessionTime,
-  type ChatSessionSummary,
-} from '../../services/chatSessionsLocal';
+import type { ChatSessionSummary } from '../../services/chatSessionsLocal';
 import { SITE_BRAND_LABEL } from '../../services/siteConfig';
+import { useLocale } from '../../i18n';
+import { formatChatSessionTime } from '../../lib/chatPageI18n';
 
 interface Props {
   sessions: ChatSessionSummary[];
@@ -32,12 +31,14 @@ export default function ChatSidebar({
   mobileOpen,
   onCloseMobile,
 }: Props) {
+  const { t, locale } = useLocale();
   const [query, setQuery] = useState('');
   const user = getDisplayUser();
   const credits = getCreditsAi();
   const agent = resolveChatAgent(agentId);
   const projects: Project[] = loadProjects();
   const defaultProject = projects[0];
+  const localeTag = locale === 'vi' ? 'vi-VN' : 'en-US';
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -54,14 +55,14 @@ export default function ChatSidebar({
         <button
           type="button"
           className="chat-sidebar-backdrop"
-          aria-label="Đóng menu"
+          aria-label={t('chat.sidebar.closeMenu')}
           onClick={onCloseMobile}
         />
       )}
       <aside
         className={`chat-sidebar${mobileOpen ? ' chat-sidebar--open' : ''}`}
         role="navigation"
-        aria-label="Chat sidebar"
+        aria-label={t('chat.sidebar.aria')}
       >
         <div className="chat-sidebar-head">
           <BrandLogo to="/home" />
@@ -73,15 +74,15 @@ export default function ChatSidebar({
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Tìm kiếm đoạn chat"
-              aria-label="Tìm kiếm đoạn chat"
+              placeholder={t('chat.sidebar.searchPlaceholder')}
+              aria-label={t('chat.sidebar.searchAria')}
             />
           </div>
           <button
             type="button"
             className="chat-sidebar-search-new"
-            title="Chat mới"
-            aria-label="Chat mới"
+            title={t('chat.sidebar.newChat')}
+            aria-label={t('chat.sidebar.newChat')}
             onClick={onNewChat}
           >
             <Plus size={16} />
@@ -90,19 +91,19 @@ export default function ChatSidebar({
 
         <Link to="/workflow" className="chat-sidebar-wfl" onClick={onCloseMobile}>
           <GitBranch size={15} />
-          Auto Workflow
+          {t('chat.sidebar.workflow')}
         </Link>
 
         <div className="chat-sidebar-section">
-          <p className="chat-sidebar-section-label">DỰ ÁN</p>
+          <p className="chat-sidebar-section-label">{t('chat.sidebar.projects')}</p>
           <div className="chat-sidebar-section-item">
             <Folder size={14} />
-            <span>{defaultProject?.name ?? 'Mặc định'}</span>
+            <span>{defaultProject?.name ?? t('chat.sidebar.defaultProject')}</span>
           </div>
         </div>
 
         <div className="chat-sidebar-section">
-          <p className="chat-sidebar-section-label">AGENT</p>
+          <p className="chat-sidebar-section-label">{t('chat.sidebar.agent')}</p>
           <div className="chat-sidebar-section-item active">
             <Moon size={14} />
             <span>{agent.name}</span>
@@ -110,11 +111,11 @@ export default function ChatSidebar({
         </div>
 
         <div className="chat-sidebar-section chat-sidebar-section--grow">
-          <p className="chat-sidebar-section-label">GẦN ĐÂY</p>
+          <p className="chat-sidebar-section-label">{t('chat.sidebar.recent')}</p>
           <div className="chat-sidebar-list" role="list">
             {filtered.length === 0 ? (
               <p className="chat-sidebar-empty">
-                {query ? 'Không tìm thấy cuộc trò chuyện.' : 'Chưa có lịch sử chat.'}
+                {query ? t('chat.sidebar.emptySearch') : t('chat.sidebar.emptyHistory')}
               </p>
             ) : (
               filtered.map((s) => (
@@ -132,12 +133,14 @@ export default function ChatSidebar({
                     }}
                   >
                     <span className="chat-sidebar-item-title">{s.title}</span>
-                    <span className="chat-sidebar-item-time">{formatSessionTime(s.updatedAt)}</span>
+                    <span className="chat-sidebar-item-time">
+                      {formatChatSessionTime(s.updatedAt, locale, t)}
+                    </span>
                   </button>
                   <button
                     type="button"
                     className="chat-sidebar-item-del"
-                    aria-label="Xóa cuộc trò chuyện"
+                    aria-label={t('chat.sidebar.deleteSession')}
                     onClick={() => onDeleteSession(s.sessionId)}
                   >
                     <Trash2 size={14} />
@@ -162,7 +165,7 @@ export default function ChatSidebar({
           </div>
           <div className="chat-sidebar-credits">
             <Coins size={14} />
-            <span>{credits.toLocaleString('vi-VN')}</span>
+            <span>{credits.toLocaleString(localeTag)}</span>
           </div>
         </footer>
       </aside>

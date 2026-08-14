@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUp, Loader2, Paperclip, Plus, Square, X } from 'lucide-react';
-import { CHAT_ACTION_PILLS, MINI_APP_PROMPT_KEY } from '../../services/chatPageData';
+import { MINI_APP_PROMPT_KEY } from '../../services/chatPageData';
 import type { ChatActionPill } from '../../services/chatPageData';
+import { useLocale } from '../../i18n';
 
 export interface ChatAttachmentPreview {
   url: string;
@@ -18,6 +19,7 @@ interface Props {
   onSend: () => void;
   onStop?: () => void;
   onActionPill?: (pill: ChatActionPill) => void;
+  actionPills?: ChatActionPill[];
   thinking: boolean;
   uploading?: boolean;
   compact?: boolean;
@@ -39,11 +41,14 @@ export default function ChatCompose({
   onSend,
   onStop,
   onActionPill,
+  actionPills = [],
   thinking,
   uploading = false,
   compact = false,
-  placeholder = 'Bạn muốn hỏi, tạo app, hay xây dựng ý tưởng gì hôm nay?',
+  placeholder,
 }: Props) {
+  const { t } = useLocale();
+  const inputPlaceholder = placeholder ?? t('chat.compose.placeholder');
   const [plusOpen, setPlusOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const plusRef = useRef<HTMLDivElement>(null);
@@ -75,11 +80,11 @@ export default function ChatCompose({
   const handleFile = (file: File | null) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      window.alert('Chỉ hỗ trợ đính kèm ảnh.');
+      window.alert(t('chat.compose.imageOnly'));
       return;
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      window.alert('Ảnh tối đa 15MB.');
+      window.alert(t('chat.compose.imageMaxSize'));
       return;
     }
     onPickFile(file);
@@ -128,10 +133,15 @@ export default function ChatCompose({
           <span>{attachment.name}</span>
           {uploading && (
             <span className="chat-compose-uploading">
-              <Loader2 size={14} className="chat-spin" /> Đang tải lên…
+              <Loader2 size={14} className="chat-spin" /> {t('chat.compose.uploading')}
             </span>
           )}
-          <button type="button" onClick={onRemoveAttachment} aria-label="Bỏ ảnh" disabled={uploading}>
+          <button
+            type="button"
+            onClick={onRemoveAttachment}
+            aria-label={t('chat.compose.removeImage')}
+            disabled={uploading}
+          >
             <X size={14} />
           </button>
         </div>
@@ -150,14 +160,14 @@ export default function ChatCompose({
         />
 
         <div className="chat-compose-left">
-          <label htmlFor={fileId} className="chat-compose-attach" title="Đính kèm ảnh (≤15MB)">
+          <label htmlFor={fileId} className="chat-compose-attach" title={t('chat.compose.attachTitle')}>
             <Paperclip size={16} />
           </label>
           <div className="chat-compose-plus-wrap" ref={plusRef}>
             <button
               type="button"
               className="chat-compose-plus"
-              title="Thêm"
+              title={t('chat.compose.addTitle')}
               aria-expanded={plusOpen}
               onClick={() => setPlusOpen((v) => !v)}
             >
@@ -171,21 +181,21 @@ export default function ChatCompose({
                     try {
                       sessionStorage.setItem(
                         MINI_APP_PROMPT_KEY,
-                        value.trim() || 'Mô tả mini app bạn muốn tạo…',
+                        value.trim() || t('chat.compose.miniAppDefault'),
                       );
                     } catch {
                       /* ignore */
                     }
-                    appendText('Tôi muốn tạo mini app: ');
+                    appendText(t('chat.compose.miniAppPrefix'));
                   }}
                 >
-                  Tạo Mini App
+                  {t('chat.compose.miniApp')}
                 </button>
-                <button type="button" onClick={() => appendText('Phân tích ảnh đính kèm và ')}>
-                  Phân tích ảnh
+                <button type="button" onClick={() => appendText(t('chat.compose.analyzeImagePrefix'))}>
+                  {t('chat.compose.analyzeImage')}
                 </button>
-                <button type="button" onClick={() => appendText('Tóm tắt ngắn gọn: ')}>
-                  Tóm tắt
+                <button type="button" onClick={() => appendText(t('chat.compose.summarizePrefix'))}>
+                  {t('chat.compose.summarize')}
                 </button>
               </div>
             )}
@@ -196,7 +206,7 @@ export default function ChatCompose({
           ref={textareaRef}
           className="chat-compose-input"
           value={value}
-          placeholder={placeholder}
+          placeholder={inputPlaceholder}
           rows={compact ? 1 : 2}
           onChange={(e) => onChange(e.target.value)}
           onPaste={onPaste}
@@ -214,8 +224,8 @@ export default function ChatCompose({
             className="chat-compose-send chat-compose-stop"
             onClick={uploading ? undefined : onStop}
             disabled={uploading}
-            title={uploading ? 'Đang tải ảnh' : 'Dừng'}
-            aria-label={uploading ? 'Đang tải ảnh' : 'Dừng'}
+            title={uploading ? t('chat.compose.uploadingTitle') : t('chat.compose.stop')}
+            aria-label={uploading ? t('chat.compose.uploadingTitle') : t('chat.compose.stop')}
           >
             {uploading ? (
               <Loader2 size={16} className="chat-spin" />
@@ -229,17 +239,17 @@ export default function ChatCompose({
             className="chat-compose-send chat-compose-send--blue"
             onClick={onSend}
             disabled={!canSend}
-            title="Gửi"
-            aria-label="Gửi"
+            title={t('chat.compose.send')}
+            aria-label={t('chat.compose.send')}
           >
             <ArrowUp size={18} strokeWidth={2.5} />
           </button>
         )}
       </div>
 
-      {!compact && (
+      {!compact && actionPills.length > 0 && (
         <div className="chat-compose-pills">
-          {CHAT_ACTION_PILLS.map((pill) => (
+          {actionPills.map((pill) => (
             <button
               key={pill.id}
               type="button"

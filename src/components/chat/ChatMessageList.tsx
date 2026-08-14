@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Bot } from 'lucide-react';
 import type { ChatMessage } from '../../services/chatSessionsLocal';
 import { stripChatDisplayText } from '../../services/chatSanitize';
+import { useLocale } from '../../i18n';
 
 interface Props {
   messages: ChatMessage[];
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export default function ChatMessageList({ messages, thinking }: Props) {
+  const { t } = useLocale();
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -30,7 +32,7 @@ export default function ChatMessageList({ messages, thinking }: Props) {
             )}
             <div className="chat-message-bubble">
               {m.imageUrl && (
-                <img className="chat-message-img" src={m.imageUrl} alt="đính kèm" />
+                <img className="chat-message-img" src={m.imageUrl} alt={t('chat.message.attachmentAlt')} />
               )}
               {streaming ? (
                 <span className="chat-message-typing">

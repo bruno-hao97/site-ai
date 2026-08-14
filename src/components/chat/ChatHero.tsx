@@ -1,5 +1,6 @@
 import { Bot, Code2, Image, Music, Palette, Video } from 'lucide-react';
 import type { ChatAiModel } from '../../services/chatAiModels';
+import { useLocale } from '../../i18n';
 
 interface Props {
   model: ChatAiModel;
@@ -15,6 +16,8 @@ const ICONS = [
 ];
 
 export default function ChatHero({ model }: Props) {
+  const { t } = useLocale();
+
   return (
     <section className="chat-hero">
       <div className="chat-hero-icons" aria-hidden="true">
@@ -24,15 +27,13 @@ export default function ChatHero({ model }: Props) {
           </span>
         ))}
       </div>
-      <p className="chat-hero-kicker">KHÔNG GIAN AI</p>
+      <p className="chat-hero-kicker">{t('chat.hero.kicker')}</p>
       <h1 className="chat-hero-title">
-        BIẾN Ý TƯỞNG THÀNH
+        {t('chat.hero.titleLine1')}
         <br />
-        HIỆN THỰC VỚI AI
+        {t('chat.hero.titleLine2')}
       </h1>
-      <p className="chat-hero-sub">
-        Sáng tạo không giới hạn. Hỗ trợ bởi {model.name}
-      </p>
+      <p className="chat-hero-sub">{t('chat.hero.sub', { model: model.name })}</p>
     </section>
   );
 }

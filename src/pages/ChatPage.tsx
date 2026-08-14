@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SITE_DISPLAY_NAME } from '../services/siteConfig';
 import ChatAiModelPickerModal from '../components/ChatAiModelPickerModal';
@@ -23,7 +23,6 @@ import {
 import { resolveQuickChatContext } from '../services/quickChatContext';
 import {
   CHAT_STUDIO_PROMPT_KEY,
-  CHAT_SUGGESTIONS,
   MINI_APP_PROMPT_KEY,
   type ChatActionPill,
 } from '../services/chatPageData';
@@ -46,17 +45,27 @@ import {
   type ChatMessage,
   type ChatSessionSummary,
 } from '../services/chatSessionsLocal';
+import { useLocale } from '../i18n';
+import {
+  buildChatActionPills,
+  buildChatSuggestions,
+  displayChatSessionTitle,
+  isNewChatSessionTitle,
+} from '../lib/chatPageI18n';
 
 type ChatView = 'landing' | 'thread';
 
 export default function ChatPage() {
+  const { t } = useLocale();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const chatSuggestions = useMemo(() => buildChatSuggestions(t), [t]);
+  const chatActionPills = useMemo(() => buildChatActionPills(t), [t]);
 
   const [sessions, setSessions] = useState<ChatSessionSummary[]>(() => listChatSessions());
   const [sessionId, setSessionId] = useState(() => newChatSessionId());
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [sessionTitle, setSessionTitle] = useState('Chat mới');
+  const [sessionTitle, setSessionTitle] = useState(() => t('chat.newSession'));
   const [input, setInput] = useState('');
   const [attachment, setAttachment] = useState<ChatAttachmentPreview | null>(null);
   const [thinking, setThinking] = useState(false);
@@ -79,11 +88,14 @@ export default function ChatPage() {
   }, []);
 
   useEffect(() => {
-    document.title = sessionTitle === 'Chat mới' ? `Chat · ${SITE_DISPLAY_NAME}` : `${sessionTitle} · Chat`;
+    const shown = displayChatSessionTitle(sessionTitle, t);
+    document.title = isNewChatSessionTitle(sessionTitle)
+      ? `${t('chat.page.title')} · ${SITE_DISPLAY_NAME}`
+      : `${shown} · ${t('chat.page.title')}`;
     return () => {
       document.title = SITE_DISPLAY_NAME;
     };
-  }, [sessionTitle]);
+  }, [sessionTitle, t]);
 
   useEffect(() => onChatSessionsUpdated(refreshSessions), [refreshSessions]);
 
@@ -150,11 +162,11 @@ export default function ChatPage() {
         if (cancelled) return;
         setInput(
           app.description
-            ? `Hướng dẫn tôi dùng mini app "${app.name}": ${app.description}`
-            : `Hướng dẫn tôi dùng mini app "${app.name}".`,
+            ? t('chat.page.miniAppGuide', { name: app.name, description: app.description })
+            : t('chat.page.miniAppGuideSimple', { name: app.name }),
         );
       } catch {
-        if (!cancelled) setInput(`Hướng dẫn tôi dùng mini app "${miniAppId}".`);
+        if (!cancelled) setInput(t('chat.page.miniAppGuideFallback', { id: miniAppId }));
       }
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
@@ -205,21 +217,21 @@ export default function ChatPage() {
     setAttachment(null);
     setInput('');
     setMessages([]);
-    setSessionTitle('Chat mới');
+    setSessionTitle(t('chat.newSession'));
     const id = newChatSessionId();
     setSessionId(id);
     setSidebarOpen(false);
     setErrorBanner(null);
     syncSessionUrl(id, true);
-  }, [attachment, syncSessionUrl]);
+  }, [attachment, syncSessionUrl, t]);
 
   const handleDeleteSession = useCallback(
     (id: string) => {
-      if (!window.confirm('Xóa cuộc trò chuyện này?')) return;
+      if (!window.confirm(t('chat.page.deleteConfirm'))) return;
       deleteChatSession(id);
       if (id === sessionId) startNewChat();
     },
-    [sessionId, startNewChat],
+    [sessionId, startNewChat, t],
   );
 
   const patchAssistant = (id: string, content: string) => {
@@ -240,7 +252,7 @@ export default function ChatPage() {
     if ((!text && !attachment) || thinking || uploading) return;
 
     if (!isGommoChatConfigured()) {
-      setErrorBanner('Bạn cần đăng nhập để dùng Chat AI.');
+      setErrorBanner(t('chat.page.loginRequired'));
       return;
     }
 
@@ -255,7 +267,9 @@ export default function ChatPage() {
     };
     const assistantId = newChatMessageId();
     const isFirstTurn = messages.length === 0;
-    const nextTitle = isFirstTurn ? deriveSessionTitle(text || attachment?.name || 'Chat mới') : sessionTitle;
+    const nextTitle = isFirstTurn
+      ? deriveSessionTitle(text || attachment?.name || t('chat.newSession'))
+      : sessionTitle;
     if (isFirstTurn) {
       setSessionTitle(nextTitle);
       syncSessionUrl(sessionId, true);
@@ -274,7 +288,7 @@ export default function ChatPage() {
       try {
         setUploading(true);
         const cdnUrl = await uploadQuickImage(attachment.file);
-        if (!cdnUrl) throw new Error('Không upload được ảnh.');
+        if (!cdnUrl) throw new Error(t('chat.page.uploadFailed'));
         apiAttachments = [
           {
             type: 'image',
@@ -287,7 +301,7 @@ export default function ChatPage() {
       } catch (err) {
         setUploading(false);
         const msg = err instanceof Error ? err.message : String(err);
-        setErrorBanner(`Lỗi upload ảnh: ${msg}`);
+        setErrorBanner(t('chat.page.uploadError', { msg }));
         setInput(text);
         return;
       } finally {
@@ -314,7 +328,7 @@ export default function ChatPage() {
 
     let acc = '';
     try {
-      acc = await askGommo(text || 'Mô tả ảnh này giúp tôi.', {
+      acc = await askGommo(text || t('chat.page.describeImage'), {
         history,
         firstTurn: isFirstTurn,
         sessionId,
@@ -341,7 +355,7 @@ export default function ChatPage() {
       void refreshCredits();
     } catch (err) {
       if (ac.signal.aborted) {
-        const partial = acc.trim() || '(Đã dừng.)';
+        const partial = acc.trim() || t('chat.page.stopped');
         patchAssistant(assistantId, partial);
         persistSession(
           nextMessages.map((m) => (m.id === assistantId ? { ...m, content: partial } : m)),
@@ -349,10 +363,11 @@ export default function ChatPage() {
         );
       } else {
         const msg = err instanceof Error ? err.message : String(err);
-        patchAssistant(assistantId, `⚠️ Lỗi: ${msg}`);
+        const errText = t('chat.page.error', { msg });
+        patchAssistant(assistantId, errText);
         setErrorBanner(msg);
         persistSession(
-          nextMessages.map((m) => (m.id === assistantId ? { ...m, content: `⚠️ Lỗi: ${msg}` } : m)),
+          nextMessages.map((m) => (m.id === assistantId ? { ...m, content: errText } : m)),
           nextTitle,
         );
       }
@@ -386,7 +401,7 @@ export default function ChatPage() {
       } else {
         await navigator.clipboard.writeText(url);
         setErrorBanner(null);
-        window.alert('Đã sao chép link cuộc trò chuyện.');
+        window.alert(t('chat.page.shareCopied'));
       }
     } catch {
       /* cancelled */
@@ -417,8 +432,8 @@ export default function ChatPage() {
   const handleMarketplaceApp = (app: MarketplaceApp) => {
     setInput(
       app.description
-        ? `Hướng dẫn tôi dùng mini app "${app.title}": ${app.description}`
-        : `Hướng dẫn tôi dùng mini app "${app.title}".`,
+        ? t('chat.page.miniAppGuide', { name: app.title, description: app.description })
+        : t('chat.page.miniAppGuideSimple', { name: app.title }),
     );
     textareaFocus();
   };
@@ -450,7 +465,7 @@ export default function ChatPage() {
         {errorBanner && (
           <div className="chat-error-banner" role="alert">
             {errorBanner}
-            <button type="button" onClick={() => setErrorBanner(null)} aria-label="Đóng">
+            <button type="button" onClick={() => setErrorBanner(null)} aria-label={t('chat.page.closeBanner')}>
               ×
             </button>
           </div>
@@ -468,11 +483,12 @@ export default function ChatPage() {
               onSend={() => void sendMessage()}
               onStop={() => abortRef.current?.abort()}
               onActionPill={handleActionPill}
+              actionPills={chatActionPills}
               thinking={thinking}
               uploading={uploading}
             />
             <ChatSuggestions
-              suggestions={CHAT_SUGGESTIONS}
+              suggestions={chatSuggestions}
               onSelect={(prompt) => void sendMessage(prompt)}
               onFill={setInput}
               disabled={thinking || uploading}
@@ -494,6 +510,7 @@ export default function ChatPage() {
               onSend={() => void sendMessage()}
               onStop={() => abortRef.current?.abort()}
               onActionPill={handleActionPill}
+              actionPills={chatActionPills}
               thinking={thinking}
               uploading={uploading}
               compact
