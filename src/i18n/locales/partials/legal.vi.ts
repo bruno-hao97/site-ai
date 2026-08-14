@@ -1,4 +1,5 @@
 export const legalVi = {
+  'legal.subnav.aria': 'Pháp lý',
   'legal.terms.pageTitle': 'Điều khoản dịch vụ',
   'legal.terms.title': 'Điều khoản dịch vụ',
   'legal.terms.s1.title': '1. Chấp nhận điều khoản',

@@ -2,12 +2,6 @@ export const authVi = {
   'auth.split.headline': 'Từ ý tưởng đến ảnh hoàn chỉnh',
   'auth.split.lead':
     'Workflow ảnh AI đầy đủ: tạo mới, chỉnh sửa và upscale với kiểm soát chuyên nghiệp.',
-  'auth.split.tab.image': 'Ảnh',
-  'auth.split.tab.print': 'In ấn',
-  'auth.split.tab.video': 'Video',
-  'auth.split.tab.audio': 'Âm thanh',
-  'auth.split.tab.3d': '3D',
-  'auth.split.tabsAria': 'Danh mục sáng tạo',
   'auth.split.close': 'Đóng',
   'auth.login.pageTitle': 'Đăng nhập',
   'auth.login.welcome': 'Chào mừng đến {{siteName}}',

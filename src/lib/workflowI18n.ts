@@ -247,7 +247,7 @@ const NODE_GROUP_DEFS: NodeGroupDef[] = [
   },
   {
     id: 'io',
-    color: '#34d399',
+    color: '#31c992',
     icon: Package,
     nodeKeys: [
       { key: 'agent', icon: Bot, implemented: true },

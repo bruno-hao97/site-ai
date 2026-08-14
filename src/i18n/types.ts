@@ -25,6 +25,7 @@ export type TranslationKey =
   | 'nav.home'
   | 'nav.explore'
   | 'nav.projects'
+  | 'nav.models'
   | 'nav.image'
   | 'nav.video'
   | 'nav.audio'

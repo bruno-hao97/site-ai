@@ -1,12 +1,7 @@
 import type { ReactNode } from 'react';
 import { Globe, X } from 'lucide-react';
-import {
-  AUTH_SPLIT_ACTIVE_TAB_KEY,
-  AUTH_SPLIT_IMAGE,
-  AUTH_SPLIT_TAB_KEYS,
-} from '../../lib/authUiConfig';
+import { AUTH_SPLIT_IMAGE } from '../../lib/authUiConfig';
 import { useLocale } from '../../i18n';
-import type { TranslationKey } from '../../i18n/types';
 import BrandLogo from '../BrandLogo';
 import '../../styles/auth-split.css';
 
@@ -19,7 +14,7 @@ export default function AuthSplitLayout({ children, onClose }: Props) {
   const { t, locale, toggleLocale } = useLocale();
 
   return (
-    <div className="auth-split-page">
+    <div className="app-magnific auth-split-page">
       <aside className="auth-split-visual">
         <img
           src={AUTH_SPLIT_IMAGE}
@@ -32,17 +27,6 @@ export default function AuthSplitLayout({ children, onClose }: Props) {
         <div className="auth-split-visual-copy">
           <h2>{t('auth.split.headline')}</h2>
           <p>{t('auth.split.lead')}</p>
-          <nav className="auth-split-tabs" aria-label={t('auth.split.tabsAria')}>
-            {AUTH_SPLIT_TAB_KEYS.map((tabKey) => (
-              <span
-                key={tabKey}
-                className={tabKey === AUTH_SPLIT_ACTIVE_TAB_KEY ? 'active' : undefined}
-                aria-current={tabKey === AUTH_SPLIT_ACTIVE_TAB_KEY ? 'true' : undefined}
-              >
-                {t(tabKey as TranslationKey)}
-              </span>
-            ))}
-          </nav>
         </div>
       </aside>
 

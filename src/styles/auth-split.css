@@ -1,16 +1,16 @@
-/* Magnific-style split auth — login / register */
+/* Magnific-style split auth — login / register (shares app-magnific canvas) */
 
 .auth-split-page {
   display: grid;
   grid-template-columns: 1fr 1fr;
   min-height: 100vh;
   min-height: 100dvh;
-  background: #0a0a0a;
-  color: #fff;
+  color: var(--text, #f5f5f5);
 }
 
 .auth-split-visual {
   position: relative;
+  z-index: 1;
   overflow: hidden;
   min-height: 320px;
   background: #0f0609;
@@ -61,36 +61,15 @@
   color: rgba(255, 255, 255, 0.72);
 }
 
-.auth-split-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 18px;
-  margin-top: 28px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.45);
-}
-
-.auth-split-tabs span {
-  padding-bottom: 6px;
-  border-bottom: 1px solid transparent;
-}
-
-.auth-split-tabs span.active {
-  color: #fff;
-  border-bottom-color: #fff;
-}
-
 .auth-split-panel {
   position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: clamp(32px, 5vw, 56px) clamp(24px, 4vw, 48px);
-  background: #0a0a0a;
+  background: transparent;
 }
 
 .auth-split-close {
@@ -193,9 +172,9 @@
   width: 100%;
   padding: 0.72rem 0.85rem;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.04);
-  color: #fff;
+  border: 1px solid var(--mf-border, rgba(30, 43, 36, 0.48));
+  background: var(--mf-inset-glass, rgba(14, 28, 22, 0.26));
+  color: var(--text, #f5f5f5);
   font-size: 0.92rem;
 }
 
@@ -210,7 +189,7 @@
 .auth-split-form input:focus,
 .auth-split-form .auth-input input:focus {
   outline: none;
-  border-color: rgba(255, 255, 255, 0.35);
+  border-color: rgba(79, 223, 98, 0.428);
 }
 
 .auth-split-form .auth-methods {
@@ -227,17 +206,17 @@
   width: 100%;
   padding: 0.85rem 1rem;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
-  color: #fff;
+  border: 1px solid var(--mf-border, rgba(30, 43, 36, 0.48));
+  background: var(--mf-inset-glass, rgba(14, 28, 22, 0.26));
+  color: var(--text, #f5f5f5);
   cursor: pointer;
   text-align: left;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .auth-split-form .auth-method:hover {
-  border-color: rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(79, 223, 98, 0.332);
+  background: rgba(79, 223, 98, 0.076);
 }
 
 .auth-split-form .auth-method-icon {
@@ -251,8 +230,8 @@
 }
 
 .auth-split-form .auth-method-icon.teal {
-  background: rgba(45, 212, 191, 0.18);
-  color: #5eead4;
+  background: rgba(79, 223, 98, 0.133);
+  color: #4fdf62;
 }
 
 .auth-split-form .auth-method-icon.purple {
@@ -347,23 +326,23 @@
 .auth-split-form .btn.primary {
   width: 100%;
   margin-top: 0.25rem;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: none;
   border-radius: 10px;
   padding: 0.78rem 1rem;
   font-size: 0.88rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #fff;
+  color: var(--on-brand, #04140a);
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.06);
-  transition: background 0.15s ease, border-color 0.15s ease;
+  background: linear-gradient(135deg, #4fdf62, #39cc49);
+  transition: filter 0.15s ease, box-shadow 0.15s ease;
 }
 
 .auth-split-form .auth-submit:hover:not(:disabled),
 .auth-split-form .btn.primary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.28);
+  filter: brightness(1.06);
+  box-shadow: 0 4px 16px rgba(79, 223, 98, 0.209);
 }
 
 .auth-split-form .auth-submit:disabled,
@@ -424,7 +403,7 @@
 .auth-split-form .account-transfer-feedback.success {
   margin: 0 0 0.75rem;
   font-size: 0.85rem;
-  color: #86efac;
+  color: #80e6a3;
 }
 
 @media (max-width: 900px) {
@@ -439,11 +418,6 @@
 
   .auth-split-visual-copy {
     bottom: 24px;
-  }
-
-  .auth-split-tabs {
-    gap: 12px;
-    margin-top: 16px;
   }
 
   .auth-split-panel {

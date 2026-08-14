@@ -9,10 +9,10 @@ interface Props {
 const ICONS = [
   { Icon: Image, color: '#60a5fa', bg: 'rgba(96,165,250,0.15)' },
   { Icon: Video, color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
-  { Icon: Code2, color: '#34d399', bg: 'rgba(52,211,153,0.15)' },
+  { Icon: Code2, color: '#31c992', bg: 'rgba(49,200,145, 0.143)' },
   { Icon: Palette, color: '#f472b6', bg: 'rgba(244,114,182,0.15)' },
   { Icon: Music, color: '#fbbf24', bg: 'rgba(251,191,36,0.15)' },
-  { Icon: Bot, color: '#53eb67', bg: 'rgba(83,235,103,0.12)' },
+  { Icon: Bot, color: '#4fdf62', bg: 'rgba(79,223,98, 0.114)' },
 ];
 
 export default function ChatHero({ model }: Props) {

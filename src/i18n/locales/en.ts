@@ -24,6 +24,7 @@ const en: TranslationMap = {
   'nav.home': 'Home',
   'nav.explore': 'Explore',
   'nav.projects': 'Projects',
+  'nav.models': 'Models',
   'nav.image': 'Image',
   'nav.video': 'Video',
   'nav.audio': 'Audio',

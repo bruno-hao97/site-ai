@@ -1464,7 +1464,7 @@ function ConditionNode({ id, data }: NodeProps<WFNode>) {
         )}
         {data.statusText && <p className="wf-node-status">{data.statusText}</p>}
       </div>
-      <Port side="out" label={t('workflow.port.true')} color="#34d399" handleId="true" hideLabel={!portsExpanded} />
+      <Port side="out" label={t('workflow.port.true')} color="#31c992" handleId="true" hideLabel={!portsExpanded} />
       <Port side="out" label={t('workflow.port.false')} color="#f87171" handleId="false" hideLabel={!portsExpanded} />
     </div>
   );
@@ -1736,7 +1736,6 @@ function Palette({
               <button
                 type="button"
                 className="wf-group-head"
-                style={{ ['--g' as string]: g.color }}
                 onClick={() => setOpenMap((m) => ({ ...m, [g.id]: !m[g.id] }))}
               >
                 <span className="wf-group-icon">
@@ -1763,7 +1762,9 @@ function Palette({
                           : t('workflow.soonTitle', { label: n.label })
                       }
                     >
-                      <n.icon size={20} />
+                      <span className="wf-tile-icon">
+                        <n.icon size={18} />
+                      </span>
                       <span className="wf-tile-label">{n.label}</span>
                       {!n.implemented && <span className="wf-tile-soon">{t('workflow.soon')}</span>}
                     </button>
@@ -3258,10 +3259,10 @@ function Flow() {
             <MiniMap
               pannable
               zoomable
-              bgColor="#0d0e12"
-              maskColor="rgba(8, 9, 12, 0.6)"
-              nodeColor="#2b303a"
-              nodeStrokeColor="#3a4150"
+              bgColor="#101a14"
+              maskColor="rgba(10, 15, 13, 0.55)"
+              nodeColor="#1a2e24"
+              nodeStrokeColor="rgba(79, 223, 98, 0.209)"
               nodeBorderRadius={4}
             />
             <BottomBar

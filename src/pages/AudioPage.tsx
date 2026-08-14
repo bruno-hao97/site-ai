@@ -57,6 +57,7 @@ import AudioTtsSettingsPanel, {
   type SettingsSideTab,
 } from '../components/audio/AudioTtsSettingsPanel';
 import AudioStudioOnboarding from '../components/audio/AudioStudioOnboarding';
+import { AUDIO_ONBOARDING_ENABLED } from '../lib/audioOnboarding';
 import { useLocale } from '../i18n';
 import type { TranslationKey } from '../i18n';
 
@@ -881,7 +882,7 @@ export default function AudioPage() {
                   <Loader2 size={18} className="spin" /> {t('audio.generating')}
                 </p>
               ) : filteredLists.length === 0 ? (
-                activeFeature === 'tts' && mainTab === 'current' ? (
+                activeFeature === 'tts' && mainTab === 'current' && AUDIO_ONBOARDING_ENABLED ? (
                   <AudioStudioOnboarding onPickScript={(text) => setScript(text.slice(0, SCRIPT_MAX_CHARS))} />
                 ) : (
                   <p className="audio-empty">{t('audio.empty')}</p>

@@ -5,16 +5,41 @@
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Magnific palette */
-  --mf-canvas: #0a0a0a;
-  --mf-panel: #141414;
-  --mf-inset: #161616;
-  --mf-elevated: #1a1a1a;
-  --mf-border: rgba(255, 255, 255, 0.08);
+  position: relative;
+  isolation: isolate;
+  /* Mesh mint canvas (Omni Voice–style) */
+  --mf-canvas: #0a0f0d;
+  --mf-bg-gradient:
+    radial-gradient(ellipse 72% 58% at 8% 12%, rgba(81, 191, 143, 0.219) 0%, transparent 62%),
+    radial-gradient(ellipse 64% 52% at 84% 18%, rgba(79, 223, 98, 0.133) 0%, transparent 58%),
+    radial-gradient(ellipse 60% 50% at 74% 50%, rgba(81, 191, 143, 0.171) 0%, transparent 60%),
+    radial-gradient(ellipse 56% 48% at 14% 68%, rgba(49, 200, 145, 0.114) 0%, transparent 56%),
+    radial-gradient(ellipse 62% 52% at 90% 84%, rgba(79, 223, 98, 0.152) 0%, transparent 58%),
+    radial-gradient(ellipse 55% 45% at 42% 28%, rgba(81, 191, 143, 0.059) 0%, transparent 55%),
+    radial-gradient(ellipse 75% 60% at 50% 108%, rgba(14, 27, 21, 0.4) 0%, transparent 65%),
+    #0a0f0d;
+  --mf-panel-glass: rgba(14, 28, 22, 0.16);
+  --mf-inset-glass: rgba(14, 28, 22, 0.26);
+  --mf-panel: rgba(14, 28, 22, 0.3);
+  --mf-inset: rgba(14, 28, 22, 0.34);
+  --mf-elevated: rgba(18, 32, 26, 0.42);
+  --mf-border: rgba(30, 43, 36, 0.48);
+  --mf-shell-glass: linear-gradient(
+    155deg,
+    rgba(22, 44, 34, 0.12) 0%,
+    rgba(14, 28, 22, 0.072) 48%,
+    rgba(10, 18, 14, 0.051) 100%
+  );
+  --mf-cta-bg: color-mix(in srgb, #4fdf62 72%, #1a3328);
+  --mf-cta-bg-hover: color-mix(in srgb, #4fdf62 82%, #1a3328);
+  --mf-cta-text: #04140a;
+  --mf-cta-border: rgba(58, 175, 82, 0.332);
+  --mf-cta-shadow: 0 2px 8px rgba(58, 175, 82, 0.076);
+  --mf-cta-shadow-hover: 0 4px 12px rgba(58, 175, 82, 0.114);
   --mf-accent-pink: #ec4899;
   --mf-accent-orange: #f97316;
-  --job-btn: #e879a9;
-  --job-btn-hover: #ec4899;
+  --job-btn: var(--mf-cta-bg);
+  --job-btn-hover: var(--mf-cta-bg-hover);
   --bg: var(--mf-canvas);
   --surface: var(--mf-panel);
   --border: var(--mf-border);
@@ -24,8 +49,54 @@
   --app-rail-gap: 16px;
   --app-rail-offset: calc(var(--app-rail-gap) + var(--app-rail-width) + var(--app-rail-gap));
   --app-panel-radius: 18px;
-  background: var(--mf-canvas);
+  min-height: 100dvh;
+  background-color: var(--mf-canvas);
+  background-image: none;
   color: var(--text);
+}
+
+.app-magnific::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--mf-bg-gradient);
+}
+
+.app-magnific::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 180px 180px;
+}
+
+.app-magnific .app-shell-body {
+  position: relative;
+  z-index: 1;
+}
+
+/* Home-only glass tweaks */
+.app-magnific:has(.app-main-home) .home-panel,
+.app-magnific:has(.app-main-home) .home-panel--space {
+  background: var(--mf-inset-glass);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.app-magnific:has(.app-main-home) .qc-bar--hero {
+  background: var(--mf-inset-glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.app-magnific:has(.app-main-home) .home-whats-new-card {
+  border-color: rgba(30, 43, 36, 0.5);
 }
 
 /* —— App shell layout —— */
@@ -50,10 +121,15 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: var(--mf-panel);
+  background: var(--mf-shell-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--mf-border);
   border-radius: var(--app-panel-radius);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.28),
+    0 0 72px rgba(79, 223, 98, 0.039),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
   overflow: hidden;
 }
 
@@ -73,10 +149,14 @@
   align-items: center;
   padding: 14px 0 12px;
   gap: 8px;
-  background: var(--mf-panel);
+  background: var(--mf-shell-glass);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border: 1px solid var(--mf-border);
   border-radius: 18px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.45),
+    0 0 56px rgba(81, 191, 143, 0.048);
   overflow: hidden;
   transition: width 0.22s ease;
 }
@@ -115,22 +195,25 @@
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  color: #0a0a0a;
-  background: var(--mf-accent-pink);
+  color: var(--mf-cta-text);
+  background: var(--mf-cta-bg);
+  border: 1px solid var(--mf-cta-border);
   text-decoration: none;
-  transition: background 0.15s, color 0.15s, transform 0.15s;
+  transition: background 0.15s, color 0.15s, transform 0.15s, box-shadow 0.15s, border-color 0.15s;
 }
 
 .app-sidebar-create:hover {
-  color: #0a0a0a;
-  background: #f472b6;
+  color: var(--mf-cta-text);
+  background: var(--mf-cta-bg-hover);
+  border-color: rgba(58, 175, 82, 0.428);
   transform: scale(1.04);
+  box-shadow: var(--mf-cta-shadow-hover);
 }
 
 .app-sidebar-divider {
   width: 36px;
   height: 1px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--mf-border);
   margin: 2px 0 4px;
 }
 
@@ -154,7 +237,7 @@
   width: 100%;
   padding: 8px 10px 0;
   margin-top: auto;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--mf-border);
 }
 
 .app-sidebar-foot-btn {
@@ -175,8 +258,8 @@
 
 .app-sidebar-foot-btn:hover,
 .app-sidebar-foot-btn:focus-visible {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.88);
+  background: rgba(81, 191, 143, 0.095);
+  color: rgba(255, 255, 255, 0.92);
   outline: none;
 }
 
@@ -201,13 +284,13 @@
 
 .app-sidebar-link:hover,
 .app-sidebar-link:focus-visible {
-  color: rgba(255, 255, 255, 0.88);
-  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(81, 191, 143, 0.095);
 }
 
 .app-sidebar-link.active {
   color: #fff;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(79, 223, 98, 0.133);
 }
 
 .app-sidebar-tooltip {
@@ -307,6 +390,24 @@
   display: none;
 }
 
+.app-magnific .app-main-home,
+.app-magnific .app-main-projects,
+.app-magnific .app-main-account,
+.app-magnific .app-main-chat,
+.app-magnific .app-main-workflow,
+.app-magnific .app-main-full,
+.app-magnific .app-main-secondary {
+  background: transparent;
+}
+
+.app-magnific .projects-sidebar,
+.app-magnific .projects-main,
+.app-magnific .account-sidebar,
+.app-magnific .account-content {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
 .app-magnific .app-main:not(.app-main-home):not(.app-main-projects):not(.app-main-full):not(.app-main-chat):not(.app-main-workflow):not(.app-main-account) {
   max-width: none;
   margin: 0;
@@ -403,14 +504,16 @@
 }
 
 .app-magnific .projects-create button {
-  border: none;
-  background: var(--mf-accent-pink);
-  color: #0a0a0a;
-  transition: filter 0.15s ease;
+  border: 1px solid var(--mf-cta-border);
+  background: var(--mf-cta-bg);
+  color: var(--mf-cta-text);
+  transition: background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
 .app-magnific .projects-create button:hover {
-  filter: brightness(1.06);
+  background: var(--mf-cta-bg-hover);
+  border-color: rgba(58, 175, 82, 0.428);
+  box-shadow: var(--mf-cta-shadow-hover);
 }
 
 .app-magnific .projects-nav-item {
@@ -739,7 +842,7 @@
 }
 
 .app-magnific .app-main-full {
-  background: var(--mf-panel);
+  background: transparent;
   --surface: var(--mf-inset);
   --border: var(--mf-border);
   --text: #f5f5f5;
@@ -775,6 +878,8 @@
   overflow: hidden;
   gap: 12px;
   background: var(--mf-inset);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--mf-border);
   border-radius: 16px;
   padding: 16px 18px;
@@ -1046,24 +1151,294 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
-.app-magnific .app-main-full .composer-submit {
+.app-magnific .composer-submit {
   border-radius: 10px;
   font-weight: 600;
   font-size: 0.875rem;
-  background: linear-gradient(135deg, var(--mf-accent-pink) 0%, var(--mf-accent-orange) 100%);
-  box-shadow: 0 4px 18px rgba(236, 72, 153, 0.28);
-  transition: filter 0.15s ease, box-shadow 0.15s ease;
+  color: var(--mf-cta-text);
+  border: 1px solid var(--mf-cta-border);
+  background: var(--mf-cta-bg);
+  box-shadow: var(--mf-cta-shadow);
+  transition: background 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
-.app-magnific .app-main-full .composer-submit:hover:not(:disabled) {
-  background: linear-gradient(135deg, #f472b6 0%, #fb923c 100%);
-  filter: brightness(1.05);
-  box-shadow: 0 6px 22px rgba(236, 72, 153, 0.35);
+.app-magnific .composer-submit:hover:not(:disabled) {
+  color: var(--mf-cta-text);
+  background: var(--mf-cta-bg-hover);
+  border-color: rgba(58, 175, 82, 0.475);
+  box-shadow: var(--mf-cta-shadow-hover);
 }
 
-.app-magnific .app-main-full .composer-submit:disabled {
+.app-magnific .composer-submit:disabled {
   opacity: 0.5;
   box-shadow: none;
+}
+
+.app-magnific .qc-toolbar .qc-send {
+  color: var(--mf-cta-text);
+}
+
+/* —— Dropdown menus (Magnific mint glass) —— */
+body:has(.app-magnific) {
+  --mf-dropdown-bg: rgba(12, 22, 18, 0.96);
+  --mf-dropdown-border: rgba(30, 43, 36, 0.72);
+  --mf-dropdown-hover: rgba(79, 223, 98, 0.095);
+  --mf-dropdown-active: rgba(79, 223, 98, 0.152);
+}
+
+/* Portaled panels (render outside .app-magnific) */
+body:has(.app-magnific) .model-picker-panel,
+body:has(.app-magnific) .opt-dropdown-panel,
+body:has(.app-magnific) .project-pick-panel {
+  background: var(--mf-dropdown-bg);
+  border-color: var(--mf-dropdown-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow:
+    0 14px 40px rgba(0, 0, 0, 0.45),
+    0 0 28px rgba(58, 175, 82, 0.048);
+}
+
+body:has(.app-magnific) .model-picker-search,
+body:has(.app-magnific) .model-picker-tabs {
+  border-color: var(--mf-dropdown-border);
+}
+
+body:has(.app-magnific) .model-picker-group-head,
+body:has(.app-magnific) .model-picker-provider-sub,
+body:has(.app-magnific) .model-picker-item-desc,
+body:has(.app-magnific) .model-picker-empty {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+body:has(.app-magnific) .model-picker-provider-name {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+body:has(.app-magnific) .model-picker-item:hover {
+  background: var(--mf-dropdown-hover);
+}
+
+body:has(.app-magnific) .model-picker-item.active {
+  background: var(--mf-dropdown-active);
+}
+
+body:has(.app-magnific) .model-picker-item.active .model-picker-item-price,
+body:has(.app-magnific) .model-picker-check {
+  color: #75ef85;
+}
+
+body:has(.app-magnific) .model-picker-tab {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: transparent;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+body:has(.app-magnific) .model-picker-tab:hover {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+body:has(.app-magnific) .model-picker-tab.active {
+  background: var(--mf-dropdown-active);
+  border-color: rgba(79, 223, 98, 0.332);
+  color: #fff;
+}
+
+body:has(.app-magnific) .model-picker-badge.new {
+  color: #75ef85;
+  background: rgba(79, 223, 98, 0.133);
+}
+
+body:has(.app-magnific) .opt-dropdown-item:hover {
+  background: var(--mf-dropdown-hover);
+}
+
+body:has(.app-magnific) .opt-dropdown-item.active {
+  background: var(--mf-dropdown-active);
+}
+
+body:has(.app-magnific) .opt-dropdown-check {
+  color: #75ef85;
+}
+
+body:has(.app-magnific) .project-pick-search input {
+  border-color: var(--mf-dropdown-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+body:has(.app-magnific) .project-pick-item:hover {
+  background: var(--mf-dropdown-hover);
+}
+
+body:has(.app-magnific) .project-pick-check {
+  color: #75ef85;
+}
+
+body:has(.app-magnific) .cms-source-menu {
+  background: var(--mf-dropdown-bg);
+  border-color: var(--mf-dropdown-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.45),
+    0 0 28px rgba(58, 175, 82, 0.048);
+}
+
+body:has(.app-magnific) .cms-source-menu button:hover {
+  background: var(--mf-dropdown-hover);
+  color: #75ef85;
+}
+
+/* In-app dropdown menus */
+.app-magnific .qc-type-menu,
+.app-magnific .qc-model-menu,
+.app-magnific .qc-mini-menu {
+  background: var(--mf-dropdown-bg);
+  border-color: var(--mf-dropdown-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.45),
+    0 0 28px rgba(58, 175, 82, 0.048);
+}
+
+.app-magnific .qc-type-menu button,
+.app-magnific .qc-model-menu button,
+.app-magnific .qc-mini-menu button {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.app-magnific .qc-type-menu button:hover,
+.app-magnific .qc-model-menu button:hover,
+.app-magnific .qc-mini-menu button:hover,
+.app-magnific .qc-type-item:hover {
+  background: var(--mf-dropdown-hover);
+  color: #fff;
+}
+
+.app-magnific .qc-type-menu button.active,
+.app-magnific .qc-model-menu button.active,
+.app-magnific .qc-mini-menu button.active,
+.app-magnific .qc-type-item.active {
+  background: var(--mf-dropdown-active);
+  color: #fff;
+}
+
+.app-magnific .qc-type-item.active .qc-type-accent {
+  background: #4fdf62;
+  opacity: 1;
+}
+
+.app-magnific .qc-model-menu button small {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.app-magnific .qc-model-trigger,
+.app-magnific .qc-mini-trigger,
+.app-magnific .qc-type-trigger {
+  border-color: var(--mf-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.app-magnific .wf-node-model-trigger,
+.app-magnific .wf-gen-model-select {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--mf-border);
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.app-magnific .wf-node-model-menu {
+  background: var(--mf-dropdown-bg);
+  border-color: var(--mf-dropdown-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.app-magnific .wf-node-model-menu button:hover {
+  background: var(--mf-dropdown-hover);
+}
+
+.app-magnific .wf-node-model-menu button.active {
+  background: var(--mf-dropdown-active);
+  color: #fff;
+}
+
+.app-magnific .model-picker-trigger,
+.app-magnific .opt-dropdown-trigger {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--mf-border);
+}
+
+.app-magnific .model-picker-trigger:hover:not(:disabled),
+.app-magnific .model-picker-trigger.open,
+.app-magnific .opt-dropdown-trigger:hover,
+.app-magnific .opt-dropdown-trigger.open {
+  border-color: rgba(79, 223, 98, 0.332);
+  background: rgba(79, 223, 98, 0.076);
+}
+
+.app-magnific .model-picker-price {
+  color: #75ef85;
+  background: rgba(79, 223, 98, 0.114);
+}
+
+/* Chat AI model picker modal */
+body:has(.app-magnific) .chat-ai-model-modal {
+  background: var(--mf-dropdown-bg);
+  border-color: var(--mf-dropdown-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+body:has(.app-magnific) .chat-ai-model-tabs {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+body:has(.app-magnific) .chat-ai-model-tabs button.active {
+  background: color-mix(in srgb, #4fdf62 72%, #1a3328);
+  color: #04140a;
+}
+
+body:has(.app-magnific) .chat-ai-model-search {
+  border-color: var(--mf-dropdown-border);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+body:has(.app-magnific) .chat-ai-model-nav button:hover {
+  background: var(--mf-dropdown-hover);
+}
+
+body:has(.app-magnific) .chat-ai-model-nav button.active {
+  background: var(--mf-dropdown-active);
+  border-color: rgba(79, 223, 98, 0.266);
+  color: #fff;
+}
+
+body:has(.app-magnific) .chat-ai-model-nav button.active .chat-ai-model-nav-count {
+  color: #75ef85;
+}
+
+body:has(.app-magnific) .chat-ai-model-row {
+  border-color: var(--mf-dropdown-border);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+body:has(.app-magnific) .chat-ai-model-row:hover:not(:disabled) {
+  border-color: rgba(79, 223, 98, 0.266);
+  background: var(--mf-dropdown-hover);
+}
+
+body:has(.app-magnific) .chat-ai-model-row.active {
+  border-color: rgba(79, 223, 98, 0.428);
+  background: var(--mf-dropdown-active);
+  box-shadow: inset 0 0 0 1px rgba(79, 223, 98, 0.114);
+}
+
+body:has(.app-magnific) .chat-ai-model-group h4 {
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .app-magnific .app-main-full .composer-send-cost {
@@ -1677,7 +2052,7 @@
 .app-magnific .chat-page {
   height: 100%;
   min-height: 0;
-  background: var(--mf-panel);
+  background: transparent;
 }
 
 .app-magnific .wf-page {
@@ -1686,7 +2061,266 @@
 }
 
 .app-magnific .wf-shell {
-  background: var(--mf-panel);
+  background: transparent;
+}
+
+/* —— Workflow chrome (Magnific: neutral + mint, flush layout) —— */
+.app-magnific .wf-topbar {
+  background: var(--mf-inset);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom-color: var(--mf-border);
+}
+
+.app-magnific .wf-topbar.collapsed {
+  background: transparent;
+}
+
+.app-magnific .wf-tb-home {
+  background: rgba(79, 223, 98, 0.133);
+  border: 1px solid rgba(79, 223, 98, 0.332);
+  color: #4fdf62;
+}
+
+.app-magnific .wf-tb-home:hover {
+  filter: none;
+  background: rgba(79, 223, 98, 0.209);
+  color: #75ef85;
+}
+
+.app-magnific .wf-tb-lib,
+.app-magnific .wf-tb-new,
+.app-magnific .wf-tb-pin {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--mf-border);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.app-magnific .wf-tb-lib:hover,
+.app-magnific .wf-tb-new:hover,
+.app-magnific .wf-tb-pin:hover {
+  background: rgba(81, 191, 143, 0.095);
+  border-color: rgba(79, 223, 98, 0.332);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.app-magnific .wf-tb-pin.active {
+  color: #4fdf62;
+  border-color: rgba(79, 223, 98, 0.428);
+  background: rgba(79, 223, 98, 0.095);
+}
+
+.app-magnific .wf-tb-badge {
+  background: var(--brand);
+  color: var(--on-brand);
+}
+
+.app-magnific .wf-tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.app-magnific .wf-tab.active {
+  background: rgba(79, 223, 98, 0.095);
+  border-color: rgba(79, 223, 98, 0.266);
+  color: #fff;
+}
+
+.app-magnific .wf-tab-pin {
+  color: #4fdf62;
+}
+
+.app-magnific .wf-topbar-handle {
+  background: var(--brand);
+  border-color: var(--mf-border);
+  color: var(--on-brand);
+}
+
+.app-magnific .wf-palette {
+  background: var(--mf-inset);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-right-color: var(--mf-border);
+}
+
+.app-magnific .wf-palette-toggle,
+.app-magnific .wf-palette-reopen {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--mf-border);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.app-magnific .wf-palette-toggle:hover,
+.app-magnific .wf-palette-reopen:hover {
+  background: rgba(79, 223, 98, 0.095);
+  border-color: rgba(79, 223, 98, 0.332);
+  color: #4fdf62;
+}
+
+.app-magnific .wf-palette-search {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--mf-border);
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.app-magnific .wf-palette-search input {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.app-magnific .wf-palette-search input::placeholder {
+  color: rgba(255, 255, 255, 0.28);
+}
+
+.app-magnific .wf-group-icon {
+  color: rgba(255, 255, 255, 0.52);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.app-magnific .wf-group-head:hover .wf-group-icon {
+  color: #4fdf62;
+  background: rgba(79, 223, 98, 0.095);
+}
+
+.app-magnific .wf-group-count {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.app-magnific .wf-tile {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--mf-border);
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.app-magnific .wf-tile:hover {
+  border-color: rgba(79, 223, 98, 0.38);
+  color: #fff;
+  background: rgba(79, 223, 98, 0.076);
+}
+
+.app-magnific .wf-tile.soon:hover {
+  border-color: var(--mf-border);
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.app-magnific .wf-tile-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.05);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.app-magnific .wf-tile:hover .wf-tile-icon {
+  color: #4fdf62;
+  background: rgba(79, 223, 98, 0.114);
+}
+
+.app-magnific .wf-tile-soon {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.app-magnific .wf-mini-app {
+  border-color: var(--mf-border);
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.app-magnific .wf-bottombar {
+  background: var(--mf-inset);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-color: var(--mf-border);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.28),
+    0 0 40px rgba(79, 223, 98, 0.057);
+}
+
+.app-magnific .wf-bb-btn {
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.app-magnific .wf-bb-btn:hover {
+  background: rgba(81, 191, 143, 0.095);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.app-magnific .wf-bb-sep {
+  background: var(--mf-border);
+}
+
+.app-magnific .wf-bb-run {
+  background: linear-gradient(135deg, #4fdf62, #39cc49);
+  color: var(--on-brand);
+}
+
+.app-magnific .wf-bb-run:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 4px 16px rgba(79, 223, 98, 0.209);
+}
+
+.app-magnific .wf-agent-panel {
+  background: var(--mf-inset);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-left-color: var(--mf-border);
+}
+
+.app-magnific .wf-agent-head {
+  border-bottom-color: var(--mf-border);
+}
+
+.app-magnific .wf-agent-logo {
+  background: linear-gradient(135deg, #4fdf62, #39cc49);
+  color: var(--on-brand);
+}
+
+.app-magnific .wf-agent-head-btn,
+.app-magnific .wf-agent-icon-btn,
+.app-magnific .wf-agent-auto,
+.app-magnific .wf-agent-input {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--mf-border);
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.app-magnific .wf-agent-head-btn:hover,
+.app-magnific .wf-agent-icon-btn:hover {
+  background: rgba(81, 191, 143, 0.095);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.app-magnific .wf-agent-head-btn.active,
+.app-magnific .wf-agent-auto.on {
+  color: #4fdf62;
+  border-color: rgba(79, 223, 98, 0.332);
+  background: rgba(79, 223, 98, 0.095);
+}
+
+.app-magnific .wf-agent-applied {
+  color: #4fdf62;
+}
+
+.app-magnific .wf-agent-send {
+  background: linear-gradient(135deg, #4fdf62, #39cc49);
+  color: var(--on-brand);
+}
+
+.app-magnific .wf-agent-fab {
+  background: linear-gradient(135deg, #4fdf62, #39cc49);
+  color: var(--on-brand);
+  box-shadow: 0 8px 28px rgba(79, 223, 98, 0.266);
+}
+
+.app-magnific .wf-agent-history button.active,
+.app-magnific .wf-agent-history button:hover {
+  background: rgba(79, 223, 98, 0.095);
+  color: #4fdf62;
 }
 
 .app-magnific .audio-studio {
@@ -1874,11 +2508,94 @@
 
 .app-magnific .audio-tabs-head.composer-toolbar {
   margin-bottom: 0.85rem;
+  background: transparent;
+  border: none;
+}
+
+.app-magnific .audio-tabs.composer-toolbar-tabs button {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.45);
+  border: 1px solid transparent;
+  background: transparent;
+  border-bottom: none;
 }
 
 .app-magnific .audio-tabs.composer-toolbar-tabs button.active {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(79, 223, 98, 0.133);
   color: #fff;
+  border-color: rgba(79, 223, 98, 0.266);
+  font-weight: 600;
+}
+
+.app-magnific .audio-tabs.composer-toolbar-tabs button:hover:not(.active) {
+  background: rgba(81, 191, 143, 0.076);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.app-magnific .audio-tab-badge {
+  background: rgba(79, 223, 98, 0.133);
+  color: #75ef85;
+}
+
+.app-magnific .audio-results {
+  border-top-color: var(--mf-border);
+  background: transparent;
+}
+
+.app-magnific .audio-select-all {
+  border-color: var(--mf-border);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.app-magnific .audio-select-all:hover {
+  border-color: rgba(79, 223, 98, 0.332);
+  color: #fff;
+}
+
+.app-magnific .audio-session-card,
+.app-magnific .audio-session-row {
+  background: transparent;
+  border-color: var(--mf-border);
+}
+
+.app-magnific .audio-session-card.active,
+.app-magnific .audio-session-card.is-checked,
+.app-magnific .audio-session-row.active,
+.app-magnific .audio-session-row.is-checked {
+  background: rgba(79, 223, 98, 0.076);
+  border-color: rgba(79, 223, 98, 0.332);
+}
+
+.app-magnific .audio-session-card-foot {
+  border-top-color: var(--mf-border);
+}
+
+.app-magnific .audio-session-icon {
+  background: rgba(79, 223, 98, 0.114);
+  color: #75ef85;
+}
+
+.app-magnific .audio-session-card-text strong {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.app-magnific .audio-session-card-text small,
+.app-magnific .audio-session-card-foot,
+.app-magnific .audio-session-row-body small {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.app-magnific .audio-session-badge {
+  background: rgba(79, 223, 98, 0.133);
+  color: #75ef85;
+}
+
+.app-magnific .audio-studio-main {
+  background: var(--mf-inset-glass);
 }
 
 .app-magnific .audio-result-player {
@@ -1888,11 +2605,6 @@
 
 .app-magnific .audio-settings-top-tabs {
   border-bottom-color: var(--mf-border);
-}
-
-.app-magnific .audio-panel-tabs button.active {
-  color: #fff;
-  border-bottom-color: rgba(255, 255, 255, 0.85);
 }
 
 .app-magnific .audio-setting-group-label,
@@ -1905,12 +2617,44 @@
 .app-magnific .audio-lang-search,
 .app-magnific .audio-provider-pill {
   border-color: var(--mf-border);
-  background: rgba(0, 0, 0, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.app-magnific .audio-studio-settings select,
+.app-magnific .audio-model-picker,
+.app-magnific .audio-lang-select {
+  background-color: transparent;
 }
 
 .app-magnific .audio-provider-pill.active {
-  border-color: rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(79, 223, 98, 0.332);
+  background: rgba(79, 223, 98, 0.095);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.app-magnific .audio-segmented {
+  border-color: var(--mf-border);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.app-magnific .audio-segmented button {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.app-magnific .audio-segmented button:hover:not(.active) {
+  background: rgba(81, 191, 143, 0.076);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.app-magnific .audio-segmented button.active {
+  background: rgba(79, 223, 98, 0.133);
+  color: #fff;
+  font-weight: 600;
+}
+
+.app-magnific .audio-panel-tabs button.active {
+  color: #75ef85;
+  border-bottom-color: rgba(79, 223, 98, 0.617);
 }
 
 .app-magnific .lang-pill {
@@ -1922,6 +2666,15 @@
 .app-magnific .lang-pill:hover {
   background: rgba(255, 255, 255, 0.06);
   color: #fff;
+}
+
+.app-magnific .credit-pill,
+.app-magnific .header-credit-pill {
+  background: transparent;
+  border: none;
+  color: var(--brand);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .app-magnific .quick-chat-fab {
@@ -1956,7 +2709,7 @@
   top: auto;
   flex-shrink: 0;
   background: transparent;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(30, 43, 36, 0.45);
 }
 
 .app-header--slim .app-header-inner {
@@ -1993,7 +2746,7 @@
 }
 
 .app-header--slim .header-credit-pill {
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--brand);
   font-size: 0.875rem;
 }
 
@@ -2212,7 +2965,9 @@
 .home-panel {
   border-radius: 16px;
   border: 1px solid var(--mf-border);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--mf-inset-glass);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   padding: 1.15rem 1.25rem;
 }
 
@@ -2619,7 +3374,7 @@
     display: block;
     font-size: 0.875rem;
     font-weight: 600;
-    color: #0a0a0a;
+    color: var(--mf-cta-text);
   }
 
   .app-sidebar-top {
@@ -3029,6 +3784,8 @@
 
 .app-magnific .panel {
   background: var(--mf-inset);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--mf-border);
   border-radius: 16px;
   box-shadow: none;
@@ -3105,7 +3862,7 @@
 }
 
 .app-magnific .dashboard-meta strong.ok {
-  color: #4ade80;
+  color: #46d37a;
 }
 
 .app-magnific .dashboard-meta strong.fail {
@@ -3349,14 +4106,15 @@
 }
 
 .app-magnific .chat-sidebar-new {
-  border-color: rgba(56, 189, 248, 0.35);
-  background: rgba(56, 189, 248, 0.1);
-  color: #7dd3fc;
+  border-color: rgba(79, 223, 98, 0.332);
+  background: rgba(79, 223, 98, 0.095);
+  color: #75ef85;
 }
 
 .app-magnific .chat-sidebar-item.active,
 .app-magnific .chat-sidebar-section-item.active {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(79, 223, 98, 0.133);
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .app-magnific .chat-main {
@@ -3369,12 +4127,44 @@
 
 .app-magnific .chat-topbar {
   border-bottom: 1px solid var(--mf-border);
-  background: rgba(0, 0, 0, 0.18);
+  background: var(--mf-inset-glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.app-magnific .chat-topbar-menu,
+.app-magnific .chat-topbar-model,
+.app-magnific .chat-topbar-share,
+.app-magnific .chat-topbar-action {
+  border-color: var(--mf-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.app-magnific .chat-topbar-model:hover,
+.app-magnific .chat-topbar-share:hover,
+.app-magnific .chat-topbar-action:hover,
+.app-magnific .chat-topbar-menu:hover {
+  border-color: rgba(79, 223, 98, 0.332);
+  background: rgba(81, 191, 143, 0.095);
+  color: #fff;
+}
+
+.app-magnific .chat-topbar-agent {
+  border-color: rgba(79, 223, 98, 0.266);
+  background: rgba(79, 223, 98, 0.114);
+  color: #75ef85;
+}
+
+.app-magnific .chat-topbar-session {
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .app-magnific .chat-compose-wrap {
   border-top: 1px solid var(--mf-border);
-  background: rgba(0, 0, 0, 0.18);
+  background: var(--mf-inset-glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .app-magnific .chat-compose {
@@ -3435,8 +4225,9 @@
 
 .app-magnific .profile-79 .profile-chart-tab.active,
 .app-magnific .profile-79 .profile-upgrade-btn {
-  background: linear-gradient(135deg, #f97316, #ec4899);
-  color: #0a0a0a;
+  background: var(--mf-cta-bg);
+  border: 1px solid var(--mf-cta-border);
+  color: var(--mf-cta-text);
 }
 
 /* —— Usage history —— */

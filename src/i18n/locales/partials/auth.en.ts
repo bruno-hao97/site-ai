@@ -2,12 +2,6 @@ export const authEn = {
   'auth.split.headline': 'From idea to finished image',
   'auth.split.lead':
     'Full AI image workflow: create, edit, and upscale with professional control.',
-  'auth.split.tab.image': 'Image',
-  'auth.split.tab.print': 'Print',
-  'auth.split.tab.video': 'Video',
-  'auth.split.tab.audio': 'Audio',
-  'auth.split.tab.3d': '3D',
-  'auth.split.tabsAria': 'Creative categories',
   'auth.split.close': 'Close',
   'auth.login.pageTitle': 'Sign in',
   'auth.login.welcome': 'Welcome to {{siteName}}',

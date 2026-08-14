@@ -5,7 +5,7 @@ import {
   getDisplayUser,
 } from '../../services/authStore';
 import { loadTheme, saveTheme, type ThemeMode } from '../../services/themeStore';
-import { Check, ChevronDown, CircleHelp, ClipboardList, Clock, CreditCard, Gift, KeyRound, LayoutDashboard, LogOut, Moon, Pencil, Settings, Shield, Sun, Trash2, User, Users, Wallet } from 'lucide-react';
+import { Check, ChevronDown, CircleHelp, ClipboardList, Clock, CreditCard, Gift, KeyRound, LayoutDashboard, LayoutGrid, LogOut, Moon, Pencil, ScrollText, Settings, Shield, ShieldCheck, Sun, Trash2, User, Users, Wallet } from 'lucide-react';
 import { APP_SITE_URL } from '../../services/settingsStore';
 import {
   countByProject,
@@ -280,6 +280,15 @@ export default function UserMenuDropdown({ credits, onCreditsRefresh }: Props) {
             </Link>
             <Link to="/settings" className="user-menu-item" onClick={() => setOpen(false)}>
               <Settings {...ICON} /> {t('settings.title')}
+            </Link>
+            <Link to="/models" className="user-menu-item" onClick={() => setOpen(false)}>
+              <LayoutGrid {...ICON} /> {t('landing.nav.models')}
+            </Link>
+            <Link to="/privacy" className="user-menu-item" onClick={() => setOpen(false)}>
+              <ShieldCheck {...ICON} /> {t('legal.privacy.pageTitle')}
+            </Link>
+            <Link to="/terms" className="user-menu-item" onClick={() => setOpen(false)}>
+              <ScrollText {...ICON} /> {t('legal.terms.pageTitle')}
             </Link>
             <a href={EXTERNAL.community} target="_blank" rel="noreferrer" className="user-menu-item">
               <Users {...ICON} /> {t('userMenu.community')}

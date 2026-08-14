@@ -49,13 +49,13 @@ const TIME_TABS: { id: string; labelKey: TranslationKey; days: number | null }[]
 const CATEGORY_STYLE: Record<Category, { color: string; bg: string; icon: LucideIcon }> = {
   image: { color: '#a78bfa', bg: 'rgba(167,139,250,0.12)', icon: ImageIcon },
   video: { color: '#fbbf24', bg: 'rgba(251,191,36,0.12)', icon: Video },
-  audio: { color: '#4ade80', bg: 'rgba(74,222,128,0.12)', icon: Mic },
+  audio: { color: '#46d37a', bg: 'rgba(70,211,122,0.12)', icon: Mic },
   music: { color: '#60a5fa', bg: 'rgba(96,165,250,0.12)', icon: Music },
   other: { color: 'var(--muted)', bg: 'rgba(255,255,255,0.06)', icon: Sparkles },
 };
 
 const STATUS_STYLE: Record<string, { color: string; labelKey: TranslationKey }> = {
-  success: { color: '#4ade80', labelKey: 'usageHistory.statusSuccess' },
+  success: { color: '#46d37a', labelKey: 'usageHistory.statusSuccess' },
   failed: { color: '#f87171', labelKey: 'usageHistory.statusFailed' },
   pending: { color: '#fbbf24', labelKey: 'usageHistory.statusPending' },
 };
@@ -131,7 +131,7 @@ function UsageAreaChart({ items, days }: { items: UsageHistoryItem[]; days: numb
 
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="uh-chart-svg" preserveAspectRatio="none">
-      <polyline fill="none" stroke="#4ade80" strokeWidth="1.8" points={points} />
+      <polyline fill="none" stroke="#46d37a" strokeWidth="1.8" points={points} />
       <polygon
         fill="url(#uhGrad)"
         points={`${pad},${h - pad} ${points} ${w - pad},${h - pad}`}
@@ -139,8 +139,8 @@ function UsageAreaChart({ items, days }: { items: UsageHistoryItem[]; days: numb
       />
       <defs>
         <linearGradient id="uhGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#4ade80" stopOpacity="0.2" />
-          <stop offset="100%" stopColor="#4ade80" stopOpacity="0" />
+          <stop offset="0%" stopColor="#46d37a" stopOpacity="0.2" />
+          <stop offset="100%" stopColor="#46d37a" stopOpacity="0" />
         </linearGradient>
       </defs>
     </svg>

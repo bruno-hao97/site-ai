@@ -1,7 +1,17 @@
 import { isLoggedIn } from '../services/authStore';
 
-/** Class names for marketing shell: guest = Magnific light, auth = dark studio. */
+/** Class names for marketing shell: guest = Magnific light, auth = mesh canvas. */
 export function landingPageClassName(extra?: string): string {
-  const mode = isLoggedIn() ? 'landing-page--auth' : 'landing-page--guest';
-  return ['landing-page', mode, extra].filter(Boolean).join(' ');
+  const loggedIn = isLoggedIn();
+  const mode = loggedIn ? 'landing-page--auth' : 'landing-page--guest';
+  const embedded = extra?.includes('landing-page--embedded');
+  return [
+    'landing-page',
+    mode,
+    loggedIn && 'landing-page--magnific-canvas',
+    loggedIn && !embedded && 'app-magnific',
+    extra,
+  ]
+    .filter(Boolean)
+    .join(' ');
 }

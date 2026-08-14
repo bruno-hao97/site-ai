@@ -134,7 +134,7 @@ function AppHeader({ slim = false, onOpenSidebar }: { slim?: boolean; onOpenSide
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<LandingPage />} />
+      <Route path="/" element={isLoggedIn() ? <Navigate to="/home" replace /> : <LandingPage />} />
       <Route path="/featured" element={<Navigate to={{ pathname: '/', hash: 'product' }} replace />} />
       <Route path="/explore" element={<Navigate to={{ pathname: '/', hash: 'community' }} replace />} />
       <Route path="/models" element={<ModelsPage />} />
@@ -198,7 +198,8 @@ function AppShell() {
   }, [location.pathname]);
 
   const isBarePage =
-    ['/', '/login', '/register', '/privacy', '/terms'].includes(location.pathname) ||
+    ['/', '/login', '/register'].includes(location.pathname) ||
+    (['/privacy', '/terms'].includes(location.pathname) && !loggedIn) ||
     ((location.pathname === '/models' || location.pathname === '/pricing') && !loggedIn);
   const isWorkflow = location.pathname === '/workflow';
   const isChat = location.pathname === '/chat';
@@ -210,6 +211,9 @@ function AppShell() {
     location.pathname === '/wallet' ||
     location.pathname === '/profile' ||
     location.pathname === '/playground' ||
+    location.pathname === '/models' ||
+    location.pathname === '/privacy' ||
+    location.pathname === '/terms' ||
     location.pathname.startsWith('/settings') ||
     location.pathname.startsWith('/usage-history') ||
     location.pathname.startsWith('/studio-history');

@@ -25,7 +25,7 @@
 }
 
 .feed-masonry-media-openable:focus-visible {
-  outline: 2px solid var(--brand, #53eb67);
+  outline: 2px solid var(--brand, #4fdf62);
   outline-offset: 2px;
 }
 
@@ -326,7 +326,7 @@
 }
 
 .feed-post-media-openable:focus-visible {
-  outline: 2px solid var(--brand, #53eb67);
+  outline: 2px solid var(--brand, #4fdf62);
   outline-offset: 2px;
 }
 
@@ -507,7 +507,7 @@
   font-weight: 600;
   padding: 1px 7px;
   border-radius: 999px;
-  background: rgba(83, 235, 103, 0.15);
+  background: rgba(79, 223, 98, 0.143);
   color: var(--accent);
   flex: none;
 }
@@ -600,7 +600,7 @@
 }
 
 .mine-tile-openable:focus-visible {
-  outline: 2px solid var(--brand, #53eb67);
+  outline: 2px solid var(--brand, #4fdf62);
   outline-offset: 2px;
 }
 

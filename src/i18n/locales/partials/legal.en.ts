@@ -1,4 +1,5 @@
 export const legalEn = {
+  'legal.subnav.aria': 'Legal',
   'legal.terms.pageTitle': 'Terms of Service',
   'legal.terms.title': 'Terms of Service',
   'legal.terms.s1.title': '1. Acceptance of terms',

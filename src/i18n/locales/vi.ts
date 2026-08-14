@@ -24,6 +24,7 @@ const vi: TranslationMap = {
   'nav.home': 'Trang chủ',
   'nav.explore': 'Khám phá',
   'nav.projects': 'Dự án',
+  'nav.models': 'Models',
   'nav.image': 'Ảnh',
   'nav.video': 'Video',
   'nav.audio': 'Giọng nói',

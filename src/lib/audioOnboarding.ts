@@ -1,6 +1,9 @@
 import { Headphones } from 'lucide-react';
 import type { ComposerStudioOnboardingConfig } from './composerOnboardingTypes';
 
+/** Bật lại khi muốn hiện carousel + starter scripts trên /audio (TTS trống). */
+export const AUDIO_ONBOARDING_ENABLED = false;
+
 export const AUDIO_ONBOARDING_CONFIG: Pick<
   ComposerStudioOnboardingConfig,
   'ariaTitleKey' | 'titleKey' | 'subtitleKey' | 'slides' | 'headIcon'
