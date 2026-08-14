@@ -16,6 +16,8 @@ import {
   updateProject,
   type Project,
 } from '../../services/projectStore';
+import { useLocale } from '../../i18n';
+import type { AppLocale } from '../../i18n/types';
 
 const ICON = { size: 16, strokeWidth: 1.75, className: 'user-menu-item-icon' } as const;
 
@@ -26,12 +28,17 @@ const EXTERNAL = {
   changelog: `${APP_SITE_URL}/changelog`,
 };
 
+function numberLocale(locale: AppLocale): string {
+  return locale === 'vi' ? 'vi-VN' : 'en-US';
+}
+
 interface Props {
   credits: number;
   onCreditsRefresh?: () => void;
 }
 
 export default function UserMenuDropdown({ credits, onCreditsRefresh }: Props) {
+  const { t, locale } = useLocale();
   const navigate = useNavigate();
   const user = getDisplayUser();
   const [open, setOpen] = useState(false);
@@ -98,7 +105,7 @@ export default function UserMenuDropdown({ credits, onCreditsRefresh }: Props) {
   }
 
   function handleDeleteProject(p: Project) {
-    if (!window.confirm(`Xóa dự án “${p.name}”? Item sẽ được gỡ khỏi dự án (không xóa khỏi Gommo).`)) {
+    if (!window.confirm(t('projects.deleteConfirm', { name: p.name }))) {
       return;
     }
     deleteProject(p.id);
@@ -144,20 +151,20 @@ export default function UserMenuDropdown({ credits, onCreditsRefresh }: Props) {
           >
             <span className="user-menu-balance-left">
               <Wallet {...ICON} />
-              Số dư
+              {t('userMenu.balance')}
             </span>
-            <strong>{credits.toLocaleString('vi-VN')}</strong>
+            <strong>{credits.toLocaleString(numberLocale(locale))}</strong>
           </button>
 
           <div className="user-menu-section">
             <div className="user-menu-section-head">
-              <span>DỰ ÁN</span>
+              <span>{t('userMenu.projectsSection')}</span>
               <button
                 type="button"
                 className="user-menu-link-btn"
                 onClick={() => setCreating((v) => !v)}
               >
-                + Mới
+                {t('userMenu.newProject')}
               </button>
             </div>
 
@@ -168,13 +175,13 @@ export default function UserMenuDropdown({ credits, onCreditsRefresh }: Props) {
                   type="text"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  placeholder="Tên dự án…"
+                  placeholder={t('projects.newPlaceholder')}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleCreateProject();
                     if (e.key === 'Escape') setCreating(false);
                   }}
                 />
-                <button type="button" onClick={handleCreateProject} aria-label="Tạo dự án">
+                <button type="button" onClick={handleCreateProject} aria-label={t('projects.createAria')}>
                   <Check size={15} />
                 </button>
               </div>
@@ -182,7 +189,7 @@ export default function UserMenuDropdown({ credits, onCreditsRefresh }: Props) {
 
             <div className="user-menu-proj-list">
               {projects.length === 0 && !creating && (
-                <p className="user-menu-proj-empty">Chưa có dự án. Bấm “+ Mới”.</p>
+                <p className="user-menu-proj-empty">{t('userMenu.projectsEmpty')}</p>
               )}
               {projects.map((p) => (
                 <div key={p.id} className="user-menu-proj-item">
@@ -212,7 +219,7 @@ export default function UserMenuDropdown({ credits, onCreditsRefresh }: Props) {
                   <button
                     type="button"
                     className="user-menu-proj-act"
-                    aria-label="Đổi tên"
+                    aria-label={t('projects.renameAria')}
                     onClick={() => {
                       setEditing(p.id);
                       setEditName(p.name);
@@ -223,7 +230,7 @@ export default function UserMenuDropdown({ credits, onCreditsRefresh }: Props) {
                   <button
                     type="button"
                     className="user-menu-proj-act danger"
-                    aria-label="Xóa dự án"
+                    aria-label={t('projects.deleteAria')}
                     onClick={() => handleDeleteProject(p)}
                   >
                     <Trash2 size={13} />
@@ -233,20 +240,20 @@ export default function UserMenuDropdown({ credits, onCreditsRefresh }: Props) {
             </div>
 
             <Link to="/projects" className="user-menu-proj-manage" onClick={() => setOpen(false)}>
-              Quản lý dự án →
+              {t('userMenu.manageProjects')}
             </Link>
           </div>
 
           <div className="user-menu-section user-menu-theme-row">
-            <span>GIAO DIỆN</span>
+            <span>{t('userMenu.appearance')}</span>
             <button type="button" className="user-menu-theme-btn" onClick={toggleTheme}>
               {theme === 'dark' ? (
                 <>
-                  <Sun {...ICON} /> Sáng
+                  <Sun {...ICON} /> {t('settings.appearance.light')}
                 </>
               ) : (
                 <>
-                  <Moon {...ICON} /> Tối
+                  <Moon {...ICON} /> {t('settings.appearance.dark')}
                 </>
               )}
             </button>
@@ -254,42 +261,42 @@ export default function UserMenuDropdown({ credits, onCreditsRefresh }: Props) {
 
           <nav className="user-menu-nav">
             <Link to="/dashboard" className="user-menu-item" onClick={() => setOpen(false)}>
-              <LayoutDashboard {...ICON} /> Dashboard
+              <LayoutDashboard {...ICON} /> {t('userMenu.dashboard')}
             </Link>
             <Link to="/wallet" className="user-menu-item" onClick={() => setOpen(false)}>
-              <CreditCard {...ICON} /> Ví credit
+              <CreditCard {...ICON} /> {t('wallet.title')}
             </Link>
             <Link to="/profile" className="user-menu-item" onClick={() => setOpen(false)}>
-              <User {...ICON} /> Xem hồ sơ
+              <User {...ICON} /> {t('userMenu.viewProfile')}
             </Link>
             <Link to="/usage-history" className="user-menu-item" onClick={() => setOpen(false)}>
-              <Clock {...ICON} /> Lịch sử sử dụng
+              <Clock {...ICON} /> {t('usageHistory.title')}
             </Link>
             <Link to="/settings/tokens" className="user-menu-item" onClick={() => setOpen(false)}>
-              <KeyRound {...ICON} /> Access Token
+              <KeyRound {...ICON} /> {t('userMenu.accessToken')}
             </Link>
             <Link to="/account" className="user-menu-item" onClick={() => setOpen(false)}>
-              <Shield {...ICON} /> Quản lý tài khoản
+              <Shield {...ICON} /> {t('userMenu.manageAccount')}
             </Link>
             <Link to="/settings" className="user-menu-item" onClick={() => setOpen(false)}>
-              <Settings {...ICON} /> Cài đặt
+              <Settings {...ICON} /> {t('settings.title')}
             </Link>
             <a href={EXTERNAL.community} target="_blank" rel="noreferrer" className="user-menu-item">
-              <Users {...ICON} /> Tham gia cộng đồng
+              <Users {...ICON} /> {t('userMenu.community')}
             </a>
             <a href={EXTERNAL.support} target="_blank" rel="noreferrer" className="user-menu-item">
-              <CircleHelp {...ICON} /> Trung tâm hỗ trợ
+              <CircleHelp {...ICON} /> {t('userMenu.support')}
             </a>
             <a href={EXTERNAL.referral} target="_blank" rel="noreferrer" className="user-menu-item">
-              <Gift {...ICON} /> Giới thiệu bạn bè
+              <Gift {...ICON} /> {t('userMenu.referral')}
             </a>
             <a href={EXTERNAL.changelog} target="_blank" rel="noreferrer" className="user-menu-item">
-              <ClipboardList {...ICON} /> Changelog
+              <ClipboardList {...ICON} /> {t('userMenu.changelog')}
             </a>
           </nav>
 
           <button type="button" className="user-menu-logout" onClick={logout}>
-            <LogOut {...ICON} className="user-menu-item-icon user-menu-item-icon--danger" /> Đăng xuất
+            <LogOut {...ICON} className="user-menu-item-icon user-menu-item-icon--danger" /> {t('userMenu.logout')}
           </button>
         </div>
       )}

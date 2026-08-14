@@ -1,8 +1,10 @@
 import { motion, useInView } from 'framer-motion';
 import { useRef } from 'react';
 import { Plug, Shield, Zap } from 'lucide-react';
+import { useLocale } from '../../i18n';
 
 export default function FeaturesSection() {
+  const { t } = useLocale();
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: '-80px' });
 
@@ -11,9 +13,9 @@ export default function FeaturesSection() {
       <div className="container">
         <div className="features-heading">
           <h2>
-            Mọi thứ bạn cần
+            {t('landing.features.titleLine1')}
             <br />
-            <span>để xây dựng ứng dụng AI thế hệ mới.</span>
+            <span>{t('landing.features.titleLine2')}</span>
           </h2>
         </div>
 
@@ -28,11 +30,8 @@ export default function FeaturesSection() {
             <div className="feature-icon icon-purple">
               <Plug size={20} />
             </div>
-            <h3>Cổng API Thống nhất</h3>
-            <p>
-              Ngừng quản lý từng tài khoản API riêng lẻ. Truy cập các mô hình văn bản,
-              hình ảnh và âm thanh thông qua một giao diện chuẩn hóa duy nhất.
-            </p>
+            <h3>{t('landing.features.api.title')}</h3>
+            <p>{t('landing.features.api.desc')}</p>
             <div className="code-block">
               <div className="code-dots">
                 <span className="dot-r" />
@@ -64,21 +63,15 @@ export default function FeaturesSection() {
               <div className="feature-icon icon-blue">
                 <Zap size={20} />
               </div>
-              <h3>Độ trễ thấp nhất</h3>
-              <p>
-                Mạng lưới điểm của chúng tôi định tuyến yêu cầu đến datacenter gần
-                GPU nhất, giảm độ trễ càng thấp càng tốt cho mọi workload.
-              </p>
+              <h3>{t('landing.features.latency.title')}</h3>
+              <p>{t('landing.features.latency.desc')}</p>
             </div>
             <div className="feature-card">
               <div className="feature-icon icon-green">
                 <Shield size={20} />
               </div>
-              <h3>Bảo mật Doanh nghiệp</h3>
-              <p>
-                Tuân thủ SOC 2 Type II. Dữ liệu của bạn được mã hóa lúc truyền đi và
-                lúc lưu trữ. Chúng tôi không bao giờ gửi dữ liệu của bạn.
-              </p>
+              <h3>{t('landing.features.security.title')}</h3>
+              <p>{t('landing.features.security.desc')}</p>
             </div>
           </div>
         </motion.div>

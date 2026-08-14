@@ -1,5 +1,6 @@
 import { Heart, MessageCircle, Play, Share2, Sparkles, Wand2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useLocale } from '../i18n';
 import {
   feedMediaUrl,
   feedModelLabel,
@@ -16,7 +17,7 @@ export default function HomeFeedCard({
   onOpenPreview,
   showProjectPicker = false,
   showModelBadge = false,
-  authorFallback = 'Ẩn danh',
+  authorFallback,
 }: {
   item: FeedItem;
   onOpenPreview: (item: FeedItem) => void;
@@ -24,7 +25,9 @@ export default function HomeFeedCard({
   showModelBadge?: boolean;
   authorFallback?: string;
 }) {
+  const { t } = useLocale();
   const navigate = useNavigate();
+  const authorLabel = authorFallback ?? t('home.feed.anonymous');
   const thumb = feedThumb(item);
   const media = feedMediaUrl(item);
   const jobType = feedItemJobType(item);
@@ -62,7 +65,7 @@ export default function HomeFeedCard({
         ) : (
           <span className="feed-avatar feed-avatar-empty" />
         )}
-        <span className="feed-author">{item.author?.name || authorFallback}</span>
+        <span className="feed-author">{item.author?.name || authorLabel}</span>
         {item.resolution && item.resolution !== 'unknow' && (
           <span className="feed-res">{item.resolution}</span>
         )}
@@ -72,12 +75,12 @@ export default function HomeFeedCard({
         type="button"
         className="feed-media"
         onClick={() => onOpenPreview(item)}
-        aria-label="Xem trước"
+        aria-label={t('home.feed.previewAria')}
       >
         {thumb ? (
           <img src={thumb} alt="" loading="lazy" />
         ) : (
-          <span className="feed-media-empty">Đang xử lý…</span>
+          <span className="feed-media-empty">{t('home.feed.processing')}</span>
         )}
         {isVideo && (
           <span className="feed-play">

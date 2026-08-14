@@ -1,8 +1,10 @@
 import { FormEvent, useState } from 'react';
+import { useLocale } from '../../i18n';
 import { getDisplayUser, getUpstreamMe, loadAuth } from '../../services/authStore';
 import { gommoChangePassword } from '../../services/gommoAuth';
 
 export default function AccountSettingsPage() {
+  const { t } = useLocale();
   const user = getDisplayUser();
   const me = getUpstreamMe();
   const [name, setName] = useState(user.name || '');
@@ -17,7 +19,7 @@ export default function AccountSettingsPage() {
     e.preventDefault();
     setNotice('');
     setError('');
-    setNotice('Cập nhật hồ sơ upstream sẽ có khi tích hợp API Gommo user.update.');
+    setNotice(t('account.settings.profilePending'));
   }
 
   async function handlePassword(e: FormEvent) {
@@ -25,21 +27,21 @@ export default function AccountSettingsPage() {
     setNotice('');
     setError('');
     if (!currentPw) {
-      setError('Vui lòng nhập mật khẩu hiện tại.');
+      setError(t('account.settings.passwordRequired'));
       return;
     }
     if (newPw !== confirmPw) {
-      setError('Mật khẩu xác nhận không khớp.');
+      setError(t('account.settings.passwordMismatch'));
       return;
     }
     if (newPw.length < 6) {
-      setError('Mật khẩu mới tối thiểu 6 ký tự.');
+      setError(t('account.settings.passwordMin'));
       return;
     }
 
     const auth = loadAuth();
     if (!auth?.access_token) {
-      setError('Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.');
+      setError(t('account.settings.invalidSession'));
       return;
     }
 
@@ -56,7 +58,7 @@ export default function AccountSettingsPage() {
       setConfirmPw('');
       setNotice(message);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Đổi mật khẩu thất bại.');
+      setError(err instanceof Error ? err.message : t('account.settings.passwordFailed'));
     } finally {
       setIsChangingPassword(false);
     }
@@ -64,27 +66,27 @@ export default function AccountSettingsPage() {
 
   return (
     <div className="account-settings">
-      <h1 className="account-content-title">⚙ CÀI ĐẶT TÀI KHOẢN</h1>
+      <h1 className="account-content-title">{t('account.settings.title')}</h1>
 
       <section className="panel account-card">
-        <h2>👤 Thông tin hồ sơ</h2>
+        <h2>{t('account.settings.profileTitle')}</h2>
         <form onSubmit={handleProfile} className="form account-form">
           <label className="field">
-            <span className="label">TÊN HIỂN THỊ</span>
+            <span className="label">{t('account.settings.displayName')}</span>
             <input value={name} onChange={(e) => setName(e.target.value)} />
           </label>
           <label className="field">
-            <span className="label">ĐỊA CHỈ EMAIL</span>
+            <span className="label">{t('account.settings.email')}</span>
             <input value={user.email || me?.userInfo?.email || ''} readOnly />
           </label>
         </form>
       </section>
 
       <section className="panel account-card">
-        <h2>🔑 Đổi mật khẩu</h2>
+        <h2>{t('account.settings.passwordTitle')}</h2>
         <form onSubmit={handlePassword} className="form account-form">
           <label className="field">
-            <span className="label">MẬT KHẨU HIỆN TẠI</span>
+            <span className="label">{t('account.settings.currentPassword')}</span>
             <input
               type="password"
               value={currentPw}
@@ -94,7 +96,7 @@ export default function AccountSettingsPage() {
             />
           </label>
           <label className="field">
-            <span className="label">MẬT KHẨU MỚI</span>
+            <span className="label">{t('account.settings.newPassword')}</span>
             <input
               type="password"
               value={newPw}
@@ -105,7 +107,7 @@ export default function AccountSettingsPage() {
             />
           </label>
           <label className="field">
-            <span className="label">XÁC NHẬN MẬT KHẨU</span>
+            <span className="label">{t('account.settings.confirmPassword')}</span>
             <input
               type="password"
               value={confirmPw}
@@ -116,7 +118,7 @@ export default function AccountSettingsPage() {
             />
           </label>
           <button type="submit" className="btn account-teal-btn" disabled={isChangingPassword}>
-            {isChangingPassword ? 'Đang cập nhật…' : 'Cập nhật mật khẩu'}
+            {isChangingPassword ? t('account.settings.updating') : t('account.settings.updatePassword')}
           </button>
         </form>
       </section>

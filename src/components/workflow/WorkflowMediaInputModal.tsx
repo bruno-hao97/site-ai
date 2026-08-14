@@ -20,6 +20,8 @@ import {
 } from '../../services/workflowMediaInput';
 import WorkflowMediaLibraryPicker from './WorkflowMediaLibraryPicker';
 import ComposerUploadOverlay from '../ComposerUploadOverlay';
+import { useLocale } from '../../i18n';
+import type { TranslationKey } from '../../i18n/types';
 
 const TAB_ICONS: Record<MediaSourceTab, ReactNode> = {
   upload: <Upload size={13} />,
@@ -38,18 +40,15 @@ interface Props {
   onClose: () => void;
 }
 
-const IMAGE_TABS: { id: MediaSourceTab; label: string }[] = [
-  { id: 'upload', label: 'Tải lên' },
-  { id: 'library', label: 'Thư viện' },
-  { id: 'extra', label: 'Extra' },
-  { id: 'url', label: 'URL' },
-];
+const IMAGE_TAB_IDS: MediaSourceTab[] = ['upload', 'library', 'extra', 'url'];
+const VIDEO_TAB_IDS: MediaSourceTab[] = ['upload', 'library', 'url'];
 
-const VIDEO_TABS: { id: MediaSourceTab; label: string }[] = [
-  { id: 'upload', label: 'Tải lên' },
-  { id: 'library', label: 'Thư viện' },
-  { id: 'url', label: 'URL' },
-];
+const TAB_LABEL_KEYS: Record<MediaSourceTab, TranslationKey> = {
+  upload: 'workflow.media.tab.upload',
+  library: 'workflow.media.tab.library',
+  extra: 'workflow.media.tab.extra',
+  url: 'workflow.media.tab.url',
+};
 
 export default function WorkflowMediaInputModal({
   open,
@@ -60,6 +59,7 @@ export default function WorkflowMediaInputModal({
   onDelete,
   onClose,
 }: Props) {
+  const { t } = useLocale();
   const [draft, setDraft] = useState<MediaInputDraft>(initialDraft);
   const [urlInput, setUrlInput] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -92,9 +92,10 @@ export default function WorkflowMediaInputModal({
 
   if (!open) return null;
 
-  const tabs = kind === 'image' ? IMAGE_TABS : VIDEO_TABS;
+  const tabIds = kind === 'image' ? IMAGE_TAB_IDS : VIDEO_TAB_IDS;
+  const tabs = tabIds.map((id) => ({ id, label: t(TAB_LABEL_KEYS[id]) }));
   const ports = MEDIA_INPUT_PORTS[kind];
-  const title = kind === 'image' ? 'Nhập ảnh' : 'Nhập Video';
+  const title = kind === 'image' ? t('workflow.node.input-image') : t('workflow.node.input-video');
   const desc =
     kind === 'image'
       ? 'Chỉ ảnh (URL, tải lên). Cổng "Gộp ảnh" để nối nhiều nguồn ảnh vào cùng danh sách.'
@@ -146,7 +147,7 @@ export default function WorkflowMediaInputModal({
       return false;
     }
     if (!loadAuth()?.access_token) {
-      setError('Cần đăng nhập để upload');
+      setError(t('workflow.media.loginUpload'));
       return false;
     }
     const client = getGommoClient();
@@ -236,7 +237,7 @@ export default function WorkflowMediaInputModal({
               <p className="wf-media-modal-desc">{desc}</p>
             </div>
           </div>
-          <button type="button" className="wf-media-modal-x" onClick={onClose} aria-label="Đóng">
+          <button type="button" className="wf-media-modal-x" onClick={onClose} aria-label={t('common.close')}>
             <X size={16} />
           </button>
         </header>
@@ -254,23 +255,26 @@ export default function WorkflowMediaInputModal({
           className="wf-media-modal-tabs"
           style={{ ['--tab-count' as string]: tabs.length }}
         >
-          {tabs.map((t) => (
+          {tabs.map((tab) => (
             <button
-              key={t.id}
+              key={tab.id}
               type="button"
-              className={`wf-media-tab-btn${draft.sourceTab === t.id ? ' active' : ''}`}
-              onClick={() => selectTab(t.id)}
+              className={`wf-media-tab-btn${draft.sourceTab === tab.id ? ' active' : ''}`}
+              onClick={() => selectTab(tab.id)}
             >
-              {TAB_ICONS[t.id]}
-              <span>{t.label}</span>
+              {TAB_ICONS[tab.id]}
+              <span>{tab.label}</span>
             </button>
           ))}
         </div>
 
         {uploading && uploadProgress ? (
           <p className="wf-media-modal-status">
-            <Loader2 size={14} className="wf-spin" /> Đang tải {uploadProgress.current}/
-            {uploadProgress.total}…
+            <Loader2 size={14} className="wf-spin" />{' '}
+            {t('workflow.media.uploadProgress', {
+              current: uploadProgress.current,
+              total: uploadProgress.total,
+            })}
           </p>
         ) : null}
 
@@ -279,7 +283,7 @@ export default function WorkflowMediaInputModal({
             <div className="wf-media-modal-preview-grid">
               {uploading && (
                 <div className="wf-media-modal-preview-cell wf-media-modal-preview-pending">
-                  <ComposerUploadOverlay minimal hint="Đang tải lên" />
+                  <ComposerUploadOverlay minimal />
                 </div>
               )}
               {draft.mediaUrls.map((url, i) => (
@@ -293,7 +297,7 @@ export default function WorkflowMediaInputModal({
                     type="button"
                     className="wf-media-modal-preview-remove"
                     onClick={() => removeUrl(i)}
-                    title="Xóa"
+                    title={t('common.remove')}
                   >
                     <X size={12} />
                   </button>
@@ -307,7 +311,7 @@ export default function WorkflowMediaInputModal({
           {draft.sourceTab === 'extra' && kind === 'image' && (
             <div className="wf-media-modal-extra">
               <p className="wf-media-modal-empty">
-                Thêm URL ảnh bổ sung (CDN, link ngoài) qua tab URL hoặc tải lên trực tiếp.
+                {t('workflow.media.extraHint')}
               </p>
             </div>
           )}
@@ -473,12 +477,12 @@ export default function WorkflowMediaInputModal({
             {!isNew && (
               <button type="button" className="wf-media-modal-delete" onClick={onDelete}>
                 <Trash2 size={13} />
-                Xóa Node
+                {t('workflow.media.deleteNode')}
               </button>
             )}
             {draft.mediaUrls.length > 0 && (
               <button type="button" className="wf-media-modal-clear" onClick={clearAllMedia}>
-                Xóa tất cả
+                {t('workflow.media.deleteAll')}
               </button>
             )}
             <label className="wf-media-modal-required">

@@ -42,7 +42,6 @@ import {
 import {
   computeAudioTtsPricing,
   findTtsPricingModel,
-  formatCreditRate,
   formatSaleMultiplierLabel,
 } from '../services/audioPricing';
 import { modelSlug, parseModelsList } from '../services/modelSchema';
@@ -57,6 +56,7 @@ import AudioTtsSettingsPanel, {
   type StabilityMode,
   type SettingsSideTab,
 } from '../components/audio/AudioTtsSettingsPanel';
+import AudioStudioOnboarding from '../components/audio/AudioStudioOnboarding';
 import { useLocale } from '../i18n';
 import type { TranslationKey } from '../i18n';
 
@@ -82,6 +82,7 @@ const FEATURE_NAV: {
 
 const MAX_AUDIO_UPLOAD_BYTES = 5 * 1024 * 1024;
 const SCRIPT_MAX_CHARS = 10_000;
+const AUDIO_NAV_COLLAPSED_KEY = 'audio-nav-collapsed';
 
 function historyToAudioListItems(
   entries: ReturnType<typeof listHistory>,
@@ -189,7 +190,13 @@ export default function AudioPage() {
   );
 
   const [activeFeature, setActiveFeature] = useState<AudioFeature>('tts');
-  const [navCollapsed, setNavCollapsed] = useState(false);
+  const [navCollapsed, setNavCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(AUDIO_NAV_COLLAPSED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
   const [provider, setProvider] = useState<VoiceProvider>('elevenlabs_cheap');
   const [models, setModels] = useState<GommoModel[]>([]);
   const [modelsLoading, setModelsLoading] = useState(true);
@@ -285,10 +292,6 @@ export default function AudioPage() {
 
   const { creditPerChar, estimatedCost, baseEstimatedCost, hasSale, saleFactor } = ttsPricing;
 
-  const costLocale = locale === 'vi' ? 'vi-VN' : 'en-US';
-  const formattedEstimatedCost = estimatedCost.toLocaleString(costLocale);
-  const formattedBaseCost = baseEstimatedCost.toLocaleString(costLocale);
-  const formattedCreditRate = formatCreditRate(creditPerChar, locale);
   const saleLabel = formatSaleMultiplierLabel(saleFactor);
 
   const modelOptions = useMemo(
@@ -733,7 +736,17 @@ export default function AudioPage() {
             className="audio-nav-collapse-btn"
             aria-label={navCollapsed ? t('audio.nav.expand') : t('audio.nav.collapse')}
             aria-expanded={!navCollapsed}
-            onClick={() => setNavCollapsed((v) => !v)}
+            onClick={() => {
+              setNavCollapsed((v) => {
+                const next = !v;
+                try {
+                  localStorage.setItem(AUDIO_NAV_COLLAPSED_KEY, next ? '1' : '0');
+                } catch {
+                  /* ignore */
+                }
+                return next;
+              });
+            }}
           >
             <ChevronLeft size={16} className={navCollapsed ? 'is-flipped' : ''} />
           </button>
@@ -753,7 +766,9 @@ export default function AudioPage() {
               <span className="audio-feature-icon">
                 <Icon size={16} strokeWidth={2} />
               </span>
-              {!navCollapsed && (
+              {navCollapsed ? (
+                <small className="audio-feature-abbr">{t(abbrKey)}</small>
+              ) : (
                 <span className="audio-feature-copy">
                   <span className="audio-feature-title">{t(labelKey)}</span>
                   <small>{t(abbrKey)}</small>
@@ -778,33 +793,6 @@ export default function AudioPage() {
                     })}
                   </span>
                 </div>
-                <div className="audio-script-toolbar-right">
-                  <div className="audio-script-cost-block">
-                    <span className="audio-script-cost-label">{t('audio.footer.estimatedCost')}</span>
-                    <strong className="audio-script-cost-value">
-                      {hasSale && baseEstimatedCost > estimatedCost && (
-                        <span className="audio-cost-strike">{formattedBaseCost}</span>
-                      )}
-                      {t('audio.main.creditsShort', { cost: formattedEstimatedCost })}
-                      {saleLabel && <span className="audio-cost-sale-badge">{saleLabel}</span>}
-                    </strong>
-                    <small className="audio-script-cost-rate">
-                      {t('audio.footer.rateLine', {
-                        chars: scriptCharCount,
-                        rate: formattedCreditRate,
-                      })}
-                    </small>
-                  </div>
-                  <button
-                    type="button"
-                    className="audio-generate-btn"
-                    disabled={submitting || modelsLoading}
-                    onClick={() => void handleGenerate()}
-                  >
-                    {submitting ? <Loader2 size={16} className="spin" /> : <Mic size={16} />}
-                    {submitting ? t('audio.generating') : t('audio.generateShort')}
-                  </button>
-                </div>
               </div>
               <textarea
                 className="audio-script-input"
@@ -816,17 +804,14 @@ export default function AudioPage() {
               />
             </div>
 
-            {progress && <p className="audio-progress">{progress}</p>}
-            {error && <p className="audio-error">{error}</p>}
-
             {resultUrl && (
               <div className="audio-result-player">
                 <audio controls src={resultUrl} className="audio-player" />
               </div>
             )}
 
-            <div className="audio-tabs-head">
-              <div className="audio-tabs">
+            <div className="composer-toolbar audio-tabs-head">
+              <div className="composer-toolbar-tabs audio-tabs">
                 <button
                   type="button"
                   className={mainTab === 'current' ? 'active' : ''}
@@ -890,13 +875,17 @@ export default function AudioPage() {
 
             {listsError && <p className="audio-error">{listsError || t('audio.session.listsFailed')}</p>}
 
-            <div className="audio-results">
+            <div className="audio-results audio-studio-main-body">
               {listsLoading && filteredLists.length === 0 ? (
                 <p className="audio-empty">
                   <Loader2 size={18} className="spin" /> {t('audio.generating')}
                 </p>
               ) : filteredLists.length === 0 ? (
-                <p className="audio-empty">{t('audio.empty')}</p>
+                activeFeature === 'tts' && mainTab === 'current' ? (
+                  <AudioStudioOnboarding onPickScript={(text) => setScript(text.slice(0, SCRIPT_MAX_CHARS))} />
+                ) : (
+                  <p className="audio-empty">{t('audio.empty')}</p>
+                )
               ) : mainTab === 'recent' ? (
                 <div className="audio-session-grid">
                   {filteredLists.map((item) => {
@@ -1114,7 +1103,7 @@ export default function AudioPage() {
         )}
       </section>
 
-      <aside className="audio-studio-settings has-footer">
+      <aside className={`audio-studio-settings has-footer${activeFeature === 'tts' ? ' audio-studio-settings--studio' : ''}`}>
         {activeFeature === 'tts' && (
           <AudioTtsSettingsPanel
             t={t}
@@ -1169,6 +1158,11 @@ export default function AudioPage() {
               selectListItem(item);
               setSettingsSideTab('settings');
             }}
+            submitting={submitting}
+            modelsLoading={modelsLoading}
+            onGenerate={() => void handleGenerate()}
+            error={error || undefined}
+            progress={progress || undefined}
           />
         )}
 

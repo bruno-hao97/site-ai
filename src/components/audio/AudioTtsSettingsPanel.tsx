@@ -1,4 +1,4 @@
-import { ChevronRight, RotateCcw, Search } from 'lucide-react';
+import { ChevronRight, Loader2, RotateCcw, Search, Sparkles, Wand2 } from 'lucide-react';
 import type { TranslationKey } from '../../i18n';
 import { formatCreditRate } from '../../services/audioPricing';
 import { TTS_LANGUAGE_OPTIONS } from '../../services/audioCatalog';
@@ -70,6 +70,11 @@ export interface AudioTtsSettingsPanelProps {
   onReset: () => void;
   historyItems: AudioListItem[];
   onHistoryPick: (item: AudioListItem) => void;
+  submitting: boolean;
+  modelsLoading: boolean;
+  onGenerate: () => void;
+  error?: string;
+  progress?: string;
 }
 
 function voiceInitial(name: string): string {
@@ -190,6 +195,11 @@ export default function AudioTtsSettingsPanel(props: AudioTtsSettingsPanelProps)
     onReset,
     historyItems,
     onHistoryPick,
+    submitting,
+    modelsLoading,
+    onGenerate,
+    error,
+    progress,
   } = props;
 
   const selectedModel = modelOptions.find((m) => m.value === modelValue) ?? modelOptions[0];
@@ -467,26 +477,43 @@ export default function AudioTtsSettingsPanel(props: AudioTtsSettingsPanelProps)
             </div>
           </div>
 
-          <footer className="audio-settings-footer">
-            <div className="audio-settings-footer-row">
-              <span>{t('audio.footer.chars')}</span>
-              <strong className="audio-settings-footer-num">
+          <footer className="composer-side-foot audio-settings-generate-foot">
+            <div className="composer-cost">
+              <span className="composer-coin">
+                <Sparkles size={13} />
+                {costLabel}
+              </span>
+              <span className="audio-settings-char-pill">
+                {t('audio.footer.chars')}:{' '}
                 {scriptLength.toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US')}
-              </strong>
+              </span>
             </div>
-            <div className="audio-settings-footer-row">
-              <span>{t('audio.footer.estimatedCost')}</span>
-              <strong className="audio-settings-cost">
-                {hasSale && baseEstimatedCost > estimatedCost && (
-                  <span className="audio-cost-strike">{baseCostLabel}</span>
-                )}
-                {t('audio.footer.credits', { cost: costLabel })}
-                {saleLabel && <span className="audio-cost-sale-badge">{saleLabel}</span>}
-              </strong>
-            </div>
+            {error && <p className="error composer-error">{error}</p>}
+            {progress && <p className="progress composer-progress">{progress}</p>}
             <p className="audio-settings-footer-rate">
               {t('audio.footer.rateLine', { chars: scriptLength, rate: rateLabel })}
+              {hasSale && baseEstimatedCost > estimatedCost && (
+                <>
+                  {' · '}
+                  <span className="audio-cost-strike">{baseCostLabel}</span>
+                  {saleLabel && <span className="audio-cost-sale-badge">{saleLabel}</span>}
+                </>
+              )}
             </p>
+            <div className="composer-send-row">
+              <button
+                type="button"
+                className="composer-submit"
+                disabled={submitting || modelsLoading}
+                onClick={onGenerate}
+              >
+                {submitting ? <Loader2 size={16} className="spin" /> : <Wand2 size={16} />}
+                {submitting ? t('audio.generating') : t('audio.generateShort')}
+              </button>
+              <span className="composer-send-cost" title={t('audio.footer.estimatedCost')}>
+                {costLabel}
+              </span>
+            </div>
           </footer>
         </>
       )}

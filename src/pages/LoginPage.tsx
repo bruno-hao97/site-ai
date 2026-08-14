@@ -8,6 +8,7 @@ import { gommoLoginWithPassword, gommoResetPassword, GommoAuthError } from '../s
 import { UpstreamMeError } from '../services/upstreamMe';
 import { APP_SITE_URL, DEFAULT_DOMAIN } from '../services/settingsStore';
 import { SITE_DISPLAY_NAME } from '../services/siteConfig';
+import { useLocale } from '../i18n';
 
 type Step = 'menu' | 'account' | 'token' | 'reset';
 
@@ -17,6 +18,7 @@ function safeNextPath(raw: string | null): string {
 }
 
 export default function LoginPage() {
+  const { t } = useLocale();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const nextPath = safeNextPath(searchParams.get('next'));
@@ -34,11 +36,11 @@ export default function LoginPage() {
   const [resetSuccess, setResetSuccess] = useState('');
 
   useEffect(() => {
-    document.title = `Đăng nhập · ${SITE_DISPLAY_NAME}`;
+    document.title = `${t('auth.login.pageTitle')} · ${SITE_DISPLAY_NAME}`;
     return () => {
       document.title = SITE_DISPLAY_NAME;
     };
-  }, []);
+  }, [t]);
 
   function goStep(next: Step) {
     setError('');
@@ -92,8 +94,8 @@ export default function LoginPage() {
 
   return (
     <AuthSplitLayout onClose={() => navigate(-1)}>
-      <h1>Chào mừng đến {SITE_DISPLAY_NAME}</h1>
-      <p className="auth-split-lead">Nền tảng AI đa phương thức — ảnh, video, giọng nói và chat.</p>
+      <h1>{t('auth.login.welcome', { siteName: SITE_DISPLAY_NAME })}</h1>
+      <p className="auth-split-lead">{t('auth.login.lead')}</p>
 
       {step === 'menu' && (
         <div className="auth-methods">
@@ -102,8 +104,8 @@ export default function LoginPage() {
               <User size={18} />
             </span>
             <span className="auth-method-text">
-              <strong>Đăng nhập bằng tài khoản</strong>
-              <small>Email / username và mật khẩu</small>
+              <strong>{t('auth.login.methodAccount')}</strong>
+              <small>{t('auth.login.methodAccountDesc')}</small>
             </span>
             <ChevronRight size={18} className="auth-method-arrow" />
           </button>
@@ -113,8 +115,8 @@ export default function LoginPage() {
               <KeySquare size={18} />
             </span>
             <span className="auth-method-text">
-              <strong>Đăng nhập bằng Token</strong>
-              <small>Access Token nâng cao</small>
+              <strong>{t('auth.login.methodToken')}</strong>
+              <small>{t('auth.login.methodTokenDesc')}</small>
             </span>
             <ChevronRight size={18} className="auth-method-arrow" />
           </button>
@@ -125,16 +127,16 @@ export default function LoginPage() {
         <>
           <div className="auth-switch">
             <button type="button" className="auth-back" onClick={() => goStep('menu')}>
-              <ArrowLeft size={14} /> Quay lại
+              <ArrowLeft size={14} /> {t('auth.login.back')}
             </button>
             <button type="button" className="auth-switch-link" onClick={() => goStep('token')}>
-              ĐĂNG NHẬP BẰNG TOKEN
+              {t('auth.login.switchToToken')}
             </button>
           </div>
 
           <form onSubmit={handleLogin} className="form">
             <label className="field">
-              <span className="label">Email / hoặc username</span>
+              <span className="label">{t('auth.login.emailLabel')}</span>
               <span className="auth-input">
                 <User size={16} className="auth-input-icon" />
                 <input
@@ -148,7 +150,7 @@ export default function LoginPage() {
               </span>
             </label>
             <label className="field">
-              <span className="label">Mật khẩu</span>
+              <span className="label">{t('auth.login.passwordLabel')}</span>
               <span className="auth-input">
                 <Lock size={16} className="auth-input-icon" />
                 <input
@@ -162,11 +164,11 @@ export default function LoginPage() {
               </span>
             </label>
             <button type="button" className="auth-forgot" onClick={() => goStep('reset')}>
-              Quên mật khẩu?
+              {t('auth.login.forgotPassword')}
             </button>
             {error && <p className="error">{error}</p>}
             <button type="submit" className="btn auth-submit" disabled={loading}>
-              {loading ? 'Đang đăng nhập…' : 'Đăng nhập'}
+              {loading ? t('auth.login.submitting') : t('auth.login.submit')}
             </button>
           </form>
         </>
@@ -176,17 +178,15 @@ export default function LoginPage() {
         <>
           <div className="auth-switch">
             <button type="button" className="auth-back" onClick={() => goStep('account')}>
-              <ArrowLeft size={14} /> Quay lại
+              <ArrowLeft size={14} /> {t('auth.login.back')}
             </button>
-            <span className="auth-switch-link auth-switch-current">Reset mật khẩu</span>
+            <span className="auth-switch-link auth-switch-current">{t('auth.login.resetTitle')}</span>
           </div>
 
           <form onSubmit={handleResetPassword} className="form">
-            <p className="lead sm">
-              Nhập email tài khoản, hệ thống sẽ gửi email hỗ trợ reset mật khẩu.
-            </p>
+            <p className="lead sm">{t('auth.login.resetLead')}</p>
             <label className="field">
-              <span className="label">Email</span>
+              <span className="label">{t('auth.login.resetEmailLabel')}</span>
               <span className="auth-input">
                 <User size={16} className="auth-input-icon" />
                 <input
@@ -204,7 +204,7 @@ export default function LoginPage() {
               <p className="account-transfer-feedback success">{resetSuccess}</p>
             )}
             <button type="submit" className="btn auth-submit" disabled={resetLoading}>
-              {resetLoading ? 'Đang gửi…' : 'Gửi email reset'}
+              {resetLoading ? t('auth.login.resetSubmitting') : t('auth.login.resetSubmit')}
             </button>
           </form>
         </>
@@ -214,28 +214,28 @@ export default function LoginPage() {
         <>
           <div className="auth-switch">
             <button type="button" className="auth-back" onClick={() => goStep('menu')}>
-              <ArrowLeft size={14} /> Quay lại
+              <ArrowLeft size={14} /> {t('auth.login.back')}
             </button>
             <button type="button" className="auth-switch-link" onClick={() => goStep('account')}>
-              ĐĂNG NHẬP BẰNG TÀI KHOẢN
+              {t('auth.login.switchToAccount')}
             </button>
           </div>
 
           <form onSubmit={handleTokenLogin} className="form">
             <label className="field">
-              <span className="label">Access Token</span>
+              <span className="label">{t('auth.login.tokenLabel')}</span>
               <span className="auth-input">
                 <KeySquare size={16} className="auth-input-icon" />
                 <input
                   type="text"
                   value={accessToken}
                   onChange={(e) => setAccessToken(e.target.value)}
-                  placeholder="Dán token từ Account Settings"
+                  placeholder={t('auth.login.tokenPlaceholder')}
                 />
               </span>
             </label>
             <p className="lead sm">
-              Lấy Access Token tại Account Settings trên{' '}
+              {t('auth.login.tokenHintPrefix')}{' '}
               <a href={`${APP_SITE_URL}/settings/tokens`} target="_blank" rel="noreferrer">
                 {DEFAULT_DOMAIN}
               </a>
@@ -243,7 +243,7 @@ export default function LoginPage() {
             </p>
             {error && <p className="error">{error}</p>}
             <button type="submit" className="btn auth-submit" disabled={tokenLoading}>
-              {tokenLoading ? 'Đang xác thực…' : 'Đăng nhập bằng token'}
+              {tokenLoading ? t('auth.login.tokenSubmitting') : t('auth.login.tokenSubmit')}
             </button>
           </form>
         </>
@@ -252,7 +252,8 @@ export default function LoginPage() {
       {step === 'menu' && error && <p className="error">{error}</p>}
 
       <p className="auth-register">
-        Chưa có tài khoản? <Link to={registerPathWithNext(nextPath)}>Đăng ký ngay</Link>
+        {t('auth.login.noAccount')}{' '}
+        <Link to={registerPathWithNext(nextPath)}>{t('auth.login.registerLink')}</Link>
       </p>
     </AuthSplitLayout>
   );

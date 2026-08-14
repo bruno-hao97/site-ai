@@ -1,11 +1,14 @@
 import { Link } from 'react-router-dom';
 import { motion, useInView } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
-import { useRef } from 'react';
+import { useMemo, useRef } from 'react';
+import { useLocale } from '../../i18n';
 import { registerPathWithNext } from '../../lib/landingConfig';
-import { ENTERPRISE_FEATURES } from '../../lib/landingEnterpriseFeatures';
+import { getEnterpriseFeatures } from '../../lib/landingEnterpriseFeatures';
 
 export default function EnterpriseFeaturesSection() {
+  const { t } = useLocale();
+  const features = useMemo(() => getEnterpriseFeatures(t), [t]);
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: '-80px' });
 
@@ -22,12 +25,12 @@ export default function EnterpriseFeaturesSection() {
           transition={{ duration: 0.5 }}
         >
           <div className="enterprise-features-head">
-            <h2>Tính năng cho creator &amp; team</h2>
-            <p>Studio, workflow và API — mở rộng khi nhu cầu sáng tạo của bạn tăng lên.</p>
+            <h2>{t('landing.enterprise.title')}</h2>
+            <p>{t('landing.enterprise.subtitle')}</p>
           </div>
 
           <div className="enterprise-features-grid">
-            {ENTERPRISE_FEATURES.map((feature) => (
+            {features.map((feature) => (
               <article key={feature.title} className="enterprise-feature-card">
                 <span className="enterprise-feature-icon">
                   <feature.icon size={20} strokeWidth={2} />
@@ -40,14 +43,14 @@ export default function EnterpriseFeaturesSection() {
 
           <div className="enterprise-features-cta">
             <Link to={registerPathWithNext('/home')} className="btn-primary">
-              Bắt đầu miễn phí
+              {t('landing.enterprise.ctaPrimary')}
               <ArrowRight size={16} />
             </Link>
             <Link to="/workflow" className="btn-secondary">
-              Mở Workflow
+              {t('landing.enterprise.ctaWorkflow')}
             </Link>
             <Link to="/pricing" className="enterprise-features-link">
-              Xem bảng giá
+              {t('landing.enterprise.ctaPricing')}
               <ArrowRight size={14} />
             </Link>
           </div>

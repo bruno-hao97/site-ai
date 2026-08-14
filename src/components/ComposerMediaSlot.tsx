@@ -103,7 +103,7 @@ export default function ComposerMediaSlot({
             {emptyHint && <span className="composer-dropzone-hint">{emptyHint}</span>}
           </>
         )}
-        {uploading && <ComposerUploadOverlay minimal hint="Đang tải lên" />}
+        {uploading && <ComposerUploadOverlay minimal />}
       </div>
 
       {menuOpen && (

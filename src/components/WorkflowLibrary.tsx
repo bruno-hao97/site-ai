@@ -1,6 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, FolderOpen, Play, Plus, Save, Search, Settings2, Trash2, Upload, X } from 'lucide-react';
+import {
+  Check,
+  FolderOpen,
+  GitBranch,
+  Play,
+  Plus,
+  Save,
+  Search,
+  Settings2,
+  Trash2,
+  Upload,
+  X,
+} from 'lucide-react';
 import {
   assignTemplateToGroup,
   countByGroup,
@@ -18,6 +30,7 @@ import {
   type WorkflowGroup,
 } from '../services/workflowLibraryStore';
 import { parseWflFile } from '../services/wflImport';
+import { useLocale } from '../i18n';
 
 interface Props {
   open: boolean;
@@ -27,6 +40,7 @@ interface Props {
 }
 
 export default function WorkflowLibrary({ open, currentGraph, onOpenTemplate, onClose }: Props) {
+  const { t, locale } = useLocale();
   const [tick, setTick] = useState(0);
   const [query, setQuery] = useState('');
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
@@ -34,28 +48,31 @@ export default function WorkflowLibrary({ open, currentGraph, onOpenTemplate, on
   const [newName, setNewName] = useState('');
   const [importError, setImportError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => onLibraryUpdated(() => setTick((t) => t + 1)), []);
+  useEffect(() => onLibraryUpdated(() => setTick((n) => n + 1)), []);
 
   const groups = useMemo(() => loadGroups(), [tick, open]);
   const counts = useMemo(() => countByGroup(), [tick, open]);
   const allTemplates = useMemo(() => listTemplates(null), [tick, open]);
 
   const templates = useMemo(() => {
-    const base = activeGroup ? allTemplates.filter((t) => t.groupId === activeGroup) : allTemplates;
+    const base = activeGroup ? allTemplates.filter((tpl) => tpl.groupId === activeGroup) : allTemplates;
     const q = query.trim().toLowerCase();
-    return q ? base.filter((t) => t.name.toLowerCase().includes(q)) : base;
+    return q ? base.filter((tpl) => tpl.name.toLowerCase().includes(q)) : base;
   }, [allTemplates, activeGroup, query]);
 
   if (!open) return null;
 
+  const localeTag = locale === 'vi' ? 'vi-VN' : 'en-US';
+
   const handleSaveCurrent = () => {
     const graph = currentGraph();
     if (!graph.nodes.length) {
-      window.alert('Canvas đang trống — chưa có gì để lưu.');
+      window.alert(t('workflow.lib.canvasEmpty'));
       return;
     }
-    const name = newName.trim() || `Workflow ${new Date().toLocaleString('vi-VN')}`;
+    const name = newName.trim() || `Workflow ${new Date().toLocaleString(localeTag)}`;
     saveTemplate(name, graph, activeGroup);
     setNewName('');
   };
@@ -67,7 +84,7 @@ export default function WorkflowLibrary({ open, currentGraph, onOpenTemplate, on
       const raw = await file.text();
       const { name, graph } = parseWflFile(raw);
       if (!graph.nodes.length) {
-        setImportError('File không có node nào.');
+        setImportError(t('workflow.lib.importNoNodes'));
         return;
       }
       const baseName = name || file.name.replace(/\.(wfl|json)$/i, '');
@@ -87,22 +104,22 @@ export default function WorkflowLibrary({ open, currentGraph, onOpenTemplate, on
             <FolderOpen size={20} />
           </div>
           <div className="wflib-head-text">
-            <span className="wflib-eyebrow">AUTO WORKFLOW</span>
-            <h2>Thư viện Workflow</h2>
-            <p>Lưu, gom nhóm và mở lại nhanh các workflow đã tạo.</p>
+            <span className="wflib-eyebrow">{t('workflow.lib.eyebrow')}</span>
+            <h2>{t('workflow.lib.title')}</h2>
+            <p>{t('workflow.lib.subtitle')}</p>
           </div>
-          <button type="button" className="wflib-close" onClick={onClose} title="Đóng">
+          <button type="button" className="wflib-close" onClick={onClose} title={t('workflow.lib.close')}>
             <X size={18} />
           </button>
         </header>
 
         <div className="wflib-stats">
           <div className="wflib-stat">
-            <span className="wflib-stat-label">Workflow</span>
+            <span className="wflib-stat-label">{t('workflow.lib.statWorkflows')}</span>
             <span className="wflib-stat-value">{allTemplates.length}</span>
           </div>
           <div className="wflib-stat">
-            <span className="wflib-stat-label">Nhóm</span>
+            <span className="wflib-stat-label">{t('workflow.lib.statGroups')}</span>
             <span className="wflib-stat-value">{groups.length}</span>
           </div>
         </div>
@@ -114,26 +131,27 @@ export default function WorkflowLibrary({ open, currentGraph, onOpenTemplate, on
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Tìm workflow…"
+              placeholder={t('workflow.lib.searchPlaceholder')}
             />
           </div>
           <input
+            ref={nameInputRef}
             type="text"
             className="wflib-name-input"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder="Tên workflow hiện tại…"
+            placeholder={t('workflow.lib.namePlaceholder')}
           />
           <button type="button" className="wflib-save-btn" onClick={handleSaveCurrent}>
-            <Save size={15} /> Lưu workflow hiện tại
+            <Save size={15} /> {t('workflow.lib.saveCurrent')}
           </button>
           <button
             type="button"
             className="wflib-import-btn"
             onClick={() => fileRef.current?.click()}
-            title="Import file .wfl / .json"
+            title={t('workflow.lib.importFile')}
           >
-            <Upload size={15} /> Import file
+            <Upload size={15} /> {t('workflow.lib.importFile')}
           </button>
           <input
             ref={fileRef}
@@ -152,7 +170,7 @@ export default function WorkflowLibrary({ open, currentGraph, onOpenTemplate, on
             className={`wflib-tab${activeGroup === null ? ' active' : ''}`}
             onClick={() => setActiveGroup(null)}
           >
-            Tất cả <span className="wflib-tab-count">{allTemplates.length}</span>
+            {t('workflow.lib.all')} <span className="wflib-tab-count">{allTemplates.length}</span>
           </button>
           {groups.map((g) => (
             <button
@@ -169,26 +187,50 @@ export default function WorkflowLibrary({ open, currentGraph, onOpenTemplate, on
             type="button"
             className="wflib-tab wflib-manage"
             onClick={() => setManageOpen(true)}
-            title="Quản lý nhóm"
+            title={t('workflow.lib.manageGroups')}
           >
-            <Settings2 size={14} /> Quản lý nhóm
+            <Settings2 size={14} /> {t('workflow.lib.manageGroups')}
           </button>
         </div>
 
         <div className="wflib-grid">
           {templates.length === 0 && (
-            <div className="wflib-empty">
-              Chưa có workflow nào{activeGroup ? ' trong nhóm này' : ''}. Lưu workflow hiện tại để
-              bắt đầu.
+            <div className="wflib-empty wflib-empty--illustrated">
+              <span className="wflib-empty-icon" aria-hidden>
+                <GitBranch size={28} />
+              </span>
+              <h3>{t('workflow.lib.emptyTitle')}</h3>
+              <p>{activeGroup ? t('workflow.lib.emptyInGroup') : t('workflow.lib.emptyBody')}</p>
+              <div className="wflib-empty-actions">
+                <button
+                  type="button"
+                  className="wflib-empty-primary"
+                  onClick={() => {
+                    nameInputRef.current?.focus();
+                    handleSaveCurrent();
+                  }}
+                >
+                  <Save size={14} />
+                  {t('workflow.lib.saveCurrent')}
+                </button>
+                <button
+                  type="button"
+                  className="wflib-empty-secondary"
+                  onClick={() => fileRef.current?.click()}
+                >
+                  <Upload size={14} />
+                  {t('workflow.lib.importFile')}
+                </button>
+              </div>
             </div>
           )}
-          {templates.map((t) => (
+          {templates.map((tpl) => (
             <TemplateCard
-              key={t.id}
-              template={t}
+              key={tpl.id}
+              template={tpl}
               groups={groups}
               onOpen={() => {
-                onOpenTemplate(t);
+                onOpenTemplate(tpl);
                 onClose();
               }}
             />
@@ -211,7 +253,9 @@ function TemplateCard({
   groups: WorkflowGroup[];
   onOpen: () => void;
 }) {
+  const { t } = useLocale();
   const group = groups.find((g) => g.id === template.groupId) || null;
+
   return (
     <div className="wflib-card">
       <div className="wflib-card-thumb" style={group ? { borderColor: group.color } : undefined}>
@@ -222,14 +266,16 @@ function TemplateCard({
         <div className="wflib-card-name" title={template.name}>
           {template.name}
         </div>
-        <div className="wflib-card-meta">{template.nodeCount} node</div>
+        <div className="wflib-card-meta">
+          {t('workflow.lib.nodeCount', { count: template.nodeCount })}
+        </div>
         <div className="wflib-card-row">
           <select
             className="wflib-card-group"
             value={template.groupId ?? ''}
             onChange={(e) => assignTemplateToGroup(template.id, e.target.value || null)}
           >
-            <option value="">Chưa phân nhóm</option>
+            <option value="">{t('workflow.lib.ungrouped')}</option>
             {groups.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.name}
@@ -240,14 +286,16 @@ function TemplateCard({
       </div>
       <div className="wflib-card-actions">
         <button type="button" className="wflib-card-open" onClick={onOpen}>
-          <Play size={13} /> Mở
+          <Play size={13} /> {t('workflow.lib.open')}
         </button>
         <button
           type="button"
           className="wflib-card-del"
-          title="Xóa"
+          title={t('workflow.lib.delete')}
           onClick={() => {
-            if (window.confirm(`Xóa workflow "${template.name}"?`)) deleteTemplate(template.id);
+            if (window.confirm(t('workflow.lib.deleteConfirm', { name: template.name }))) {
+              deleteTemplate(template.id);
+            }
           }}
         >
           <Trash2 size={14} />
@@ -258,6 +306,7 @@ function TemplateCard({
 }
 
 function ManageGroups({ groups, onClose }: { groups: WorkflowGroup[]; onClose: () => void }) {
+  const { t } = useLocale();
   const [name, setName] = useState('');
   const [color, setColor] = useState(WORKFLOW_GROUP_COLORS[0]);
 
@@ -275,10 +324,10 @@ function ManageGroups({ groups, onClose }: { groups: WorkflowGroup[]; onClose: (
             <FolderOpen size={16} />
           </div>
           <div className="wflib-head-text">
-            <h3>Quản lý nhóm Workflow</h3>
-            <p>Tạo và quản lý nhóm để phân loại workflow.</p>
+            <h3>{t('workflow.lib.manageTitle')}</h3>
+            <p>{t('workflow.lib.manageSubtitle')}</p>
           </div>
-          <button type="button" className="wflib-close" onClick={onClose} title="Đóng">
+          <button type="button" className="wflib-close" onClick={onClose} title={t('workflow.lib.close')}>
             <X size={16} />
           </button>
         </header>
@@ -289,7 +338,7 @@ function ManageGroups({ groups, onClose }: { groups: WorkflowGroup[]; onClose: (
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && create()}
-            placeholder="Tên nhóm mới…"
+            placeholder={t('workflow.lib.newGroupPlaceholder')}
           />
           <div className="wflib-swatches">
             {WORKFLOW_GROUP_COLORS.map((c) => (
@@ -310,7 +359,7 @@ function ManageGroups({ groups, onClose }: { groups: WorkflowGroup[]; onClose: (
         </div>
 
         <div className="wflib-sub-list">
-          {groups.length === 0 && <div className="wflib-empty sm">Chưa có nhóm nào.</div>}
+          {groups.length === 0 && <div className="wflib-empty sm">{t('workflow.lib.noGroups')}</div>}
           {groups.map((g) => (
             <GroupRow key={g.id} group={g} />
           ))}
@@ -321,6 +370,7 @@ function ManageGroups({ groups, onClose }: { groups: WorkflowGroup[]; onClose: (
 }
 
 function GroupRow({ group }: { group: WorkflowGroup }) {
+  const { t } = useLocale();
   const counts = countByGroup();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(group.name);
@@ -345,16 +395,19 @@ function GroupRow({ group }: { group: WorkflowGroup }) {
       ) : (
         <button type="button" className="wflib-grp-name" onClick={() => setEditing(true)}>
           {group.name}
-          <span className="wflib-grp-count">{counts[group.id] ?? 0} workflow</span>
+          <span className="wflib-grp-count">
+            {t('workflow.lib.groupWorkflowCount', { count: counts[group.id] ?? 0 })}
+          </span>
         </button>
       )}
       <button
         type="button"
         className="wflib-card-del"
-        title="Xóa nhóm"
+        title={t('workflow.lib.deleteGroup')}
         onClick={() => {
-          if (window.confirm(`Xóa nhóm "${group.name}"? Workflow sẽ về "chưa phân nhóm".`))
+          if (window.confirm(t('workflow.lib.deleteGroupConfirm', { name: group.name }))) {
             deleteGroup(group.id);
+          }
         }}
       >
         <Trash2 size={14} />

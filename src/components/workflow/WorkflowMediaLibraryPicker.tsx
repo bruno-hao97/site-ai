@@ -21,6 +21,7 @@ import {
   fetchMyVideos,
   type FeedItem,
 } from '../../services/feedApi';
+import { useLocale } from '../../i18n';
 import {
   feedCategoryLabel,
   feedModelDisplay,
@@ -88,6 +89,7 @@ export default function WorkflowMediaLibraryPicker({
   onConfirm,
   onCancel,
 }: Props) {
+  const { t } = useLocale();
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -107,13 +109,13 @@ export default function WorkflowMediaLibraryPicker({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const accept = kind === 'image' ? 'image/*' : 'video/*';
-  const mediaWord = kind === 'image' ? 'ảnh' : 'video';
-  const title = kind === 'image' ? 'Chọn ảnh từ thư viện' : 'Chọn video từ thư viện';
+  const mediaWord = kind === 'image' ? t('common.images') : t('common.videos');
+  const title = kind === 'image' ? t('workflow.media.pickImageTitle') : t('workflow.media.pickVideoTitle');
 
   const load = useCallback(
     async (after: string, reset: boolean) => {
       if (!loadAuth()?.access_token) {
-        setError('Cần đăng nhập để xem thư viện.');
+        setError(t('workflow.media.loginLibrary'));
         setItems([]);
         setHasMore(false);
         return;
@@ -280,7 +282,7 @@ export default function WorkflowMediaLibraryPicker({
     const list = files ? Array.from(files) : [];
     if (!list.length) return;
     if (!loadAuth()?.access_token) {
-      setError('Cần đăng nhập để upload');
+      setError(t('workflow.media.loginUpload'));
       return;
     }
     setUploading(true);
@@ -399,7 +401,7 @@ export default function WorkflowMediaLibraryPicker({
               ) : (
                 <Upload size={14} />
               )}
-              {uploading ? 'Đang tải…' : 'Tải lên'}
+              {uploading ? t('workflow.media.uploading') : t('workflow.media.upload')}
             </button>
             {kind === 'image' && (
               <a
@@ -409,13 +411,13 @@ export default function WorkflowMediaLibraryPicker({
                 className="wf-lib-picker-action-btn"
               >
                 <Sparkles size={14} />
-                Tạo ảnh mới
+                {t('workflow.media.createImage')}
               </a>
             )}
             <button
               type="button"
               className="wf-lib-picker-icon-btn"
-              title={expanded ? 'Thu nhỏ' : 'Phóng to'}
+              title={expanded ? t('common.collapse') : t('common.expand')}
               onClick={() => setExpanded((v) => !v)}
             >
               {expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
@@ -428,7 +430,7 @@ export default function WorkflowMediaLibraryPicker({
             >
               <RefreshCw size={16} />
             </button>
-            <button type="button" className="wf-lib-picker-icon-btn" title="Đóng" onClick={onCancel}>
+            <button type="button" className="wf-lib-picker-icon-btn" title={t('common.close')} onClick={onCancel}>
               <X size={16} />
             </button>
           </div>
@@ -450,7 +452,7 @@ export default function WorkflowMediaLibraryPicker({
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder={kind === 'image' ? 'Tìm kiếm theo prompt…' : 'Tìm kiếm video…'}
+              placeholder={kind === 'image' ? t('workflow.media.searchImage') : t('workflow.media.searchVideo')}
             />
             {query && (
               <button type="button" className="wf-lib-picker-search-clear" onClick={() => setQuery('')}>
@@ -519,20 +521,20 @@ export default function WorkflowMediaLibraryPicker({
 
           {loading && items.length === 0 ? (
             <p className="wf-lib-picker-empty">
-              <Loader2 size={18} className="wf-spin" /> Đang tải thư viện…
+              <Loader2 size={18} className="wf-spin" /> {t('workflow.media.loadingLibrary')}
             </p>
           ) : filteredItems.length === 0 ? (
             <p className="wf-lib-picker-empty">
               {query || sourceFilter || categoryFilter || ratioFilter || modelFilter
-                ? 'Không tìm thấy kết quả.'
-                : `Chưa có ${mediaWord} trong thư viện.`}
+                ? t('workflow.media.noResults')
+                : t('workflow.media.emptyLibrary', { media: mediaWord })}
             </p>
           ) : (
             <>
               {kind === 'video' && recentItems.length > 0 && (
                 <section className="wf-lib-picker-section">
                   <header className="wf-lib-picker-section-head">
-                    <span>Dùng gần đây</span>
+                    <span>{t('workflow.media.recentlyUsed')}</span>
                     <span className="wf-lib-picker-section-count">{recentItems.length}</span>
                   </header>
                   <div className="wf-lib-picker-grid wf-lib-picker-grid--recent">
@@ -555,7 +557,7 @@ export default function WorkflowMediaLibraryPicker({
 
           {loading && items.length > 0 && (
             <p className="wf-lib-picker-loading-more">
-              <Loader2 size={16} className="wf-spin" /> Đang tải thêm…
+              <Loader2 size={16} className="wf-spin" /> {t('workflow.media.loadingMore')}
             </p>
           )}
           <div ref={sentinelRef} className="wf-lib-picker-sentinel" />

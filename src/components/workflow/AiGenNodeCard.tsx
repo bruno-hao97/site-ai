@@ -21,6 +21,7 @@ import {
 import { AI_GEN_PORTS, type AiGenPortKind } from '../../services/workflowAiGenPorts';
 import { fetchModelsForType, pickDefaultModel } from '../../services/workflowEngine';
 import { WfNodePortsGrid } from './WfNodePortsGrid';
+import { useLocale } from '../../i18n';
 import {
   formatCreditBadge,
   formatGenLoadingCopy,
@@ -233,6 +234,7 @@ export function AiGenNodeCard({
   nodeId,
   onOpenResultPreview,
 }: AiGenNodeCardProps) {
+  const { t } = useLocale();
   const jobType: JobType = type;
   const ports = AI_GEN_PORTS[type];
   const [models, setModels] = useState<GommoModel[]>([]);
@@ -318,7 +320,10 @@ export function AiGenNodeCard({
     return formatGenTimer(end - start);
   }, [data.runStartedAt, data.runEndedAt, done, now]);
 
-  const modelName = currentModel?.name || data.modelId || (loadingModels ? 'Đang tải…' : 'Chọn model');
+  const modelName =
+    currentModel?.name ||
+    data.modelId ||
+    (loadingModels ? t('common.loading') : t('common.selectModel'));
 
   const configPills = useCallback(
     (readOnly: boolean) => (
@@ -418,7 +423,7 @@ export function AiGenNodeCard({
                   });
                 }}
               >
-                {loadingModels && <option value="">Đang tải model…</option>}
+                {loadingModels && <option value="">{t('common.loadingModels')}</option>}
                 {!loadingModels && models.length === 0 && <option value="">Không có model</option>}
                 {models.map((m) => {
                   const slug = modelSlug(m);

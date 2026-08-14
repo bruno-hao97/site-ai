@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom';
+import { useMemo } from 'react';
+import { useLocale } from '../../i18n';
 import {
   HOME_NOTIF_CONTACT,
   SITE_DISPLAY_NAME,
@@ -8,31 +10,8 @@ import {
 } from '../../services/siteConfig';
 
 type FooterLink =
-  | { label: string; to: string }
-  | { label: string; href: string; external?: boolean };
-
-const footerLinks: Record<string, FooterLink[]> = {
-  'Nền tảng': [
-    { label: 'Models', to: '/models' },
-    { label: 'Tính năng', href: '/#product' },
-    { label: 'Bảng giá', to: '/pricing' },
-    { label: 'Khám phá', href: '/#community' },
-  ],
-  'Pháp lý & Hỗ trợ': [
-    { label: 'Chính sách bảo mật', to: '/privacy' },
-    { label: 'Điều khoản dịch vụ', to: '/terms' },
-    { label: `Liên hệ: ${SITE_SUPPORT_PHONE_LABEL}`, href: `tel:${SITE_SUPPORT_PHONE}` },
-    { label: `Email: ${SITE_SUPPORT_EMAIL}`, href: `mailto:${SITE_SUPPORT_EMAIL}` },
-  ],
-  'Bảng giá': [
-    { label: 'Nạp credit', to: '/pricing' },
-    { label: 'Gói dịch vụ', to: '/pricing' },
-  ],
-  'Công ty': [
-    { label: 'Zalo hỗ trợ', href: HOME_NOTIF_CONTACT.zaloSupport, external: true },
-    { label: 'Fanpage', href: HOME_NOTIF_CONTACT.facebook, external: true },
-  ],
-};
+  | { label: string; to: string; key: string }
+  | { label: string; href: string; key: string; external?: boolean };
 
 function FooterLinkItem({ link }: { link: FooterLink }) {
   if ('to' in link) {
@@ -49,6 +28,64 @@ function FooterLinkItem({ link }: { link: FooterLink }) {
 }
 
 export default function LandingFooter() {
+  const { t } = useLocale();
+
+  const footerColumns = useMemo(
+    () => [
+      {
+        heading: t('landing.footer.col.platform'),
+        links: [
+          { key: 'models', label: t('landing.footer.link.models'), to: '/models' },
+          { key: 'features', label: t('landing.footer.link.features'), href: '/#product' },
+          { key: 'pricing', label: t('landing.footer.link.pricing'), to: '/pricing' },
+          { key: 'explore', label: t('landing.footer.link.explore'), href: '/#community' },
+        ],
+      },
+      {
+        heading: t('landing.footer.col.legal'),
+        links: [
+          { key: 'privacy', label: t('landing.footer.link.privacy'), to: '/privacy' },
+          { key: 'terms', label: t('landing.footer.link.terms'), to: '/terms' },
+          {
+            key: 'phone',
+            label: t('landing.footer.link.contactPhone', { phone: SITE_SUPPORT_PHONE_LABEL }),
+            href: `tel:${SITE_SUPPORT_PHONE}`,
+          },
+          {
+            key: 'email',
+            label: t('landing.footer.link.contactEmail', { email: SITE_SUPPORT_EMAIL }),
+            href: `mailto:${SITE_SUPPORT_EMAIL}`,
+          },
+        ],
+      },
+      {
+        heading: t('landing.footer.col.pricing'),
+        links: [
+          { key: 'topup', label: t('landing.footer.link.topup'), to: '/pricing' },
+          { key: 'plans', label: t('landing.footer.link.plans'), to: '/pricing' },
+        ],
+      },
+      {
+        heading: t('landing.footer.col.company'),
+        links: [
+          {
+            key: 'zalo',
+            label: t('landing.footer.link.zalo'),
+            href: HOME_NOTIF_CONTACT.zaloSupport,
+            external: true,
+          },
+          {
+            key: 'fanpage',
+            label: t('landing.footer.link.fanpage'),
+            href: HOME_NOTIF_CONTACT.facebook,
+            external: true,
+          },
+        ],
+      },
+    ],
+    [t],
+  );
+
   return (
     <footer className="footer">
       <div className="container">
@@ -57,17 +94,15 @@ export default function LandingFooter() {
             <Link to="/" className="logo-row" style={{ marginBottom: 12 }}>
               <img src="/logo.png" alt={SITE_DISPLAY_NAME} className="logo-img" />
             </Link>
-            <p className="footer-tagline">
-              Nền tảng AI đa phương thức — ảnh, video, âm nhạc, giọng nói và chat trong một studio.
-            </p>
+            <p className="footer-tagline">{t('landing.footer.tagline')}</p>
           </div>
 
-          {Object.entries(footerLinks).map(([heading, links]) => (
-            <div key={heading} className="footer-col">
-              <h4>{heading}</h4>
+          {footerColumns.map((column) => (
+            <div key={column.heading} className="footer-col">
+              <h4>{column.heading}</h4>
               <ul>
-                {links.map((link) => (
-                  <li key={link.label}>
+                {column.links.map((link) => (
+                  <li key={link.key}>
                     <FooterLinkItem link={link} />
                   </li>
                 ))}
@@ -78,7 +113,10 @@ export default function LandingFooter() {
 
         <div className="footer-bottom">
           <span className="copyright">
-            © {new Date().getFullYear()} {SITE_DISPLAY_NAME}. All rights reserved.
+            {t('landing.footer.copyright', {
+              year: new Date().getFullYear(),
+              siteName: SITE_DISPLAY_NAME,
+            })}
           </span>
         </div>
       </div>

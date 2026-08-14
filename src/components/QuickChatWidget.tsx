@@ -16,6 +16,7 @@ import { resolveQuickChatContext } from '../services/quickChatContext';
 import { formatAgentDisplayContent } from '../services/agentDisplayContent';
 import { rebrandSiteText } from '../services/siteConfig';
 import ChatAiModelPickerModal from './ChatAiModelPickerModal';
+import { useLocale } from '../i18n';
 
 interface QuickMessage {
   id: string;
@@ -34,6 +35,7 @@ function newSessionId(): string {
 }
 
 export default function QuickChatWidget() {
+  const { t } = useLocale();
   const location = useLocation();
   const chatCtx = resolveQuickChatContext(location.pathname);
 
@@ -85,7 +87,7 @@ export default function QuickChatWidget() {
   const onPickFile = (file: File | null) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      window.alert('Chỉ hỗ trợ đính kèm ảnh.');
+      window.alert(t('quickChat.imageOnly'));
       return;
     }
     const url = URL.createObjectURL(file);
@@ -115,7 +117,7 @@ export default function QuickChatWidget() {
     if ((!text && !attachment) || thinking) return;
 
     if (!isGommoChatConfigured()) {
-      window.alert('Bạn cần đăng nhập để dùng Quick Chat.');
+      window.alert(t('quickChat.loginRequired'));
       return;
     }
 
@@ -161,7 +163,7 @@ export default function QuickChatWidget() {
 
     let acc = '';
     try {
-      acc = await askGommo(text || 'Mô tả ảnh này giúp tôi.', {
+      acc = await askGommo(text || t('quickChat.describeImage'), {
         history,
         firstTurn,
         sessionId,
@@ -174,7 +176,7 @@ export default function QuickChatWidget() {
       patchAssistant(assistantId, acc);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      patchAssistant(assistantId, `⚠️ Lỗi: ${msg}`);
+      patchAssistant(assistantId, t('common.errorPrefix', { message: msg }));
     } finally {
       setThinking(false);
     }
@@ -186,8 +188,8 @@ export default function QuickChatWidget() {
         type="button"
         className="quick-chat-fab"
         onClick={() => setOpen(true)}
-        title={`Quick Chat · ${chatCtx.label}`}
-        aria-label="Mở Quick Chat"
+        title={t('quickChat.title', { label: chatCtx.label })}
+        aria-label={t('quickChat.open')}
       >
         <Bot size={24} />
       </button>
@@ -204,8 +206,8 @@ export default function QuickChatWidget() {
                 type="button"
                 className="quick-chat-model-trigger"
                 onClick={() => setModelPickerOpen(true)}
-                title="Chọn model Chat AI"
-                aria-label="Chọn model Chat AI"
+                title={t('quickChat.pickModel')}
+                aria-label={t('quickChat.pickModel')}
               >
                 <span>{selectedModel.name}</span>
                 <ChevronDown size={14} />
@@ -214,10 +216,10 @@ export default function QuickChatWidget() {
             </div>
           </div>
           <div className="quick-chat-head-actions">
-            <button type="button" onClick={resetChat} title="Chat mới" aria-label="Chat mới">
+            <button type="button" onClick={resetChat} title={t('quickChat.newChat')} aria-label={t('quickChat.newChat')}>
               <Plus size={16} />
             </button>
-            <button type="button" onClick={() => setOpen(false)} title="Đóng" aria-label="Đóng">
+            <button type="button" onClick={() => setOpen(false)} title={t('quickChat.close')} aria-label={t('quickChat.close')}>
               <X size={16} />
             </button>
           </div>
@@ -238,10 +240,10 @@ export default function QuickChatWidget() {
                   )}
                   <div className="quick-chat-bubble">
                     {m.imageUrl && (
-                      <img className="quick-chat-bubble-img" src={m.imageUrl} alt="đính kèm" />
+                      <img className="quick-chat-bubble-img" src={m.imageUrl} alt={t('quickChat.attachmentAlt')} />
                     )}
                     {m.role === 'assistant' && !m.content ? (
-                      <span className="quick-chat-typing">Đang trả lời…</span>
+                      <span className="quick-chat-typing">{t('quickChat.typing')}</span>
                     ) : (
                       shown.split('\n').map((line, i, arr) => (
                         <span key={i}>
@@ -283,8 +285,8 @@ export default function QuickChatWidget() {
               type="button"
               className="quick-chat-attach-btn"
               onClick={() => fileRef.current?.click()}
-              title="Đính kèm ảnh"
-              aria-label="Đính kèm ảnh"
+              title={t('quickChat.attach')}
+              aria-label={t('quickChat.attach')}
             >
               <Paperclip size={16} />
             </button>

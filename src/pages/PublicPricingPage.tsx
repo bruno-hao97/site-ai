@@ -5,14 +5,17 @@ import { isLoggedIn } from '../services/authStore';
 import { landingPageClassName } from '../lib/landingShell';
 import LandingLayout from '../components/landing/LandingLayout';
 import PricingPage from './PricingPage';
+import { useLocale } from '../i18n';
 
 export default function PublicPricingPage() {
+  const { t } = useLocale();
+
   useEffect(() => {
-    document.title = 'Bảng giá · trungtamai.vn';
+    document.title = t('pricing.pageTitle');
     return () => {
       document.title = 'Trung tâm AI';
     };
-  }, []);
+  }, [t]);
 
   if (isLoggedIn()) {
     return (

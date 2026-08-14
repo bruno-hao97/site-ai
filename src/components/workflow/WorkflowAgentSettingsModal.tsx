@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ChevronDown, X } from 'lucide-react';
+import { useLocale } from '../../i18n';
 import {
   DIRECT_DURATIONS,
   DIRECT_MODES,
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export default function WorkflowAgentSettingsModal({ open, settings, onSave, onClose }: Props) {
+  const { t } = useLocale();
   const [draft, setDraft] = useState(settings);
   const [modelOpen, setModelOpen] = useState(false);
 
@@ -48,7 +50,7 @@ export default function WorkflowAgentSettingsModal({ open, settings, onSave, onC
             <h3>Cài đặt tạo trực tiếp</h3>
             <p>Dùng khi Workflow Agent chạy yêu cầu tạo ảnh/video đơn mà không dựng workflow.</p>
           </div>
-          <button type="button" className="wf-agent-set-x" onClick={onClose} aria-label="Đóng">
+          <button type="button" className="wf-agent-set-x" onClick={onClose} aria-label={t('common.close')}>
             <X size={18} />
           </button>
         </div>

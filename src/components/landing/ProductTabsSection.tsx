@@ -1,17 +1,21 @@
 import { useMemo, useRef, useState } from 'react';
 import { motion, useInView } from 'framer-motion';
-import { PRODUCT_TABS } from '../../lib/landingProductContent';
+import { useLocale } from '../../i18n';
+import { getProductTabs } from '../../lib/landingI18n';
 
 const TAB_SPRING = { type: 'spring' as const, stiffness: 420, damping: 36 };
+const DEFAULT_TAB_ID = 'chat';
 
 export default function ProductTabsSection() {
+  const { t } = useLocale();
+  const productTabs = useMemo(() => getProductTabs(t), [t]);
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: '-80px' });
-  const [activeId, setActiveId] = useState(PRODUCT_TABS[0]!.id);
+  const [activeId, setActiveId] = useState(DEFAULT_TAB_ID);
 
   const active = useMemo(
-    () => PRODUCT_TABS.find((t) => t.id === activeId) ?? PRODUCT_TABS[0]!,
-    [activeId],
+    () => productTabs.find((tab) => tab.id === activeId) ?? productTabs[0]!,
+    [activeId, productTabs],
   );
 
   return (
@@ -27,13 +31,13 @@ export default function ProductTabsSection() {
           transition={{ duration: 0.5 }}
         >
           <div className="landing-section-head product-tabs-head">
-            <h2>Một studio cho mọi loại nội dung</h2>
-            <p>Ảnh, video, giọng nói, chat và workflow — chọn tab để xem khả năng.</p>
+            <h2>{t('landing.product.title')}</h2>
+            <p>{t('landing.product.subtitle')}</p>
           </div>
 
           <div className="product-tabs-bar">
             <div className="product-tabs-track" role="tablist">
-              {PRODUCT_TABS.map((tab) => {
+              {productTabs.map((tab) => {
                 const isActive = activeId === tab.id;
                 return (
                   <button
@@ -82,10 +86,10 @@ export default function ProductTabsSection() {
                   <span />
                 </div>
                 <div className="product-mock-sidebar">
-                  {PRODUCT_TABS.map((t) => (
-                    <div key={t.id} className={`product-mock-nav${t.id === activeId ? ' on' : ''}`}>
-                      <t.icon size={14} />
-                      {t.label}
+                  {productTabs.map((tab) => (
+                    <div key={tab.id} className={`product-mock-nav${tab.id === activeId ? ' on' : ''}`}>
+                      <tab.icon size={14} />
+                      {tab.label}
                     </div>
                   ))}
                 </div>

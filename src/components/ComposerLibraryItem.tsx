@@ -7,6 +7,7 @@ import {
   feedResolutionLabel,
 } from '../services/feedLibraryMeta';
 import { downloadMediaUrl } from '../utils/downloadMedia';
+import { useLocale } from '../i18n';
 
 function ratioClass(ratio?: string): string {
   const r = (ratio || '').replace(/\s/g, '').toLowerCase();
@@ -37,6 +38,7 @@ export default function ComposerLibraryItem({
   deleting?: boolean;
   extraMenuItems?: { label: string; icon?: ReactNode; onClick: () => void }[];
 }) {
+  const { t } = useLocale();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const thumb = feedThumb(item);
@@ -133,7 +135,7 @@ export default function ComposerLibraryItem({
           </button>
           {menuOpen && (
             <div className="clib-item-menu">
-              <button type="button" disabled title="Chưa hỗ trợ">
+              <button type="button" disabled title={t('common.notSupported')}>
                 <Send size={14} />
                 Gửi tới thiết bị
               </button>

@@ -1,9 +1,11 @@
 import { useMemo } from 'react';
 import { useModelCatalog } from '../../hooks/useModelCatalog';
+import { useLocale } from '../../i18n';
 import { modelLabel } from '../../services/modelCatalogDisplay';
 import { modelSlug } from '../../services/modelSchema';
 
 export default function MarqueeSection() {
+  const { t } = useLocale();
   const { available, loading, count } = useModelCatalog();
 
   const models = useMemo(() => {
@@ -21,15 +23,15 @@ export default function MarqueeSection() {
 
   const items = models.length ? [...models, ...models] : [];
 
+  const label = loading
+    ? t('landing.marquee.loading')
+    : count
+      ? t('landing.marquee.subtitleWithCount', { count })
+      : t('landing.marquee.subtitle');
+
   return (
     <section className="landing-section landing-section-light marquee-section">
-      <p className="marquee-label">
-        {loading
-          ? 'Đang tải model…'
-          : count
-            ? `Hơn ${count}+ model AI được hỗ trợ`
-            : 'Model AI được hỗ trợ'}
-      </p>
+      <p className="marquee-label">{label}</p>
 
       {loading ? (
         <div className="marquee-track marquee-track-skeleton" aria-hidden="true">
@@ -38,7 +40,7 @@ export default function MarqueeSection() {
           ))}
         </div>
       ) : items.length ? (
-        <div className="marquee-track" aria-label="Danh sách model AI">
+        <div className="marquee-track" aria-label={t('landing.marquee.ariaLabel')}>
           {items.map((m, i) => (
             <span key={`${m.id}-${i}`} className="marquee-pill" title={m.name}>
               {m.name}

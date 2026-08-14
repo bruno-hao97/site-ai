@@ -1,4 +1,5 @@
 import { Download, MoreHorizontal, Music2, Trash2 } from 'lucide-react';
+import { useLocale } from '../i18n';
 
 export interface MusicTrackItem {
   id: string;
@@ -26,16 +27,6 @@ function formatTime(iso?: string): string {
   }
 }
 
-function trackMeta(item: MusicTrackItem): string {
-  if (item.status === 'processing') {
-    const pct = item.progress != null ? ` ${item.progress}%` : '';
-    return `Đang tạo…${pct}`;
-  }
-  if (item.status === 'failed') return 'Thất bại';
-  const parts = [item.modelLabel, formatTime(item.createdAt)].filter(Boolean);
-  return parts.join(' - ');
-}
-
 export default function MusicTrackList({
   items,
   emptyText,
@@ -53,8 +44,20 @@ export default function MusicTrackList({
   onDelete?: (id: string) => void;
   onOpen?: (url: string) => void;
 }) {
+  const { t } = useLocale();
+
+  const trackMeta = (item: MusicTrackItem): string => {
+    if (item.status === 'processing') {
+      const pct = item.progress != null ? ` ${item.progress}%` : '';
+      return `${t('music.track.creating')}${pct}`;
+    }
+    if (item.status === 'failed') return t('music.track.failed');
+    const parts = [item.modelLabel, formatTime(item.createdAt)].filter(Boolean);
+    return parts.join(' - ');
+  };
+
   if (items.length === 0) {
-    return <p className="muted music-track-empty">{emptyText || 'Chưa có bản nhạc.'}</p>;
+    return <p className="muted music-track-empty">{emptyText || t('music.track.empty')}</p>;
   }
 
   return (
@@ -91,7 +94,7 @@ export default function MusicTrackList({
 
             <div className="music-track-body">
               <p className="music-track-title" title={item.title}>
-                {item.title || 'Không tên'}
+                {item.title || t('music.track.untitled')}
               </p>
               <p className="music-track-meta">{trackMeta(item)}</p>
               {processing && (
@@ -122,16 +125,16 @@ export default function MusicTrackList({
                     download
                     target="_blank"
                     rel="noreferrer"
-                    aria-label="Tải xuống"
-                    title="Tải xuống"
+                    aria-label={t('music.track.download')}
+                    title={t('music.track.download')}
                   >
                     <Download size={15} />
                   </a>
                   <button
                     type="button"
                     className="music-track-icon-btn"
-                    aria-label="Mở tab mới"
-                    title="Mở tab mới"
+                    aria-label={t('music.track.openTab')}
+                    title={t('music.track.openTab')}
                     onClick={() => onOpen?.(item.resultUrl!)}
                   >
                     <MoreHorizontal size={15} />
@@ -144,15 +147,15 @@ export default function MusicTrackList({
                   className="music-track-text-btn"
                   onClick={() => onReuse(item.id)}
                 >
-                  Dùng lại
+                  {t('music.track.reuse')}
                 </button>
               )}
               {onDelete && !processing && (
                 <button
                   type="button"
                   className="music-track-icon-btn danger"
-                  aria-label="Xóa"
-                  title="Xóa"
+                  aria-label={t('common.delete')}
+                  title={t('common.delete')}
                   onClick={() => onDelete(item.id)}
                 >
                   <Trash2 size={15} />

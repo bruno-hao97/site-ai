@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MotionConfig, motion } from 'framer-motion';
+import { useLocale } from '../../i18n';
+import { getHeroCapabilities } from '../../lib/landingI18n';
 import {
-  HERO_CAPABILITIES,
   HERO_CAPABILITY_ITEM_HEIGHT_PX,
   HERO_CAPABILITY_VIEWPORT_HEIGHT_PX,
 } from '../../lib/heroCapabilities';
@@ -17,8 +18,10 @@ function itemOpacity(distance: number): number {
 }
 
 export default function HeroCapabilityTicker() {
-  const count = HERO_CAPABILITIES.length;
-  const items = useMemo(() => [...HERO_CAPABILITIES, ...HERO_CAPABILITIES], []);
+  const { t } = useLocale();
+  const capabilities = useMemo(() => getHeroCapabilities(t), [t]);
+  const count = capabilities.length;
+  const items = useMemo(() => [...capabilities, ...capabilities], [capabilities]);
   const centerOffset =
     (HERO_CAPABILITY_VIEWPORT_HEIGHT_PX - HERO_CAPABILITY_ITEM_HEIGHT_PX) / 2;
 

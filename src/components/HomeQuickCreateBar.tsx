@@ -1,24 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Bot,
   ChevronDown,
   ChevronUp,
-  Clapperboard,
   Clock,
-  FileText,
-  Image as ImageIcon,
-  LayoutGrid,
   Loader2,
-  Mic,
   Monitor,
-  Music,
   Plus,
   Proportions,
+  Search,
   SendHorizontal,
   SlidersHorizontal,
   Sparkles,
-  Volume2,
   X,
 } from 'lucide-react';
 import ComposerMediaPickButton from './ComposerMediaPickButton';
@@ -42,61 +35,42 @@ import {
 import { notifyCreditsUpdated } from '../services/authStore';
 import { modelPriceRangeLabel, resolveModelPrice } from '../services/modelPricing';
 import { isJobAcceptedPendingError } from '../services/jobInfraErrors';
-
-type QuickMenuId = 'chat' | 'script' | 'video' | 'image' | 'tts' | 'music' | 'audio' | 'apps';
-
-interface QuickMenuItem {
-  id: QuickMenuId;
-  label: string;
-  icon: typeof ImageIcon;
-  jobType?: JobType;
-  href?: string;
-  action?: 'open-chat';
-  fixedCount?: number;
-}
-
-const QUICK_MENU: QuickMenuItem[] = [
-  { id: 'chat', label: 'Quick Chat', icon: Bot, action: 'open-chat', fixedCount: 1 },
-  { id: 'script', label: 'Tạo kịch bản', icon: FileText, href: '/video', fixedCount: 1 },
-  { id: 'video', label: 'Tạo video', icon: Clapperboard, jobType: 'video' },
-  { id: 'image', label: 'Tạo ảnh', icon: ImageIcon, jobType: 'image' },
-  { id: 'tts', label: 'Tạo giọng đọc', icon: Volume2, jobType: 'tts' },
-  { id: 'music', label: 'Tạo nhạc', icon: Music, jobType: 'music' },
-  { id: 'audio', label: 'Âm thanh', icon: Mic, href: '/audio', fixedCount: 1 },
-  { id: 'apps', label: 'Ứng dụng', icon: LayoutGrid, href: '/workflow', fixedCount: 1 },
-];
+import { HOME_QUICK_MENU, type HomeQuickMenuItem } from '../lib/homeQuickMenu';
+import HomeCategoryIcon from './home/HomeCategoryIcon';
+import { useLocale } from '../i18n';
+import type { TranslationKey } from '../i18n/types';
 
 const JOB_TYPES: JobType[] = ['video', 'image', 'tts', 'music'];
 
 const MAX_MEDIA = 4;
 
-function typeShortLabel(type: JobType): string {
+function typeShortLabel(type: JobType, t: (key: TranslationKey) => string): string {
   switch (type) {
     case 'video':
-      return 'VIDEO';
+      return t('home.quickCreate.type.video');
     case 'image':
-      return 'ẢNH';
+      return t('home.quickCreate.type.image');
     case 'tts':
-      return 'GIỌNG';
+      return t('home.quickCreate.type.tts');
     case 'music':
-      return 'NHẠC';
+      return t('home.quickCreate.type.music');
     default:
       return type.toUpperCase();
   }
 }
 
-function promptPlaceholder(type: JobType): string {
+function promptPlaceholder(type: JobType, t: (key: TranslationKey) => string): string {
   switch (type) {
     case 'video':
-      return 'Mô tả video bạn muốn tạo…';
+      return t('home.quickCreate.placeholder.video');
     case 'image':
-      return 'Mô tả ảnh bạn muốn tạo…';
+      return t('home.quickCreate.placeholder.image');
     case 'tts':
-      return 'Nhập văn bản cần đọc…';
+      return t('home.quickCreate.placeholder.tts');
     case 'music':
-      return 'Mô tả phong cách nhạc…';
+      return t('home.quickCreate.placeholder.music');
     default:
-      return 'Mô tả nội dung…';
+      return t('home.quickCreate.placeholder.default');
   }
 }
 
@@ -163,8 +137,10 @@ function MiniDropdown({ icon, options, value, onChange }: MiniDropdownProps) {
   );
 }
 
-export default function HomeQuickCreateBar() {
+export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'hero' | 'dock' }) {
   const navigate = useNavigate();
+  const { t } = useLocale();
+  const isHero = variant === 'hero';
   const [type, setType] = useState<JobType>('video');
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
   const [typeCounts, setTypeCounts] = useState<Partial<Record<JobType, number>>>({});
@@ -187,6 +163,7 @@ export default function HomeQuickCreateBar() {
 
   const typeRef = useRef<HTMLDivElement>(null);
   const modelRef = useRef<HTMLDivElement>(null);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const currentModel = useMemo(
@@ -262,9 +239,37 @@ export default function HomeQuickCreateBar() {
   }, []);
 
   useEffect(() => {
+    if (isHero) return;
     document.body.classList.add('qc-dock-active');
     return () => document.body.classList.remove('qc-dock-active');
-  }, []);
+  }, [isHero]);
+
+  useEffect(() => {
+    if (!isHero) return;
+    const onType = (e: Event) => {
+      const jobType = (e as CustomEvent<JobType>).detail;
+      if (jobType) {
+        setType(jobType);
+        setExpanded(true);
+        promptRef.current?.focus();
+      }
+    };
+    window.addEventListener('home-qc:set-type', onType);
+    return () => window.removeEventListener('home-qc:set-type', onType);
+  }, [isHero]);
+
+  useEffect(() => {
+    if (!isHero) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setExpanded(true);
+        promptRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isHero]);
 
   const update = <K extends keyof JobSelections>(key: K, value: JobSelections[K]) =>
     setSelections((s) => ({ ...s, [key]: value }));
@@ -298,16 +303,16 @@ export default function HomeQuickCreateBar() {
   const submit = async () => {
     if (submitting || providerBusy) return;
     if (!canQuickCreate()) {
-      setError('Bạn cần đăng nhập để tạo nội dung.');
+      setError(t('home.quickCreate.loginRequired'));
       return;
     }
     if (!currentModel || !schema) {
-      setError('Đang tải model, thử lại sau giây lát.');
+      setError(t('home.quickCreate.modelsLoading'));
       return;
     }
     const text = prompt.trim();
     if (!text && refs.length === 0) {
-      setError('Nhập mô tả trước khi tạo.');
+      setError(t('home.quickCreate.promptRequired'));
       return;
     }
 
@@ -334,7 +339,7 @@ export default function HomeQuickCreateBar() {
     setError('');
     setInfo('');
     setResult(null);
-    setProgress('Đang tạo job…');
+    setProgress(t('home.quickCreate.creatingJob'));
 
     try {
       const url = await quickGenerate({
@@ -373,13 +378,13 @@ export default function HomeQuickCreateBar() {
 
   const showStoryboard = expanded && (type === 'video' || type === 'image');
 
-  const menuCount = (item: QuickMenuItem): number | null => {
+  const menuCount = (item: HomeQuickMenuItem): number | null => {
     if (item.fixedCount != null) return item.fixedCount;
     if (item.jobType) return typeCounts[item.jobType] ?? null;
     return null;
   };
 
-  const onMenuSelect = (item: QuickMenuItem) => {
+  const onMenuSelect = (item: HomeQuickMenuItem) => {
     setTypeMenuOpen(false);
     if (item.action === 'open-chat') {
       window.dispatchEvent(new CustomEvent('quick-chat:open'));
@@ -395,8 +400,10 @@ export default function HomeQuickCreateBar() {
     }
   };
 
+  const heroPlaceholder = t('home.search.placeholder');
+
   return (
-    <div className={`qc-bar${expanded ? ' expanded' : ''}`}>
+    <div className={`qc-bar${isHero ? ' qc-bar--hero' : ''}${expanded ? ' expanded' : ''}`}>
       {result && (
         <div className="qc-result">
           <button type="button" className="qc-result-close" onClick={() => setResult(null)}>
@@ -410,7 +417,7 @@ export default function HomeQuickCreateBar() {
             <audio src={result.url} controls className="qc-result-audio" />
           )}
           <a href={result.url} target="_blank" rel="noreferrer" className="qc-result-link">
-            Mở kết quả
+            {t('home.quickCreate.openResult')}
           </a>
         </div>
       )}
@@ -419,7 +426,7 @@ export default function HomeQuickCreateBar() {
         <div className="qc-storyboard">
           <div className="qc-sb-group">
             <span className="qc-sb-title">
-              ĐA PHƯƠNG TIỆN ({refs.length}/{MAX_MEDIA})
+              {t('home.quickCreate.multimedia', { count: refs.length, max: MAX_MEDIA })}
             </span>
             <div className="qc-sb-frames">
               {refs.map((url, i) => (
@@ -442,7 +449,7 @@ export default function HomeQuickCreateBar() {
                 <ComposerMediaPickButton
                   kind={mediaPickKind}
                   className="qc-sb-frame qc-sb-add"
-                  title="Thêm media"
+                  title={t('home.quickCreate.addMedia')}
                   uploading={mediaUploading}
                   onFile={ingestMediaFile}
                   onUrl={ingestMediaUrl}
@@ -457,18 +464,25 @@ export default function HomeQuickCreateBar() {
       )}
 
       <div className="qc-prompt-row">
-        <button
-          type="button"
-          className="qc-expand-toggle"
-          onClick={() => setExpanded((v) => !v)}
-          title={expanded ? 'Thu gọn' : 'Mở rộng'}
-        >
-          {expanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-        </button>
+        {isHero ? (
+          <span className="qc-search-icon" aria-hidden>
+            <Search size={18} />
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="qc-expand-toggle"
+            onClick={() => setExpanded((v) => !v)}
+            title={expanded ? t('home.quickCreate.collapse') : t('home.quickCreate.expand')}
+          >
+            {expanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+          </button>
+        )}
         <textarea
+          ref={promptRef}
           className="qc-prompt"
-          rows={expanded ? 2 : 1}
-          placeholder={promptPlaceholder(type)}
+          rows={expanded && !isHero ? 2 : 1}
+          placeholder={isHero ? heroPlaceholder : promptPlaceholder(type, t)}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onFocus={() => setExpanded(true)}
@@ -479,6 +493,24 @@ export default function HomeQuickCreateBar() {
             }
           }}
         />
+        {isHero && !expanded && (
+          <kbd className="qc-kbd-hint">{t('home.search.shortcut')}</kbd>
+        )}
+        {isHero && (
+          <button
+            type="button"
+            className="qc-send"
+            onClick={() => void submit()}
+            disabled={submitting || providerBusy || loadingModels}
+            title={t('composer.submit', { type: typeShortLabel(type, t) })}
+          >
+            {submitting || providerBusy ? (
+              <Loader2 size={16} className="qc-spin" />
+            ) : (
+              <SendHorizontal size={16} />
+            )}
+          </button>
+        )}
       </div>
 
       {error && <div className="qc-error">{error}</div>}
@@ -491,13 +523,12 @@ export default function HomeQuickCreateBar() {
             className="qc-type-trigger"
             onClick={() => setTypeMenuOpen((v) => !v)}
           >
-            <span className="qc-dot" /> {typeShortLabel(type)}
+            <span className="qc-dot" /> {typeShortLabel(type, t)}
             <ChevronUp size={12} />
           </button>
           {typeMenuOpen && (
             <div className="qc-type-menu" role="menu">
-              {QUICK_MENU.map((item) => {
-                const Icon = item.icon;
+              {HOME_QUICK_MENU.map((item) => {
                 const count = menuCount(item);
                 const active = item.jobType === type;
                 return (
@@ -509,8 +540,13 @@ export default function HomeQuickCreateBar() {
                     onClick={() => onMenuSelect(item)}
                   >
                     <span className="qc-type-accent" aria-hidden />
-                    <Icon size={16} className="qc-type-icon" />
-                    <span className="qc-type-label">{item.label}</span>
+                    <HomeCategoryIcon
+                      icon={item.icon}
+                      tint={item.tint}
+                      size="sm"
+                      className="qc-type-icon-img"
+                    />
+                    <span className="qc-type-label">{t(item.labelKey)}</span>
                     {count != null && <span className="qc-type-count">{count}</span>}
                   </button>
                 );
@@ -529,8 +565,8 @@ export default function HomeQuickCreateBar() {
             <Sparkles size={13} />
             <span>
               {loadingModels
-                ? 'Đang tải…'
-                : currentModel?.name || modelSlugSel || 'Chọn model'}
+                ? t('home.quickCreate.loadingModels')
+                : currentModel?.name || modelSlugSel || t('home.quickCreate.selectModel')}
             </span>
             <ChevronDown size={12} />
           </button>
@@ -608,7 +644,7 @@ export default function HomeQuickCreateBar() {
             className="qc-send"
             onClick={() => void submit()}
             disabled={submitting || providerBusy || loadingModels}
-            title="Tạo"
+            title={t('home.quickCreate.create')}
           >
             {submitting || providerBusy ? (
               <Loader2 size={16} className="qc-spin" />

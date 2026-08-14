@@ -4,6 +4,7 @@ import ComposerLibraryPreviewModal, {
   type ComposerPreviewHandlers,
 } from './ComposerLibraryPreviewModal';
 import FeedMasonryCard from './FeedMasonryCard';
+import { useLocale } from '../i18n';
 import { feedMediaUrl, feedThumb, fetchPublicVideos, type FeedItem } from '../services/feedApi';
 import { UpstreamMeError } from '../services/upstreamMe';
 import {
@@ -18,6 +19,7 @@ function hasVisual(item: FeedItem): boolean {
 
 /** Feed gợi ý / public — tab "Hướng cho bạn". */
 export default function HomePublicFeed() {
+  const { t } = useLocale();
   const navigate = useNavigate();
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -123,9 +125,9 @@ export default function HomePublicFeed() {
       )}
 
       {error && <p className="error feed-status">{error}</p>}
-      {loading && <p className="muted feed-status">Đang tải…</p>}
+      {loading && <p className="muted feed-status">{t('home.feed.loading')}</p>}
       {!loading && !items.length && !error && (
-        <p className="muted feed-status">Chưa có nội dung gợi ý.</p>
+        <p className="muted feed-status">{t('home.feed.emptyPublic')}</p>
       )}
 
       <div ref={sentinelRef} className="feed-sentinel" />

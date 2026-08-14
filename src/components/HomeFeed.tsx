@@ -4,6 +4,7 @@ import ComposerLibraryPreviewModal, {
   type ComposerPreviewHandlers,
 } from './ComposerLibraryPreviewModal';
 import FeedMasonryCard from './FeedMasonryCard';
+import { useLocale } from '../i18n';
 import { isLoggedIn } from '../services/authStore';
 import {
   feedMediaUrl,
@@ -24,6 +25,7 @@ function hasVisual(item: FeedItem): boolean {
 }
 
 export default function HomeFeed() {
+  const { t } = useLocale();
   const navigate = useNavigate();
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -41,7 +43,7 @@ export default function HomeFeed() {
   const loadMore = useCallback(async () => {
     if (loading || done) return;
     if (!isLoggedIn()) {
-      setError('Chưa đăng nhập.');
+      setError(t('home.feed.loginRequired'));
       setDone(true);
       return;
     }
@@ -171,9 +173,9 @@ export default function HomeFeed() {
       )}
 
       {error && <p className="error feed-status">{error}</p>}
-      {loading && <p className="muted feed-status">Đang tải…</p>}
+      {loading && <p className="muted feed-status">{t('home.feed.loading')}</p>}
       {!loading && !items.length && !error && (
-        <p className="muted feed-status">Chưa có nội dung.</p>
+        <p className="muted feed-status">{t('home.feed.empty')}</p>
       )}
 
       <div ref={sentinelRef} className="feed-sentinel" />

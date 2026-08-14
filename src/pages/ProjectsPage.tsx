@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Check, FolderOpen, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Check, FileAudio, FolderOpen, Music, Pencil, Plus, Trash2, X } from 'lucide-react';
 import {
   countByProject,
   createProject,
@@ -15,15 +15,17 @@ import {
   type Project,
   type ProjectItem,
 } from '../services/projectStore';
+import { useLocale } from '../i18n';
+import type { TranslationKey } from '../i18n';
 
 type CatFilter = 'all' | 'image' | 'video' | 'tts' | 'music';
 
-const CATS: { value: CatFilter; label: string }[] = [
-  { value: 'all', label: 'Tất cả' },
-  { value: 'image', label: 'Ảnh' },
-  { value: 'video', label: 'Video' },
-  { value: 'tts', label: 'Audio' },
-  { value: 'music', label: 'Nhạc' },
+const CAT_KEYS: { value: CatFilter; labelKey: TranslationKey }[] = [
+  { value: 'all', labelKey: 'projects.filter.all' },
+  { value: 'image', labelKey: 'projects.filter.image' },
+  { value: 'video', labelKey: 'projects.filter.video' },
+  { value: 'tts', labelKey: 'projects.filter.tts' },
+  { value: 'music', labelKey: 'projects.filter.music' },
 ];
 
 function renderMedia(it: ProjectItem) {
@@ -35,15 +37,27 @@ function renderMedia(it: ProjectItem) {
     if (it.thumbnailUrl) return <img src={it.thumbnailUrl} alt="" loading="lazy" />;
     return <video src={url} preload="metadata" muted playsInline />;
   }
-  return <span className="project-item-icon">{it.type === 'music' ? '🎵' : '🔊'}</span>;
+  if (it.type === 'music') {
+    return (
+      <span className="project-item-icon" aria-hidden>
+        <Music size={28} strokeWidth={1.5} />
+      </span>
+    );
+  }
+  return (
+    <span className="project-item-icon" aria-hidden>
+      <FileAudio size={28} strokeWidth={1.5} />
+    </span>
+  );
 }
 
 export default function ProjectsPage() {
+  const { t } = useLocale();
   const [searchParams] = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [total, setTotal] = useState(0);
-  const [selected, setSelected] = useState<string | null>(searchParams.get('p')); // null = "Tất cả"
+  const [selected, setSelected] = useState<string | null>(searchParams.get('p'));
   const [cat, setCat] = useState<CatFilter>('all');
   const [newName, setNewName] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
@@ -87,15 +101,13 @@ export default function ProjectsPage() {
   };
 
   const handleDelete = (p: Project) => {
-    if (!window.confirm(`Xóa dự án “${p.name}”? Các item sẽ được gỡ khỏi dự án (không xóa khỏi Gommo).`)) {
-      return;
-    }
+    if (!window.confirm(t('projects.deleteConfirm', { name: p.name }))) return;
     deleteProject(p.id);
     if (selected === p.id) setSelected(null);
   };
 
   return (
-    <div className="page projects-page">
+    <div className="projects-dashboard">
       <div className="projects-layout">
         <aside className="projects-sidebar">
           <div className="projects-create">
@@ -103,10 +115,10 @@ export default function ProjectsPage() {
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="Tên dự án mới…"
+              placeholder={t('projects.createPlaceholder')}
               onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
             />
-            <button type="button" onClick={handleCreate} aria-label="Tạo dự án">
+            <button type="button" onClick={handleCreate} aria-label={t('projects.createAria')}>
               <Plus size={16} />
             </button>
           </div>
@@ -116,8 +128,8 @@ export default function ProjectsPage() {
             className={`projects-nav-item${selected === null ? ' active' : ''}`}
             onClick={() => setSelected(null)}
           >
-            <FolderOpen size={15} />
-            <span className="projects-nav-name">Tất cả</span>
+            <FolderOpen size={16} strokeWidth={1.75} />
+            <span className="projects-nav-name">{t('projects.all')}</span>
             <span className="projects-nav-count">{total}</span>
           </button>
 
@@ -127,6 +139,12 @@ export default function ProjectsPage() {
                 key={p.id}
                 className={`projects-nav-item${selected === p.id ? ' active' : ''}`}
                 onClick={() => setSelected(p.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelected(p.id);
+                  }
+                }}
                 role="button"
                 tabIndex={0}
               >
@@ -151,7 +169,7 @@ export default function ProjectsPage() {
               </div>
             ))}
             {projects.length === 0 && (
-              <p className="projects-sidebar-empty">Tạo dự án đầu tiên ở trên.</p>
+              <p className="projects-sidebar-empty">{t('projects.sidebarEmpty')}</p>
             )}
           </div>
         </aside>
@@ -162,17 +180,23 @@ export default function ProjectsPage() {
               {selectedProject && (
                 <span className="project-pick-dot" style={{ background: selectedProject.color }} />
               )}
-              <h2>{selectedProject ? selectedProject.name : 'Tất cả nội dung'}</h2>
+              <h1 className="projects-main-heading">
+                {selectedProject ? selectedProject.name : t('projects.allTitle')}
+              </h1>
               {selectedProject && editing !== selectedProject.id && (
                 <div className="projects-main-actions">
-                  <button type="button" onClick={() => startEdit(selectedProject)} aria-label="Đổi tên">
+                  <button
+                    type="button"
+                    onClick={() => startEdit(selectedProject)}
+                    aria-label={t('projects.renameAria')}
+                  >
                     <Pencil size={14} />
                   </button>
                   <button
                     type="button"
                     className="danger"
                     onClick={() => handleDelete(selectedProject)}
-                    aria-label="Xóa dự án"
+                    aria-label={t('projects.deleteAria')}
                   >
                     <Trash2 size={14} />
                   </button>
@@ -189,7 +213,7 @@ export default function ProjectsPage() {
                     className={`projects-color${selectedProject.color === c ? ' active' : ''}`}
                     style={{ background: c }}
                     onClick={() => updateProject(selectedProject.id, { color: c })}
-                    aria-label="Đổi màu"
+                    aria-label={t('projects.colorAria')}
                   >
                     {selectedProject.color === c && <Check size={12} />}
                   </button>
@@ -197,25 +221,24 @@ export default function ProjectsPage() {
               </div>
             )}
 
-            <div className="projects-cats">
-              {CATS.map((c) => (
+            <div className="projects-cats" role="tablist" aria-label={t('projects.allTitle')}>
+              {CAT_KEYS.map((c) => (
                 <button
                   key={c.value}
                   type="button"
+                  role="tab"
+                  aria-selected={cat === c.value}
                   className={cat === c.value ? 'active' : ''}
                   onClick={() => setCat(c.value)}
                 >
-                  {c.label}
+                  {t(c.labelKey)}
                 </button>
               ))}
             </div>
           </header>
 
           {items.length === 0 ? (
-            <p className="muted projects-empty">
-              Chưa có item nào. Vào tab “Của tôi” hoặc “Lịch sử”, bấm nút thư mục trên mỗi sản phẩm
-              để thêm vào dự án.
-            </p>
+            <p className="projects-empty">{t('projects.empty')}</p>
           ) : (
             <div className="projects-grid">
               {items.map((it) => (
@@ -231,7 +254,7 @@ export default function ProjectsPage() {
                   <button
                     type="button"
                     className="project-item-remove"
-                    aria-label="Bỏ khỏi dự án"
+                    aria-label={t('projects.removeAria')}
                     onClick={() => removeItem(it.itemId)}
                   >
                     <X size={14} />

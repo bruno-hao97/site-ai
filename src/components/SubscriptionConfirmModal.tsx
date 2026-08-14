@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Crown, Loader2, X } from 'lucide-react';
+import { useLocale } from '../i18n';
 import type { SubscriptionPlan, SubscriptionPlanModel } from '../services/subscriptionPlans';
 import { SITE_SUPPORT_PHONE, SITE_SUPPORT_PHONE_LABEL } from '../services/siteConfig';
 
@@ -18,8 +19,8 @@ interface Props {
   onConfirm: (promoCode: string) => void;
 }
 
-function formatCurrencyVnd(value?: string): string {
-  if (!value) return 'Liên hệ';
+function formatCurrencyVnd(value: string | undefined, t: (key: 'common.contactUs') => string): string {
+  if (!value) return t('common.contactUs');
   const amount = Number(value);
   if (!Number.isFinite(amount)) return value;
   return `${amount.toLocaleString('vi-VN')}đ`;
@@ -32,13 +33,26 @@ function normalizeFieldValue(value?: string): string {
   return trimmed;
 }
 
-function formatSavePercent(value?: string): string | null {
+function formatSavePercent(value: string | undefined, t: (key: 'subscription.confirm.savePercent', params?: Record<string, string | number>) => string): string | null {
   const trimmed = String(value || '').trim();
   if (!trimmed) return null;
   if (/giảm/i.test(trimmed)) return trimmed;
   const numeric = trimmed.replace(/%/g, '').trim();
   if (!numeric) return null;
-  return `GIẢM ${numeric}%`;
+  return t('subscription.confirm.savePercent', { percent: numeric });
+}
+
+function planHighlights(plan: SubscriptionPlan, t: ReturnType<typeof useLocale>['t']): PlanHighlight[] {
+  const rows: Array<PlanHighlight | null> = [
+    plan.video_month ? { label: t('subscription.confirm.highlight.videoMonth'), value: normalizeFieldValue(plan.video_month) } : null,
+    plan.video_day ? { label: t('subscription.confirm.highlight.videoDay'), value: normalizeFieldValue(plan.video_day) } : null,
+    plan.image_month ? { label: t('subscription.confirm.highlight.imageMonth'), value: normalizeFieldValue(plan.image_month) } : null,
+    plan.image_day ? { label: t('subscription.confirm.highlight.imageDay'), value: normalizeFieldValue(plan.image_day) } : null,
+    plan.concurrent ? { label: t('subscription.confirm.highlight.concurrent'), value: normalizeFieldValue(plan.concurrent) } : null,
+    plan.queue ? { label: t('subscription.confirm.highlight.queue'), value: normalizeFieldValue(plan.queue) } : null,
+    plan.storage ? { label: t('subscription.confirm.highlight.storage'), value: normalizeFieldValue(plan.storage) } : null,
+  ];
+  return rows.filter((row): row is PlanHighlight => row !== null && row.value !== '0');
 }
 
 function modelTags(model: SubscriptionPlanModel): string[] {
@@ -60,19 +74,6 @@ function modelTags(model: SubscriptionPlanModel): string[] {
   return tags;
 }
 
-function planHighlights(plan: SubscriptionPlan): PlanHighlight[] {
-  const rows: Array<PlanHighlight | null> = [
-    plan.video_month ? { label: 'Video/tháng', value: normalizeFieldValue(plan.video_month) } : null,
-    plan.video_day ? { label: 'Video/ngày', value: normalizeFieldValue(plan.video_day) } : null,
-    plan.image_month ? { label: 'Ảnh/tháng', value: normalizeFieldValue(plan.image_month) } : null,
-    plan.image_day ? { label: 'Ảnh/ngày', value: normalizeFieldValue(plan.image_day) } : null,
-    plan.concurrent ? { label: 'Đồng thời', value: normalizeFieldValue(plan.concurrent) } : null,
-    plan.queue ? { label: 'Hàng chờ', value: normalizeFieldValue(plan.queue) } : null,
-    plan.storage ? { label: 'Lưu trữ', value: normalizeFieldValue(plan.storage) } : null,
-  ];
-  return rows.filter((row): row is PlanHighlight => row !== null && row.value !== '0');
-}
-
 export default function SubscriptionConfirmModal({
   open,
   plan,
@@ -81,6 +82,7 @@ export default function SubscriptionConfirmModal({
   onClose,
   onConfirm,
 }: Props) {
+  const { t } = useLocale();
   const [promoCode, setPromoCode] = useState('');
 
   useEffect(() => {
@@ -97,8 +99,8 @@ export default function SubscriptionConfirmModal({
   }, [open, confirming, onClose]);
 
   const models = useMemo(() => plan?.models || [], [plan]);
-  const highlights = useMemo(() => (plan ? planHighlights(plan) : []), [plan]);
-  const saveLabel = formatSavePercent(plan?.save_percent);
+  const highlights = useMemo(() => (plan ? planHighlights(plan, t) : []), [plan, t]);
+  const saveLabel = formatSavePercent(plan?.save_percent, t);
 
   if (!open || !plan) return null;
 
@@ -115,14 +117,14 @@ export default function SubscriptionConfirmModal({
           <div>
             <h2 id="pricing-confirm-title">
               <Crown size={18} />
-              Xác nhận đăng ký gói
+              {t('subscription.confirm.title')}
             </h2>
-            <p>Bạn có chắc chắn muốn đăng ký gói này?</p>
+            <p>{t('subscription.confirm.question')}</p>
           </div>
           <button
             type="button"
             className="pricing-confirm-close"
-            aria-label="Đóng"
+            aria-label={t('pricing.confirm.closeAria')}
             onClick={onClose}
             disabled={confirming}
           >
@@ -133,7 +135,7 @@ export default function SubscriptionConfirmModal({
         <div className="pricing-confirm-body">
           <section className="pricing-confirm-summary">
             <div className="pricing-confirm-plan-row">
-              <span className="pricing-confirm-label">Gói</span>
+              <span className="pricing-confirm-label">{t('subscription.confirm.plan')}</span>
               <div className="pricing-confirm-plan-name">
                 <strong>{plan.name}</strong>
                 {saveLabel ? <span className="pricing-confirm-save">{saveLabel}</span> : null}
@@ -141,11 +143,11 @@ export default function SubscriptionConfirmModal({
             </div>
 
             <div className="pricing-confirm-plan-row">
-              <span className="pricing-confirm-label">Giá</span>
-              <strong className="pricing-confirm-price">{formatCurrencyVnd(plan.price)}</strong>
+              <span className="pricing-confirm-label">{t('subscription.confirm.price')}</span>
+              <strong className="pricing-confirm-price">{formatCurrencyVnd(plan.price, t)}</strong>
             </div>
 
-            <p className="pricing-confirm-note warn">Gói của bạn sẽ không tự động gia hạn</p>
+            <p className="pricing-confirm-note warn">{t('subscription.confirm.noAutoRenew')}</p>
 
             <ul className="pricing-confirm-highlights">
               {highlights.map((item) => (
@@ -158,18 +160,18 @@ export default function SubscriptionConfirmModal({
           </section>
 
           <section className="pricing-confirm-details">
-            <p className="pricing-confirm-note box">
-              Hãy chắc chắn bạn muốn đăng ký gói này vì nó hỗ trợ các model bên dưới.
-            </p>
+            <p className="pricing-confirm-note box">{t('subscription.confirm.modelsNote')}</p>
 
             <div className="pricing-confirm-models">
-              <p className="pricing-confirm-models-title">Models hỗ trợ ({models.length})</p>
+              <p className="pricing-confirm-models-title">
+                {t('subscription.confirm.modelsTitle', { count: models.length })}
+              </p>
               <div className="pricing-confirm-models-list">
                 {models.map((model, idx) => {
                   const tags = modelTags(model);
                   return (
                     <article key={`${plan.id_base}-${model.model || model.name || idx}`} className="pricing-confirm-model">
-                      <strong>{model.name || model.model || 'Unknown model'}</strong>
+                      <strong>{model.name || model.model || t('common.unknownModel')}</strong>
                       {tags.length > 0 ? (
                         <div className="pricing-confirm-model-tags">
                           {tags.map((tag) => (
@@ -180,27 +182,25 @@ export default function SubscriptionConfirmModal({
                     </article>
                   );
                 })}
-                {models.length === 0 ? <p className="muted">Không có model trong gói này.</p> : null}
+                {models.length === 0 ? <p className="muted">{t('subscription.confirm.noModels')}</p> : null}
               </div>
             </div>
 
-            <p className="pricing-confirm-policy">
-              Chính sách có thể thay đổi theo thời gian. Nếu gói không phù hợp, liên hệ hỗ trợ để được tư vấn hoàn
-              tiền theo quy định.
-            </p>
+            <p className="pricing-confirm-policy">{t('subscription.confirm.policy')}</p>
 
             <div className="pricing-confirm-support">
               <p>
-                Hỗ trợ: <a href={`tel:${SITE_SUPPORT_PHONE}`}>{SITE_SUPPORT_PHONE_LABEL}</a>
+                {t('subscription.confirm.support')}{' '}
+                <a href={`tel:${SITE_SUPPORT_PHONE}`}>{SITE_SUPPORT_PHONE_LABEL}</a>
               </p>
-              <p>Cộng đồng: Zalo · Facebook · TikTok</p>
+              <p>{t('subscription.confirm.community')}</p>
             </div>
 
             <label className="pricing-confirm-promo">
-              <span>Mã khuyến mãi (nếu có)</span>
+              <span>{t('subscription.confirm.promoLabel')}</span>
               <input
                 value={promoCode}
-                placeholder="Nhập mã khuyến mãi..."
+                placeholder={t('subscription.confirm.promoPlaceholder')}
                 onChange={(e) => setPromoCode(e.target.value)}
                 disabled={confirming}
               />
@@ -212,7 +212,7 @@ export default function SubscriptionConfirmModal({
 
         <div className="pricing-confirm-actions">
           <button type="button" className="pricing-confirm-cancel" onClick={onClose} disabled={confirming}>
-            Hủy
+            {t('pricing.confirm.cancel')}
           </button>
           <button
             type="button"
@@ -221,7 +221,11 @@ export default function SubscriptionConfirmModal({
             disabled={confirming}
           >
             {confirming ? <Loader2 size={16} className="spin" /> : null}
-            {confirming ? 'Đang tạo link thanh toán...' : error ? 'Thử lại' : 'Xác nhận'}
+            {confirming
+              ? t('subscription.confirm.creatingLink')
+              : error
+                ? t('pricing.retry')
+                : t('pricing.confirm.submit')}
           </button>
         </div>
       </div>

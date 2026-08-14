@@ -9,6 +9,7 @@ import {
   type FeedItem,
 } from '../services/feedApi';
 import { listHistory, type HistoryEntry } from '../services/historyStore';
+import { useLocale } from '../i18n';
 
 type AlbumKind = 'image' | 'video';
 
@@ -58,6 +59,7 @@ export default function ComposerMediaAlbumModal({
   onClose: () => void;
   onSelect: (url: string) => void;
 }) {
+  const { t } = useLocale();
   const [tab, setTab] = useState<AlbumKind>(kind);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -141,7 +143,7 @@ export default function ComposerMediaAlbumModal({
       <div className="cms-modal cms-album-modal" onClick={(e) => e.stopPropagation()}>
         <div className="cms-modal-head">
           <h3>Chọn từ album</h3>
-          <button type="button" className="cms-modal-close" aria-label="Đóng" onClick={onClose}>
+          <button type="button" className="cms-modal-close" aria-label={t('common.close')} onClick={onClose}>
             <X size={18} />
           </button>
         </div>
@@ -170,10 +172,12 @@ export default function ComposerMediaAlbumModal({
         <div className="cms-album-grid">
           {loading && merged.length === 0 ? (
             <p className="cms-album-empty">
-              <Loader2 size={18} className="cms-spin" /> Đang tải album…
+              <Loader2 size={18} className="cms-spin" /> {t('common.loadingAlbum')}
             </p>
           ) : merged.length === 0 ? (
-            <p className="cms-album-empty">Chưa có {activeKind === 'image' ? 'ảnh' : 'video'} trong album.</p>
+            <p className="cms-album-empty">
+              {activeKind === 'image' ? t('common.albumEmptyImage') : t('common.albumEmptyVideo')}
+            </p>
           ) : (
             merged.map((item) => (
               <button
@@ -203,7 +207,7 @@ export default function ComposerMediaAlbumModal({
             disabled={loadingMore}
             onClick={() => void loadPage(false)}
           >
-            {loadingMore ? 'Đang tải…' : 'Tải thêm'}
+            {loadingMore ? t('common.loading') : t('common.loadMore')}
           </button>
         )}
       </div>

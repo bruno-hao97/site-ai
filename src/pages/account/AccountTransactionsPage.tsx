@@ -1,18 +1,19 @@
 import { Link } from 'react-router-dom';
+import { useLocale } from '../../i18n';
 
 export default function AccountTransactionsPage() {
+  const { t } = useLocale();
+
   return (
     <div className="account-settings">
-      <h1 className="account-content-title">🕐 LỊCH SỬ GIAO DỊCH</h1>
+      <h1 className="account-content-title">{t('account.transactions.title')}</h1>
       <section className="panel account-card">
-        <p className="muted">
-          Lịch sử nạp tiền và giao dịch credit trên trungtamai.vn.
-        </p>
+        <p className="muted">{t('account.transactions.desc')}</p>
         <Link to="/usage-history" className="btn secondary sm">
-          Xem lịch sử sử dụng →
+          {t('account.transactions.viewUsage')}
         </Link>
         <p className="muted" style={{ marginTop: '1rem' }}>
-          Chi tiết giao dịch tài chính sẽ hiển thị khi tích hợp API wallets/payments.
+          {t('account.transactions.pending')}
         </p>
       </section>
     </div>

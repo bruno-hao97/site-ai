@@ -9,6 +9,7 @@ import {
   parseVideoAgentScript,
   type VideoAgentMessage,
 } from '../services/videoAgentChat';
+import { useLocale } from '../i18n';
 
 function newId(): string {
   return `va_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
@@ -38,6 +39,7 @@ export default function ComposerVideoAgentChat({
   scriptCount = 0,
   onScriptParsed,
 }: ComposerVideoAgentChatProps) {
+  const { t } = useLocale();
   const [messages, setMessages] = useState<VideoAgentMessage[]>([
     { id: 'welcome', role: 'assistant', content: VIDEO_AGENT_WELCOME },
   ]);
@@ -66,7 +68,7 @@ export default function ComposerVideoAgentChat({
     if (!text || thinking || disabled) return;
 
     if (!canUseVideoAgentChat()) {
-      window.alert('Đăng nhập (Gommo token hoặc tài khoản app) để dùng Video Agent.');
+      window.alert(t('composer.videoAgent.loginRequired'));
       return;
     }
 
@@ -95,7 +97,7 @@ export default function ComposerVideoAgentChat({
         },
       });
       if (!acc.trim()) {
-        patchAssistant(assistantId, '(Không có nội dung trả về.)');
+        patchAssistant(assistantId, t('common.noContentReturned'));
       } else {
         const parsed = parseVideoAgentScript(acc, maxShots);
         if (parsed.shots?.length || parsed.prompt) {
@@ -104,7 +106,7 @@ export default function ComposerVideoAgentChat({
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      patchAssistant(assistantId, `⚠️ Lỗi: ${msg}`);
+      patchAssistant(assistantId, t('common.errorPrefix', { message: msg }));
     } finally {
       setThinking(false);
       inputRef.current?.focus();
@@ -126,13 +128,13 @@ export default function ComposerVideoAgentChat({
         </span>
         <div className="composer-video-agent-meta">
           <strong>Video Agent</strong>
-          <small>Gemini · soạn kịch bản video</small>
+          <small>{t('composer.videoAgent.subtitle')}</small>
         </div>
         {scriptCount > 0 && (
-          <span className="composer-script-badge">{scriptCount} Kịch bản</span>
+          <span className="composer-script-badge">{t('common.scriptCount', { count: scriptCount })}</span>
         )}
         <button type="button" className="composer-video-agent-reset" onClick={resetChat}>
-          Phiên mới
+          {t('common.newSession')}
         </button>
       </div>
 

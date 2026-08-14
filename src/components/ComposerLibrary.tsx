@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, RefreshCw, Search, X } from 'lucide-react';
+import { useLocale } from '../i18n';
 import ComposerLibraryItem from './ComposerLibraryItem';
 import ComposerLibraryPreviewModal, {
   type ComposerPreviewHandlers,
@@ -32,8 +33,12 @@ function tsToDate(value: string | number | undefined): Date | null {
   return new Date(ts);
 }
 
-function dayLabel(d: Date): string {
-  return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+function dayLabel(d: Date, locale: string): string {
+  return d.toLocaleDateString(locale === 'vi' ? 'vi-VN' : 'en-US', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 interface KeyedItem {
@@ -69,6 +74,7 @@ export default function ComposerLibrary({
     onDelete?: () => void,
   ) => ComposerPreviewHandlers;
 }) {
+  const { t, locale } = useLocale();
   const kind = jobKind(jobType);
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -196,7 +202,7 @@ export default function ComposerLibrary({
     const map = new Map<string, KeyedItem[]>();
     sortedItems.forEach((item, i) => {
       const d = tsToDate(item.created_time);
-      const label = d ? dayLabel(d) : 'Khác';
+      const label = d ? dayLabel(d, locale) : t('composer.library.otherDate');
       const keyed: KeyedItem = {
         key: `${item.id_base || 'x'}__${item.created_time ?? ''}__${i}`,
         item,
@@ -206,7 +212,7 @@ export default function ComposerLibrary({
       else map.set(label, [keyed]);
     });
     return [...map.entries()];
-  }, [sortedItems]);
+  }, [sortedItems, locale, t]);
 
   const flatIndexByKey = useMemo(() => {
     const map = new Map<string, number>();
@@ -219,7 +225,7 @@ export default function ComposerLibrary({
   const handleDelete = useCallback(
     async (idBase: string) => {
       if (!idBase || deletingId) return;
-      if (!window.confirm('Xóa mục này khỏi thư viện?')) return;
+      if (!window.confirm(t('composer.library.deleteConfirm'))) return;
       setDeletingId(idBase);
       try {
         await deleteFeedPost(idBase);
@@ -245,7 +251,7 @@ export default function ComposerLibrary({
   if (kind === 'unsupported') {
     return (
       <div className="clib-status">
-        Thư viện hiện hỗ trợ ảnh và video. Hãy chuyển sang tab Ảnh hoặc Video.
+        {t('composer.library.imageVideoOnly')}
       </div>
     );
   }
@@ -253,9 +259,9 @@ export default function ComposerLibrary({
   if (error && items.length === 0) {
     return (
       <div className="clib-status clib-error">
-        <p>Không tải được thư viện: {error}</p>
+        <p>{t('composer.history.loadError', { error })}</p>
         <button type="button" className="composer-ghost-btn" onClick={() => load('', true)}>
-          Thử lại
+          {t('common.retry')}
         </button>
       </div>
     );
@@ -270,13 +276,13 @@ export default function ComposerLibrary({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Tìm kiếm…"
+            placeholder={t('composer.library.searchPlaceholder')}
           />
           {query && (
             <button
               type="button"
               className="clib-search-clear"
-              aria-label="Xóa tìm kiếm"
+              aria-label={t('composer.history.clearSearch')}
               onClick={() => setQuery('')}
             >
               <X size={14} />
@@ -287,9 +293,9 @@ export default function ComposerLibrary({
           className="clib-filter"
           value={modelFilter}
           onChange={(e) => setModelFilter(e.target.value)}
-          aria-label="Lọc model"
+          aria-label={t('composer.library.filterModel')}
         >
-          <option value="">Tất cả Model</option>
+          <option value="">{t('composer.library.allModels')}</option>
           {models.map((m) => (
             <option key={m} value={m}>
               {formatModelLabel(m)}
@@ -300,9 +306,9 @@ export default function ComposerLibrary({
           className="clib-filter"
           value={ratioFilter}
           onChange={(e) => setRatioFilter(e.target.value)}
-          aria-label="Lọc tỷ lệ"
+          aria-label={t('composer.library.filterRatio')}
         >
-          <option value="">Tất cả tỷ lệ</option>
+          <option value="">{t('composer.library.allRatios')}</option>
           {ratios.map((r) => (
             <option key={r} value={r}>
               {r}
@@ -315,20 +321,20 @@ export default function ComposerLibrary({
             className={sortDir === 'desc' ? 'active' : ''}
             onClick={() => setSortDir('desc')}
           >
-            Mới
+            {t('composer.library.sortNew')}
           </button>
           <button
             type="button"
             className={sortDir === 'asc' ? 'active' : ''}
             onClick={() => setSortDir('asc')}
           >
-            Cũ
+            {t('composer.library.sortOld')}
           </button>
         </div>
         <button
           type="button"
           className="clib-refresh"
-          aria-label="Làm mới"
+          aria-label={t('composer.library.refreshAria')}
           disabled={loading}
           onClick={() => load('', true)}
         >
@@ -338,15 +344,15 @@ export default function ComposerLibrary({
 
       {loading && items.length === 0 && (
         <div className="clib-status">
-          <Loader2 size={18} className="clib-spin" /> Đang tải thư viện…
+          <Loader2 size={18} className="clib-spin" /> {t('composer.library.loading')}
         </div>
       )}
 
       {!loading && filteredItems.length === 0 && (
         <div className="clib-status">
           {query || modelFilter || ratioFilter
-            ? 'Không tìm thấy mục nào khớp.'
-            : 'Chưa có tệp nào trong thư viện.'}
+            ? t('composer.library.noMatch')
+            : t('composer.library.empty')}
         </div>
       )}
 
@@ -380,7 +386,7 @@ export default function ComposerLibrary({
 
       {loading && items.length > 0 && (
         <div className="clib-status">
-          <Loader2 size={16} className="clib-spin" /> Đang tải thêm…
+          <Loader2 size={16} className="clib-spin" /> {t('composer.library.loadingMore')}
         </div>
       )}
       <div ref={sentinelRef} className="clib-sentinel" />

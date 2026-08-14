@@ -1,16 +1,20 @@
+import { useLocale } from '../../i18n';
+
 export default function AccountPromoPage() {
+  const { t } = useLocale();
+
   return (
     <div className="account-settings">
-      <h1 className="account-content-title">🎁 MÃ KHUYẾN MÃI</h1>
+      <h1 className="account-content-title">{t('account.promo.title')}</h1>
       <section className="panel account-card">
-        <p className="muted">Nhập mã khuyến mãi để nhận credit bonus.</p>
+        <p className="muted">{t('account.promo.desc')}</p>
         <form className="form account-form" onSubmit={(e) => e.preventDefault()}>
           <label className="field">
-            <span className="label">MÃ KHUYẾN MÃI</span>
-            <input placeholder="Nhập mã…" />
+            <span className="label">{t('account.promo.codeLabel')}</span>
+            <input placeholder={t('account.promo.placeholder')} />
           </label>
           <button type="submit" className="btn account-teal-btn" disabled>
-            Áp dụng (sắp có)
+            {t('account.promo.applySoon')}
           </button>
         </form>
       </section>

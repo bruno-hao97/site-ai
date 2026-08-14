@@ -22,18 +22,26 @@ import {
 } from '../services/authStore';
 import { listHistory } from '../services/historyStore';
 import { APP_SITE_URL } from '../services/settingsStore';
+import { useLocale, type TranslationKey } from '../i18n';
+import type { AppLocale } from '../i18n/types';
 
-const UPGRADE_FEATURES = [
-  'Credits không giới hạn',
-  'Ưu tiên xử lý GPU',
-  'API rate limit cao hơn',
-  'Hỗ trợ ưu tiên 24/7',
+const UPGRADE_FEATURE_KEYS: TranslationKey[] = [
+  'profile.upgradeFeat1',
+  'profile.upgradeFeat2',
+  'profile.upgradeFeat3',
+  'profile.upgradeFeat4',
 ];
 
-function formatJoined(ts?: number): string {
+const CHART_TABS = [7, 14, 30] as const;
+
+function dateLocale(locale: AppLocale): string {
+  return locale === 'vi' ? 'vi-VN' : 'en-US';
+}
+
+function formatJoined(ts: number | undefined, localeTag: string): string {
   if (!ts) return '—';
   try {
-    return new Date(ts * 1000).toLocaleDateString('vi-VN', {
+    return new Date(ts * 1000).toLocaleDateString(localeTag, {
       day: 'numeric',
       month: 'numeric',
       year: 'numeric',
@@ -50,19 +58,16 @@ function initials(name: string | null, email: string): string {
   return base.slice(0, 2).toUpperCase();
 }
 
-function activityScore(): { label: string; level: 'high' | 'mid' | 'low' } {
+function activityScore(): {
+  labelKey: TranslationKey;
+  level: 'high' | 'mid' | 'low';
+} {
   const weekAgo = Date.now() - 7 * 86400000;
   const recent = listHistory(null).filter((e) => new Date(e.createdAt).getTime() >= weekAgo).length;
-  if (recent >= 10) return { label: 'High', level: 'high' };
-  if (recent >= 3) return { label: 'Medium', level: 'mid' };
-  return { label: 'Low', level: 'low' };
+  if (recent >= 10) return { labelKey: 'profile.activityHigh', level: 'high' };
+  if (recent >= 3) return { labelKey: 'profile.activityMid', level: 'mid' };
+  return { labelKey: 'profile.activityLow', level: 'low' };
 }
-
-const CHART_TABS: { days: number; label: string }[] = [
-  { days: 7, label: '7N' },
-  { days: 14, label: '14N' },
-  { days: 30, label: '30N' },
-];
 
 function UsageChart({ days }: { days: number }) {
   const data = useMemo(() => {
@@ -136,6 +141,8 @@ function StatCard({
 }
 
 export default function ProfilePage() {
+  const { t, locale } = useLocale();
+  const localeTag = dateLocale(locale);
   const [me, setMe] = useState(getUpstreamMe());
   const [credits, setCredits] = useState(getCreditsAi());
   const [loading, setLoading] = useState(false);
@@ -163,7 +170,7 @@ export default function ProfilePage() {
   const cover = info?.cover as string | undefined;
   const verified = info?.verify_email === 1 || info?.activate === 1;
   const planActive = info?.activate === 1;
-  const planLabel = (info?.partner_level_key as string | undefined)?.trim() || 'Free';
+  const planLabel = (info?.partner_level_key as string | undefined)?.trim() || t('profile.planFree');
 
   async function copyId() {
     const id = info?.id_base || '';
@@ -185,11 +192,11 @@ export default function ProfilePage() {
       >
         {verified && (
           <span className="profile-verified">
-            <ShieldCheck size={12} /> Verified Account
+            <ShieldCheck size={12} /> {t('profile.verified')}
           </span>
         )}
         <div className="profile-cover-edit">
-          <Camera size={14} /> Thay đổi ảnh bìa
+          <Camera size={14} /> {t('profile.changeCover')}
         </div>
       </div>
 
@@ -204,7 +211,7 @@ export default function ProfilePage() {
               </span>
             )}
             {verified && (
-              <span className="profile-verified-dot" title="Verified">
+              <span className="profile-verified-dot" title={t('profile.verified')}>
                 <Check size={11} />
               </span>
             )}
@@ -225,7 +232,7 @@ export default function ProfilePage() {
               </span>
               <span className="profile-meta-item">
                 <Calendar size={13} />
-                Tham gia {formatJoined(info?.created_time)}
+                {t('profile.joined')} {formatJoined(info?.created_time, localeTag)}
               </span>
             </div>
           </div>
@@ -236,7 +243,7 @@ export default function ProfilePage() {
         <div className="profile-main">
           <div className="profile-section-head">
             <span className="profile-section-label">
-              <Zap size={14} /> Tổng quan hiệu suất
+              <Zap size={14} /> {t('profile.performance')}
             </span>
             <button
               type="button"
@@ -244,7 +251,7 @@ export default function ProfilePage() {
               onClick={refresh}
               disabled={loading}
             >
-              {loading ? 'Đang tải…' : '↻ Cập nhật'}
+              {loading ? t('profile.loading') : t('profile.refresh')}
             </button>
           </div>
 
@@ -252,95 +259,93 @@ export default function ProfilePage() {
             <StatCard
               accent="#4ADE80"
               icon={Zap}
-              value={credits.toLocaleString('vi-VN')}
-              label="Credits khả dụng"
-              badge="Live"
+              value={credits.toLocaleString(localeTag)}
+              label={t('profile.statCredits')}
+              badge={t('profile.badgeLive')}
             />
             <StatCard
               accent="#60A5FA"
               icon={Video}
               value={String(me?.videoCount ?? 0)}
-              label="Video đã tạo"
-              badge="Update"
+              label={t('profile.statVideos')}
+              badge={t('profile.badgeUpdate')}
             />
             <StatCard
               accent="#FBBF24"
               icon={Clock}
               value={String(me?.runtime ?? 0)}
-              label="Thời gian chạy (phút)"
-              badge="Update"
+              label={t('profile.statRuntime')}
+              badge={t('profile.badgeUpdate')}
             />
             <StatCard
               accent="#F87171"
               icon={Activity}
-              value={score.label}
-              label="Điểm hoạt động"
-              badge="Update"
+              value={t(score.labelKey)}
+              label={t('profile.statActivity')}
+              badge={t('profile.badgeUpdate')}
             />
           </div>
 
           <section className="panel profile-chart-card">
             <div className="profile-chart-head">
               <span className="profile-chart-title">
-                <LineChart size={15} /> Lịch sử sử dụng
+                <LineChart size={15} /> {t('profile.usageHistory')}
               </span>
               <div className="profile-chart-tabs">
-                {CHART_TABS.map((tab) => (
+                {CHART_TABS.map((days) => (
                   <button
-                    key={tab.days}
+                    key={days}
                     type="button"
-                    className={`profile-chart-tab ${chartDays === tab.days ? 'active' : ''}`}
-                    onClick={() => setChartDays(tab.days)}
+                    className={`profile-chart-tab ${chartDays === days ? 'active' : ''}`}
+                    onClick={() => setChartDays(days)}
                   >
-                    {tab.label}
+                    {t('profile.chartDays', { days })}
                   </button>
                 ))}
               </div>
             </div>
             <UsageChart days={chartDays} />
             <p className="profile-chart-hint">
-              Hoạt động gen nội dung {chartDays} ngày gần nhất (local time)
+              {t('profile.chartHint', { days: chartDays })}
             </p>
           </section>
         </div>
 
         <aside className="profile-sidebar">
           <section className="profile-side-card">
-            <h3 className="profile-side-title">Thông tin tài khoản</h3>
+            <h3 className="profile-side-title">{t('profile.accountInfo')}</h3>
             <div className="profile-acc-row">
-              <span className="profile-acc-key">Account ID</span>
+              <span className="profile-acc-key">{t('profile.accountId')}</span>
               <button type="button" className="profile-acc-val mono copyable" onClick={copyId}>
                 <span className="profile-acc-id">{info?.id_base || '—'}</span>
                 {copied ? <Check size={13} /> : <Copy size={13} />}
               </button>
             </div>
             <div className="profile-acc-row">
-              <span className="profile-acc-key">Trạng thái</span>
+              <span className="profile-acc-key">{t('profile.status')}</span>
               <span className={`profile-acc-status ${planActive ? 'active' : ''}`}>
                 <span className="profile-acc-dot" />
-                {planActive ? 'Active' : 'Inactive'}
+                {planActive ? t('profile.statusActive') : t('profile.statusInactive')}
               </span>
             </div>
             <div className="profile-acc-row">
-              <span className="profile-acc-key">Gói hiện tại</span>
+              <span className="profile-acc-key">{t('profile.currentPlan')}</span>
               <span className="profile-acc-val">{planLabel}</span>
             </div>
             <div className="profile-acc-row">
-              <span className="profile-acc-key">API Domain</span>
+              <span className="profile-acc-key">{t('profile.apiDomain')}</span>
               <span className="profile-acc-val mono accent">v2.api.gommo.net</span>
             </div>
           </section>
 
           <section className="profile-upgrade-card">
-            <h3 className="profile-upgrade-title">Nâng lên Pro</h3>
-            <p className="profile-upgrade-desc">
-              Mở khóa toàn bộ tính năng với tốc độ và giới hạn cao hơn.
-            </p>
+            <h3 className="profile-upgrade-title">{t('profile.upgradeTitle')}</h3>
+            <p className="profile-upgrade-desc">{t('profile.upgradeDesc')}</p>
             <ul className="profile-upgrade-feats">
-              {UPGRADE_FEATURES.map((feat) => (
-                <li key={feat}>
+              {UPGRADE_FEATURE_KEYS.map((featKey) => (
+                <li key={featKey}>
                   <Check size={13} />
-                  {feat}
+                  {t(featKey)}
                 </li>
               ))}
             </ul>
@@ -350,7 +355,7 @@ export default function ProfilePage() {
               rel="noreferrer"
               className="btn primary profile-upgrade-btn"
             >
-              <Zap size={14} /> Upgrade to Pro
+              <Zap size={14} /> {t('profile.upgradeBtn')}
             </a>
           </section>
         </aside>

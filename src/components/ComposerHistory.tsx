@@ -11,6 +11,8 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { useLocale } from '../i18n';
+import type { TranslateFn } from '../i18n/LanguageProvider';
 import ComposerSelectCircle from './ComposerSelectCircle';
 import ComposerLibraryPreviewModal, {
   type ComposerPreviewHandlers,
@@ -97,12 +99,12 @@ function tsToDate(value: string | number | undefined): Date | null {
   return new Date(ts);
 }
 
-function dayLabel(d: Date): string {
+function dayLabel(d: Date, t: TranslateFn): string {
   const now = new Date();
-  if (d.toDateString() === now.toDateString()) return 'Hôm nay';
+  if (d.toDateString() === now.toDateString()) return t('date.today');
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
-  if (d.toDateString() === yesterday.toDateString()) return 'Hôm qua';
+  if (d.toDateString() === yesterday.toDateString()) return t('date.yesterday');
   return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
@@ -160,6 +162,7 @@ export default function ComposerHistory({
     onDelete?: () => void,
   ) => ComposerPreviewHandlers;
 }) {
+  const { t } = useLocale();
   const kind = jobKind(jobType);
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -269,7 +272,7 @@ export default function ComposerHistory({
     const map = new Map<string, HistoryGroup>();
     sortedItems.forEach((item, i) => {
       const d = tsToDate(item.created_time);
-      const label = d ? dayLabel(d) : 'Khác';
+      const label = d ? dayLabel(d, t) : t('common.other');
       const keyed: KeyedItem = {
         key: `${item.id_base || 'x'}__${item.created_time ?? ''}__${i}`,
         item,
@@ -286,7 +289,7 @@ export default function ComposerHistory({
       }
     });
     return [...map.values()];
-  }, [sortedItems]);
+  }, [sortedItems, t]);
 
   const displayCount = filteredItems.length;
 
@@ -352,7 +355,7 @@ export default function ComposerHistory({
 
   const handleDelete = useCallback(async (idBase: string) => {
     if (!idBase || deletingId) return;
-    if (!window.confirm('Xóa mục này khỏi lịch sử?')) return;
+    if (!window.confirm(t('composer.history.deleteConfirm'))) return;
     setDeletingId(idBase);
     try {
       await deleteFeedPost(idBase);
@@ -370,29 +373,25 @@ export default function ComposerHistory({
     } finally {
       setDeletingId('');
     }
-  }, [deletingId, onItemDeleted]);
+  }, [deletingId, onItemDeleted, t]);
 
   if (kind === 'unsupported') {
-    return (
-      <div className="chist-status">
-        Lịch sử Gommo hiện hỗ trợ ảnh và video. Hãy chuyển sang tab Ảnh hoặc Video.
-      </div>
-    );
+    return <div className="chist-status">{t('composer.history.unsupportedKind')}</div>;
   }
 
   if (error) {
     return (
       <div className="chist-status chist-error">
-        <p>Không tải được lịch sử: {error}</p>
+        <p>{t('composer.history.loadError', { error })}</p>
         <button type="button" className="composer-ghost-btn" onClick={() => load('', true)}>
-          Thử lại
+          {t('pricing.retry')}
         </button>
       </div>
     );
   }
 
   if (!loading && items.length === 0 && activePending.length === 0) {
-    return <div className="chist-status">Chưa có lịch sử tạo.</div>;
+    return <div className="chist-status">{t('composer.history.empty')}</div>;
   }
 
   const showLocalPendingSection = activePending.length > 0;
@@ -402,12 +401,12 @@ export default function ComposerHistory({
       <header className="chist-page-head">
         <div className="chist-page-title">
           <Clock size={16} />
-          <span>Lịch sử ({displayCount})</span>
+          <span>{t('composer.history.title', { count: displayCount })}</span>
         </div>
         <button
           type="button"
           className="chist-refresh-btn"
-          aria-label="Làm mới lịch sử"
+          aria-label={t('composer.history.refreshAria')}
           disabled={loading}
           onClick={() => load('', true)}
         >
@@ -422,13 +421,13 @@ export default function ComposerHistory({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Tìm trong lịch sử…"
+            placeholder={t('composer.history.searchPlaceholder')}
           />
           {query && (
             <button
               type="button"
               className="chist-search-clear"
-              aria-label="Xóa tìm kiếm"
+              aria-label={t('composer.history.clearSearch')}
               onClick={() => setQuery('')}
             >
               <X size={14} />
@@ -441,14 +440,14 @@ export default function ComposerHistory({
             className={sortDir === 'desc' ? 'active' : ''}
             onClick={() => setSortDir('desc')}
           >
-            Mới
+            {t('composer.library.sortNew')}
           </button>
           <button
             type="button"
             className={sortDir === 'asc' ? 'active' : ''}
             onClick={() => setSortDir('asc')}
           >
-            Cũ
+            {t('composer.library.sortOld')}
           </button>
         </div>
         <button
@@ -457,26 +456,26 @@ export default function ComposerHistory({
           onClick={toggleSelectMode}
         >
           <CheckSquare size={15} />
-          Chọn
+          {t('composer.history.select')}
           {selectMode && selectedIds && selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
         </button>
       </div>
 
       {groups.length === 0 && !showLocalPendingSection && (
         <div className="chist-status">
-          {query ? 'Không tìm thấy mục nào khớp.' : 'Chưa có lịch sử tạo.'}
+          {query ? t('composer.library.noMatch') : t('composer.history.empty')}
         </div>
       )}
 
       {showLocalPendingSection && (
         <section className="chist-group">
           <header className="chist-group-head">
-            <span className="chist-group-label">Hôm nay</span>
-            <span className="chist-count">{activePending.length} đang tạo</span>
+            <span className="chist-group-label">{t('composer.history.today')}</span>
+            <span className="chist-count">{t('composer.history.creatingCount', { count: activePending.length })}</span>
           </header>
           <div className="chist-grid">
             {activePending.map((p) => {
-              const name = (p.prompt || '(Không có mô tả)').trim();
+              const name = (p.prompt || t('common.noDescription')).trim();
               return (
                 <div key={p.id} className="chist-block-cell">
                   <div className="chist-block chist-block-pending">
@@ -484,7 +483,7 @@ export default function ComposerHistory({
                       <span className="chist-name" title={name}>
                         {name}
                       </span>
-                      <Loader2 size={16} className="chist-pending-spin" aria-label="Đang tạo" />
+                      <Loader2 size={16} className="chist-pending-spin" aria-label={t('composer.history.creating')} />
                     </div>
                     <div className="chist-pending-bar" role="progressbar" aria-valuenow={p.progress ?? 12}>
                       <div
@@ -507,7 +506,7 @@ export default function ComposerHistory({
             {group.relative && (
               <span className="chist-group-relative">{group.relative}</span>
             )}
-            <span className="chist-count">{group.items.length} mục</span>
+            <span className="chist-count">{t('composer.history.itemCount', { count: group.items.length })}</span>
           </header>
           <div className="chist-grid">
             {group.items.map(({ key, item }) => {
@@ -515,7 +514,7 @@ export default function ComposerHistory({
               const { ok, fail } = blockCounts(item);
               const processing = isFeedItemProcessing(item);
               const d = tsToDate(item.created_time);
-              const name = (item.title || item.prompt || '(Không có mô tả)').trim();
+              const name = (item.title || item.prompt || t('common.noDescription')).trim();
               const urls = open ? blockUrls(item) : [];
               const allUrls = blockUrls(item);
               const blockThumb = item.thumbnail_url || allUrls[0];
@@ -532,7 +531,7 @@ export default function ComposerHistory({
                     <button
                       type="button"
                       className="chist-delete-btn"
-                      aria-label="Xóa"
+                      aria-label={t('composer.history.deleteAria')}
                       disabled={deletingId === item.id_base}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -560,7 +559,7 @@ export default function ComposerHistory({
                         {name}
                       </span>
                       {processing ? (
-                        <Loader2 size={16} className="chist-pending-spin" aria-label="Đang tạo" />
+                        <Loader2 size={16} className="chist-pending-spin" aria-label={t('composer.history.creating')} />
                       ) : (
                         <ChevronDown
                           size={15}
@@ -595,7 +594,7 @@ export default function ComposerHistory({
                     </div>
                     <div className="chist-foot">
                       {processing ? (
-                        <span className="chist-processing-label">Đang tạo…</span>
+                        <span className="chist-processing-label">{t('composer.history.creatingLabel')}</span>
                       ) : (
                         <>
                           <span className="chist-ok">
@@ -638,7 +637,7 @@ export default function ComposerHistory({
                           </button>
                         ))
                       ) : (
-                        <p className="chist-empty">Không có sản phẩm trong mục này.</p>
+                        <p className="chist-empty">{t('composer.history.noProducts')}</p>
                       )}
                     </div>
                   )}
@@ -649,7 +648,7 @@ export default function ComposerHistory({
         </section>
       ))}
 
-      {loading && <div className="chist-status">Đang tải…</div>}
+      {loading && <div className="chist-status">{t('composer.history.loading')}</div>}
       <div ref={sentinelRef} className="chist-sentinel" />
 
       {previewIndex != null && previewItems.length > 0 && (

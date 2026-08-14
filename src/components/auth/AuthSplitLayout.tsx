@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { Globe, X } from 'lucide-react';
 import {
-  AUTH_SPLIT_ACTIVE_TAB,
-  AUTH_SPLIT_HEADLINE,
+  AUTH_SPLIT_ACTIVE_TAB_KEY,
   AUTH_SPLIT_IMAGE,
-  AUTH_SPLIT_LEAD,
-  AUTH_SPLIT_TABS,
+  AUTH_SPLIT_TAB_KEYS,
 } from '../../lib/authUiConfig';
+import { useLocale } from '../../i18n';
+import type { TranslationKey } from '../../i18n/types';
 import BrandLogo from '../BrandLogo';
 import '../../styles/auth-split.css';
 
@@ -16,6 +16,8 @@ interface Props {
 }
 
 export default function AuthSplitLayout({ children, onClose }: Props) {
+  const { t, locale, toggleLocale } = useLocale();
+
   return (
     <div className="auth-split-page">
       <aside className="auth-split-visual">
@@ -28,16 +30,16 @@ export default function AuthSplitLayout({ children, onClose }: Props) {
         />
         <div className="auth-split-visual-overlay" aria-hidden="true" />
         <div className="auth-split-visual-copy">
-          <h2>{AUTH_SPLIT_HEADLINE}</h2>
-          <p>{AUTH_SPLIT_LEAD}</p>
-          <nav className="auth-split-tabs" aria-label="Danh mục sáng tạo">
-            {AUTH_SPLIT_TABS.map((tab) => (
+          <h2>{t('auth.split.headline')}</h2>
+          <p>{t('auth.split.lead')}</p>
+          <nav className="auth-split-tabs" aria-label={t('auth.split.tabsAria')}>
+            {AUTH_SPLIT_TAB_KEYS.map((tabKey) => (
               <span
-                key={tab}
-                className={tab === AUTH_SPLIT_ACTIVE_TAB ? 'active' : undefined}
-                aria-current={tab === AUTH_SPLIT_ACTIVE_TAB ? 'true' : undefined}
+                key={tabKey}
+                className={tabKey === AUTH_SPLIT_ACTIVE_TAB_KEY ? 'active' : undefined}
+                aria-current={tabKey === AUTH_SPLIT_ACTIVE_TAB_KEY ? 'true' : undefined}
               >
-                {tab}
+                {t(tabKey as TranslationKey)}
               </span>
             ))}
           </nav>
@@ -45,8 +47,22 @@ export default function AuthSplitLayout({ children, onClose }: Props) {
       </aside>
 
       <main className="auth-split-panel">
+        <button
+          type="button"
+          className="lang-pill auth-split-lang"
+          aria-label={t('header.switchLang')}
+          onClick={toggleLocale}
+        >
+          <Globe size={14} /> {locale === 'vi' ? 'VI' : 'EN'}
+        </button>
+
         {onClose ? (
-          <button type="button" className="auth-split-close" onClick={onClose} aria-label="Đóng">
+          <button
+            type="button"
+            className="auth-split-close"
+            onClick={onClose}
+            aria-label={t('auth.split.close')}
+          >
             <X size={18} />
           </button>
         ) : null}

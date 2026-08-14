@@ -1,6 +1,6 @@
 import { isLoggedIn } from '../services/authStore';
 
-/** Nav landing scroll tại `/` + link trang marketing. */
+/** @deprecated Use getNavLinks() from landingI18n.ts — labels are locale-aware. */
 export const NAV_LINKS = [
   { href: '/#product', label: 'Tính năng' },
   { to: '/models', label: 'Models' },
