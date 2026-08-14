@@ -14,10 +14,24 @@ import {
 } from '../services/historyStore';
 import { REUSABLE_JOB_TYPES, studioRouteForType } from '../constants/studioTypes';
 import type { JobType } from '../services/api';
+import { useLocale, type TranslationKey } from '../i18n';
+import type { AppLocale } from '../i18n/types';
 
-function formatTime(iso: string): string {
+const JOB_TYPE_KEYS: Record<HistoryType, TranslationKey> = {
+  video: 'jobType.video',
+  image: 'jobType.image',
+  tts: 'jobType.tts',
+  music: 'jobType.music',
+  'avatar-lipsync': 'jobType.avatar-lipsync',
+};
+
+function dateLocale(locale: AppLocale): string {
+  return locale === 'vi' ? 'vi-VN' : 'en-US';
+}
+
+function formatTime(iso: string, localeTag: string): string {
   try {
-    return new Date(iso).toLocaleString('vi-VN', { dateStyle: 'medium', timeStyle: 'short' });
+    return new Date(iso).toLocaleString(localeTag, { dateStyle: 'medium', timeStyle: 'short' });
   } catch {
     return iso;
   }
@@ -26,10 +40,6 @@ function formatTime(iso: string): string {
 function truncate(text: string, max = 120): string {
   if (text.length <= max) return text;
   return `${text.slice(0, max - 1)}…`;
-}
-
-function typeLabel(type: HistoryType): string {
-  return JOB_TYPES.find((t) => t.value === type)?.label ?? type;
 }
 
 function HistoryThumb({ entry }: { entry: HistoryEntry }) {
@@ -56,6 +66,8 @@ function HistoryThumb({ entry }: { entry: HistoryEntry }) {
 
 /** Lịch sử kết quả gen Studio (localStorage) — route /studio-history */
 export default function StudioHistoryPage() {
+  const { t, locale } = useLocale();
+  const localeTag = dateLocale(locale);
   const { type: typeParam } = useParams<{ type?: string }>();
   const navigate = useNavigate();
   const activeType = isValidHistoryType(typeParam) ? typeParam : null;
@@ -68,32 +80,36 @@ export default function StudioHistoryPage() {
   const entries = useMemo(() => listHistory(activeType), [activeType, tick]);
   const totalAll = useMemo(() => Object.values(counts).reduce((a, b) => a + b, 0), [counts]);
 
+  function typeLabel(type: HistoryType): string {
+    return t(JOB_TYPE_KEYS[type]);
+  }
+
   function handleDelete(id: string) {
-    if (!confirm('Xóa mục này khỏi lịch sử?')) return;
+    if (!confirm(t('studioHistory.confirmDelete'))) return;
     removeHistoryEntry(id);
     refresh();
   }
 
   function handleClearTab() {
     if (!activeType) return;
-    if (!confirm(`Xóa tất cả lịch sử ${typeLabel(activeType)}?`)) return;
+    if (!confirm(t('studioHistory.confirmClearTab', { type: typeLabel(activeType) }))) return;
     clearHistory(activeType);
     refresh();
   }
 
   function handleClearAll() {
-    if (!confirm('Xóa toàn bộ lịch sử Studio (localStorage)?')) return;
+    if (!confirm(t('studioHistory.confirmClearAll'))) return;
     clearHistory(null);
     refresh();
   }
 
   function applyReuse(entry: HistoryEntry) {
-    const t = entry.type as JobType;
-    if (!REUSABLE_JOB_TYPES.includes(t)) return;
-    navigate(studioRouteForType(t), {
+    const jobType = entry.type as JobType;
+    if (!REUSABLE_JOB_TYPES.includes(jobType)) return;
+    navigate(studioRouteForType(jobType), {
       state: {
         reuseHistory: {
-          type: t,
+          type: jobType,
           prompt: entry.prompt,
           modelSlug: entry.modelSlug,
           meta: entry.meta,
@@ -102,29 +118,29 @@ export default function StudioHistoryPage() {
     });
   }
 
+  const emptyTypeSuffix = activeType ? ` ${typeLabel(activeType)}` : '';
+
   return (
     <div className="page view-history">
       <div className="page-head">
-        <p className="kicker">Studio</p>
-        <h1>Lịch sử tạo nội dung</h1>
-        <p className="lead">
-          Kết quả gen thành công lưu trên trình duyệt (<code>ai_studio_history</code>).
-        </p>
+        <p className="kicker">{t('studioHistory.kicker')}</p>
+        <h1>{t('studioHistory.title')}</h1>
+        <p className="lead">{t('studioHistory.lead')}</p>
       </div>
 
       <div className="page-segment-tabs type-tabs">
         <Link to="/studio-history" className={`tab ${activeType === null ? 'active' : ''}`}>
-          Tất cả
+          {t('studioHistory.all')}
           {totalAll > 0 && <span className="hist-count">{totalAll}</span>}
         </Link>
-        {JOB_TYPES.map((t) => (
+        {JOB_TYPES.map((tab) => (
           <Link
-            key={t.value}
-            to={`/studio-history/${t.value}`}
-            className={`tab ${activeType === t.value ? 'active' : ''}`}
+            key={tab.value}
+            to={`/studio-history/${tab.value}`}
+            className={`tab ${activeType === tab.value ? 'active' : ''}`}
           >
-            {t.icon} {t.label}
-            {counts[t.value] > 0 && <span className="hist-count">{counts[t.value]}</span>}
+            {tab.icon} {typeLabel(tab.value)}
+            {counts[tab.value] > 0 && <span className="hist-count">{counts[tab.value]}</span>}
           </Link>
         ))}
       </div>
@@ -132,21 +148,23 @@ export default function StudioHistoryPage() {
       <div className="hist-toolbar">
         {activeType && counts[activeType] > 0 && (
           <button type="button" className="btn ghost sm danger-text" onClick={handleClearTab}>
-            Xóa tab {typeLabel(activeType)}
+            {t('studioHistory.clearTab', { type: typeLabel(activeType) })}
           </button>
         )}
         {totalAll > 0 && (
           <button type="button" className="btn ghost sm danger-text" onClick={handleClearAll}>
-            Xóa tất cả
+            {t('studioHistory.clearAll')}
           </button>
         )}
       </div>
 
       {entries.length === 0 ? (
         <div className="hist-empty panel">
-          <p>Chưa có lịch sử{activeType ? ` ${typeLabel(activeType)}` : ''}.</p>
+          <p>{t('studioHistory.empty', { type: emptyTypeSuffix })}</p>
           <p className="muted">
-            Tạo nội dung tại <Link to="/image">Studio</Link> — khi job thành công, kết quả lưu tự động.
+            {t('studioHistory.emptyHintPrefix')}{' '}
+            <Link to="/image">{t('studioHistory.kicker')}</Link>{' '}
+            {t('studioHistory.emptyHintSuffix')}
           </p>
         </div>
       ) : (
@@ -159,16 +177,22 @@ export default function StudioHistoryPage() {
               <div className="hist-body">
                 <div className="hist-meta">
                   <span className="hist-type-tag">{typeLabel(entry.type)}</span>
-                  <time className="hist-time">{formatTime(entry.createdAt)}</time>
+                  <time className="hist-time">{formatTime(entry.createdAt, localeTag)}</time>
                 </div>
                 <p className="hist-prompt" title={entry.prompt}>
                   {entry.prompt ? truncate(entry.prompt) : '—'}
                 </p>
                 {entry.modelName && <p className="hist-model">{entry.modelName}</p>}
                 <div className="hist-actions">
-                  <a className="hist-btn" href={entry.resultUrl} target="_blank" rel="noreferrer">Mở</a>
-                  <button type="button" className="hist-btn" onClick={() => applyReuse(entry)}>Dùng lại</button>
-                  <button type="button" className="hist-btn danger" onClick={() => handleDelete(entry.id)}>Xóa</button>
+                  <a className="hist-btn" href={entry.resultUrl} target="_blank" rel="noreferrer">
+                    {t('studioHistory.open')}
+                  </a>
+                  <button type="button" className="hist-btn" onClick={() => applyReuse(entry)}>
+                    {t('studioHistory.reuse')}
+                  </button>
+                  <button type="button" className="hist-btn danger" onClick={() => handleDelete(entry.id)}>
+                    {t('studioHistory.delete')}
+                  </button>
                 </div>
               </div>
             </article>

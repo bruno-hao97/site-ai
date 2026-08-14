@@ -80,6 +80,9 @@ import type { JobSelections } from '../services/modelSchema';
 import { clearWorkflow, saveWorkflow } from '../services/workflowStore';
 import WorkflowLibrary from '../components/WorkflowLibrary';
 import WorkflowTopBar from '../components/WorkflowTopBar';
+import WorkflowStudioOnboarding, {
+  isWorkflowOnboardingDismissed,
+} from '../components/workflow/WorkflowStudioOnboarding';
 import WorkflowAgentPanel from '../components/workflow/WorkflowAgentPanel';
 import WorkflowMediaInputModal from '../components/workflow/WorkflowMediaInputModal';
 import {
@@ -2089,6 +2092,7 @@ function Flow() {
   const [libOpen, setLibOpen] = useState(false);
   const [libCount, setLibCount] = useState(() => loadTemplates().length);
   const [paletteOpen, setPaletteOpen] = useState(true);
+  const [canvasHintOpen, setCanvasHintOpen] = useState(() => !isWorkflowOnboardingDismissed());
   const [newOpen, setNewOpen] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
   const [mediaModal, setMediaModal] = useState<{
@@ -2132,6 +2136,10 @@ function Flow() {
 
   const abortRef = useRef<AbortController | null>(null);
   const { screenToFlowPosition, fitView, deleteElements } = useReactFlow();
+
+  useEffect(() => {
+    if (nodes.length > 0) setCanvasHintOpen(false);
+  }, [nodes.length]);
 
   useEffect(() => {
     if (portsExpandedNodeId && !nodes.some((n) => n.id === portsExpandedNodeId)) {
@@ -3228,6 +3236,19 @@ function Flow() {
             >
               <PanelLeftOpen size={16} />
             </button>
+          )}
+          {canvasHintOpen && nodes.length === 0 && (
+            <WorkflowStudioOnboarding
+              onOpenPalette={() => {
+                setPaletteOpen(true);
+                setCanvasHintOpen(false);
+              }}
+              onOpenLibrary={() => {
+                setLibOpen(true);
+                setCanvasHintOpen(false);
+              }}
+              onDismiss={() => setCanvasHintOpen(false)}
+            />
           )}
           <ReactFlow
             nodes={nodes}

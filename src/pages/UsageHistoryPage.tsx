@@ -18,22 +18,24 @@ import {
   type UsageHistoryItem,
 } from '../services/upstreamUsageHistory';
 import { listHistory } from '../services/historyStore';
+import { useLocale } from '../i18n';
+import type { AppLocale, TranslationKey } from '../i18n/types';
 
 type PillId = 'image' | 'video' | 'audio' | 'music';
 type Category = PillId | 'other';
 
-const PILLS: { id: PillId; label: string }[] = [
-  { id: 'image', label: 'Ảnh' },
-  { id: 'video', label: 'Video' },
-  { id: 'audio', label: 'Audio' },
-  { id: 'music', label: 'Nhạc' },
+const PILLS: { id: PillId; labelKey: TranslationKey }[] = [
+  { id: 'image', labelKey: 'usageHistory.pillImage' },
+  { id: 'video', labelKey: 'usageHistory.pillVideo' },
+  { id: 'audio', labelKey: 'usageHistory.pillAudio' },
+  { id: 'music', labelKey: 'usageHistory.pillMusic' },
 ];
 
-const TIME_TABS: { id: string; label: string; days: number | null }[] = [
-  { id: 'all', label: 'Tất cả', days: null },
-  { id: '7', label: '7 ngày', days: 7 },
-  { id: '30', label: '30 ngày', days: 30 },
-  { id: '90', label: '3 tháng', days: 90 },
+const TIME_TABS: { id: string; labelKey: TranslationKey; days: number | null }[] = [
+  { id: 'all', labelKey: 'usageHistory.timeAll', days: null },
+  { id: '7', labelKey: 'usageHistory.time7', days: 7 },
+  { id: '30', labelKey: 'usageHistory.time30', days: 30 },
+  { id: '90', labelKey: 'usageHistory.time90', days: 90 },
 ];
 
 const CHART_TABS = [7, 14, 30];
@@ -46,13 +48,17 @@ const CATEGORY_STYLE: Record<Category, { color: string; bg: string; icon: Lucide
   other: { color: 'var(--muted)', bg: 'rgba(255,255,255,0.06)', icon: Sparkles },
 };
 
-const STATUS_STYLE: Record<string, { color: string; label: string }> = {
-  success: { color: '#4ade80', label: 'Thành công' },
-  failed: { color: '#f87171', label: 'Lỗi' },
-  pending: { color: '#fbbf24', label: 'Đang xử lý' },
+const STATUS_STYLE: Record<string, { color: string; labelKey: TranslationKey }> = {
+  success: { color: '#4ade80', labelKey: 'usageHistory.statusSuccess' },
+  failed: { color: '#f87171', labelKey: 'usageHistory.statusFailed' },
+  pending: { color: '#fbbf24', labelKey: 'usageHistory.statusPending' },
 };
 
 const PAGE_SIZE = 20;
+
+function dateLocale(locale: AppLocale): string {
+  return locale === 'vi' ? 'vi-VN' : 'en-US';
+}
 
 function rowCategory(it: UsageHistoryItem): Category {
   const s = `${it.type} ${it.typeLabel}`.toLowerCase();
@@ -65,33 +71,6 @@ function rowCategory(it: UsageHistoryItem): Category {
 
 function dayKey(iso: string): string {
   return iso.slice(0, 10);
-}
-
-function formatTime(iso: string): string {
-  try {
-    return new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return '';
-  }
-}
-
-function formatDayLabel(key: string): string {
-  const today = new Date();
-  const todayKey = today.toISOString().slice(0, 10);
-  const y = new Date(today);
-  y.setDate(y.getDate() - 1);
-  const yKey = y.toISOString().slice(0, 10);
-  if (key === todayKey) return 'Hôm nay';
-  if (key === yKey) return 'Hôm qua';
-  try {
-    return new Date(`${key}T00:00:00`).toLocaleDateString('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
-  } catch {
-    return key;
-  }
 }
 
 function localFallbackRows(): UsageHistoryItem[] {
@@ -163,6 +142,8 @@ function UsageAreaChart({ items, days }: { items: UsageHistoryItem[]; days: numb
 }
 
 export default function UsageHistoryPage() {
+  const { t, locale } = useLocale();
+  const localeTag = dateLocale(locale);
   const { type: typeParam } = useParams<{ type?: string }>();
 
   const [items, setItems] = useState<UsageHistoryItem[]>([]);
@@ -179,6 +160,39 @@ export default function UsageHistoryPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [chartDays, setChartDays] = useState(14);
   const [page, setPage] = useState(1);
+
+  const formatTime = useCallback(
+    (iso: string): string => {
+      try {
+        return new Date(iso).toLocaleTimeString(localeTag, { hour: '2-digit', minute: '2-digit' });
+      } catch {
+        return '';
+      }
+    },
+    [localeTag],
+  );
+
+  const formatDayLabel = useCallback(
+    (key: string): string => {
+      const today = new Date();
+      const todayKey = today.toISOString().slice(0, 10);
+      const y = new Date(today);
+      y.setDate(y.getDate() - 1);
+      const yKey = y.toISOString().slice(0, 10);
+      if (key === todayKey) return t('date.today');
+      if (key === yKey) return t('date.yesterday');
+      try {
+        return new Date(`${key}T00:00:00`).toLocaleDateString(localeTag, {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        });
+      } catch {
+        return key;
+      }
+    },
+    [localeTag, t],
+  );
 
   const load = useCallback(async () => {
     const auth = loadAuth();
@@ -219,7 +233,7 @@ export default function UsageHistoryPage() {
   const allTypesActive = activeTypes.length === PILLS.length;
 
   const filtered = useMemo(() => {
-    const timeDays = TIME_TABS.find((t) => t.id === activeTime)?.days ?? null;
+    const timeDays = TIME_TABS.find((tab) => tab.id === activeTime)?.days ?? null;
     const cutoff = timeDays != null ? Date.now() - timeDays * 86400000 : null;
     const q = searchQuery.trim().toLowerCase();
 
@@ -268,7 +282,7 @@ export default function UsageHistoryPage() {
       out[index.get(key)!].rows.push(it);
     }
     return out;
-  }, [pageItems]);
+  }, [pageItems, formatDayLabel]);
 
   function exportCsv() {
     const header = ['Loại', 'Model', 'Prompt', 'Thời gian', 'Credits', 'Trạng thái'];
@@ -278,7 +292,7 @@ export default function UsageHistoryPage() {
         it.typeLabel || it.type,
         it.model || '',
         it.prompt || '',
-        new Date(it.createdAt).toLocaleString('vi-VN'),
+        new Date(it.createdAt).toLocaleString(localeTag),
         it.cost != null ? String(Math.abs(it.cost)) : '',
         it.statusLabel || it.status,
       ]
@@ -300,54 +314,54 @@ export default function UsageHistoryPage() {
       <div className="uh-head">
         <div>
           <h1 className="uh-title">
-            <History size={18} /> Lịch sử sử dụng
+            <History size={18} /> {t('usageHistory.title')}
           </h1>
-          <p className="uh-sub">Theo dõi model và credit usage của bạn</p>
+          <p className="uh-sub">{t('usageHistory.subtitle')}</p>
           {source === 'local' && (
-            <p className="uh-fallback">Đang dùng lịch sử Studio local — chưa có billing upstream.</p>
+            <p className="uh-fallback">{t('usageHistory.fallbackLocal')}</p>
           )}
         </div>
         <button type="button" className="uh-export" onClick={exportCsv} disabled={!filtered.length}>
-          <Download size={14} /> Xuất CSV
+          <Download size={14} /> {t('usageHistory.exportCsv')}
         </button>
       </div>
 
       <div className="uh-cards">
         <div className="uh-card">
-          <span className="uh-card-label">Tổng lượt gọi</span>
-          <span className="uh-card-value">{summary.total.toLocaleString('vi-VN')}</span>
-          <span className="uh-card-sub">bản ghi</span>
+          <span className="uh-card-label">{t('usageHistory.totalCalls')}</span>
+          <span className="uh-card-value">{summary.total.toLocaleString(localeTag)}</span>
+          <span className="uh-card-sub">{t('usageHistory.records')}</span>
         </div>
         <div className="uh-card">
-          <span className="uh-card-label">Số dư credit</span>
-          <span className="uh-card-value accent">{getCreditsAi().toLocaleString('vi-VN')}</span>
-          <span className="uh-card-sub">khả dụng</span>
+          <span className="uh-card-label">{t('usageHistory.balance')}</span>
+          <span className="uh-card-value accent">{getCreditsAi().toLocaleString(localeTag)}</span>
+          <span className="uh-card-sub">{t('usageHistory.available')}</span>
         </div>
         <div className="uh-card">
-          <span className="uh-card-label">Credits đã dùng</span>
-          <span className="uh-card-value">{summary.creditsUsed.toLocaleString('vi-VN')}</span>
-          <span className="uh-card-sub">tổng tiêu thụ</span>
+          <span className="uh-card-label">{t('usageHistory.creditsUsed')}</span>
+          <span className="uh-card-value">{summary.creditsUsed.toLocaleString(localeTag)}</span>
+          <span className="uh-card-sub">{t('usageHistory.totalConsumed')}</span>
         </div>
         <div className="uh-card">
-          <span className="uh-card-label">Tỷ lệ thành công</span>
+          <span className="uh-card-label">{t('usageHistory.successRate')}</span>
           <span className="uh-card-value">{summary.successRate}%</span>
-          <span className="uh-card-sub">trên tổng job</span>
+          <span className="uh-card-sub">{t('usageHistory.onTotalJobs')}</span>
         </div>
       </div>
 
       <div className="uh-filters">
         <div className="uh-time-tabs">
-          {TIME_TABS.map((t) => (
+          {TIME_TABS.map((tab) => (
             <button
-              key={t.id}
+              key={tab.id}
               type="button"
-              className={`uh-time-tab ${activeTime === t.id ? 'active' : ''}`}
+              className={`uh-time-tab ${activeTime === tab.id ? 'active' : ''}`}
               onClick={() => {
-                setActiveTime(t.id);
+                setActiveTime(tab.id);
                 setPage(1);
               }}
             >
-              {t.label}
+              {t(tab.labelKey)}
             </button>
           ))}
         </div>
@@ -356,7 +370,7 @@ export default function UsageHistoryPage() {
           <Search size={14} />
           <input
             type="text"
-            placeholder="Tìm model, prompt…"
+            placeholder={t('usageHistory.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
@@ -381,7 +395,7 @@ export default function UsageHistoryPage() {
                     : undefined
                 }
               >
-                {pill.label}
+                {t(pill.labelKey)}
               </button>
             );
           })}
@@ -391,7 +405,7 @@ export default function UsageHistoryPage() {
       <div className="uh-chart-card">
         <div className="uh-chart-head">
           <span className="uh-chart-title">
-            <TrendingUp size={15} /> Lượt gen theo ngày
+            <TrendingUp size={15} /> {t('usageHistory.chartTitle')}
           </span>
           <div className="uh-chart-tabs">
             {CHART_TABS.map((d) => (
@@ -401,7 +415,7 @@ export default function UsageHistoryPage() {
                 className={`uh-chart-tab ${chartDays === d ? 'active' : ''}`}
                 onClick={() => setChartDays(d)}
               >
-                {d}N
+                {t('profile.chartDays', { days: d })}
               </button>
             ))}
           </div>
@@ -409,25 +423,25 @@ export default function UsageHistoryPage() {
         <UsageAreaChart items={filtered} days={chartDays} />
       </div>
 
-      {loading && <p className="muted uh-status-msg">Đang tải…</p>}
+      {loading && <p className="muted uh-status-msg">{t('usageHistory.loading')}</p>}
       {error && <p className="error uh-status-msg">{error}</p>}
 
       {!loading && !filtered.length ? (
-        <div className="uh-empty">Chưa có lịch sử phù hợp bộ lọc.</div>
+        <div className="uh-empty">{t('usageHistory.empty')}</div>
       ) : (
         <div className="uh-table">
           <div className="uh-table-inner">
             <div className="uh-thead">
-              <span className="uh-th">Model / Prompt</span>
-              <span className="uh-th right">Thời gian</span>
-              <span className="uh-th right">Credits</span>
-              <span className="uh-th right">Status</span>
+              <span className="uh-th">{t('usageHistory.colModel')}</span>
+              <span className="uh-th right">{t('usageHistory.colTime')}</span>
+              <span className="uh-th right">{t('usageHistory.colCredits')}</span>
+              <span className="uh-th right">{t('usageHistory.colStatus')}</span>
             </div>
 
             {groups.map((group) => (
               <div key={group.key}>
                 <div className="uh-group-divider">
-                  {group.label} — {new Date(`${group.key}T00:00:00`).toLocaleDateString('vi-VN')}
+                  {group.label} — {new Date(`${group.key}T00:00:00`).toLocaleDateString(localeTag)}
                 </div>
                 {group.rows.map((row) => {
                   const cat = rowCategory(row);
@@ -453,7 +467,7 @@ export default function UsageHistoryPage() {
                         <span
                           className="uh-status-dot"
                           style={{ background: status.color }}
-                          title={status.label}
+                          title={t(status.labelKey)}
                         />
                       </span>
                     </div>
@@ -468,7 +482,11 @@ export default function UsageHistoryPage() {
       {filtered.length > PAGE_SIZE && (
         <div className="uh-pagination">
           <span className="uh-pag-info">
-            Hiển thị {startIndex}–{endIndex} trong {filtered.length.toLocaleString('vi-VN')} bản ghi
+            {t('usageHistory.pagination', {
+              start: startIndex,
+              end: endIndex,
+              total: filtered.length.toLocaleString(localeTag),
+            })}
           </span>
           <div className="uh-pag-btns">
             <button
@@ -476,6 +494,7 @@ export default function UsageHistoryPage() {
               className="uh-pag-btn"
               disabled={safePage <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
+              title={t('usageHistory.prev')}
             >
               ‹
             </button>
@@ -498,6 +517,7 @@ export default function UsageHistoryPage() {
               className="uh-pag-btn"
               disabled={safePage >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              title={t('usageHistory.next')}
             >
               ›
             </button>

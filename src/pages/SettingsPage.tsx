@@ -11,6 +11,7 @@ import {
   setupOneSignalFromAuth,
   type PushStatus,
 } from '../services/oneSignal';
+import { useLocale } from '../i18n';
 
 const OPS_KEY_SESSION = 'ops_status_key';
 
@@ -21,6 +22,7 @@ function pill(ok: boolean | null | undefined): string {
 }
 
 export default function SettingsPage() {
+  const { t, locale } = useLocale();
   const auth = loadAuth();
   const domain = auth?.domain || '—';
   const [theme, setTheme] = useState<ThemeMode>(loadTheme());
@@ -80,20 +82,18 @@ export default function SettingsPage() {
       const id = pushAppId || (await resolvePushAppId());
       setPushAppId(id);
       if (!id) {
-        setPushError('Không lấy được push_app_id từ Gommo.');
+        setPushError(t('settings.pushErrorNoAppId'));
         return;
       }
       if (getBrowserPushStatus() === 'denied') {
-        setPushError(
-          'Trình duyệt đang chặn thông báo. Mở ổ khóa URL → Thông báo → Cho phép, rồi tải lại trang.',
-        );
+        setPushError(t('settings.pushErrorDenied'));
         setPushStatus('denied');
         return;
       }
       const next = await requestPushPermission();
       setPushStatus(next);
       if (next !== 'granted') {
-        setPushError('Chưa được cấp quyền thông báo. Hãy chọn Allow/Cho phép khi trình duyệt hỏi.');
+        setPushError(t('settings.pushErrorNotGranted'));
       }
     } catch (err) {
       setPushStatus(getBrowserPushStatus());
@@ -123,51 +123,50 @@ export default function SettingsPage() {
   return (
     <div className="page settings-79">
       <div className="page-head">
-        <h1>Cài đặt</h1>
-        <p className="lead">
-          Quản lý cài đặt tài khoản, bảo mật, API và các tính năng khác.
-        </p>
+        <h1>{t('settings.title')}</h1>
+        <p className="lead">{t('settings.lead')}</p>
+        <Link to="/account" className="settings-account-link">
+          {t('settings.accountLink')}
+        </Link>
       </div>
 
       <div className="settings-79-stack">
         <section className="panel settings-79-section">
-          <h2>🌐 API &amp; WEBHOOK</h2>
+          <h2>{t('settings.apiWebhook')}</h2>
           <div className="settings-79-row">
             <div>
-              <div className="settings-79-row-title">Domain kết nối</div>
-              <div className="settings-79-row-desc">Domain của bạn để nhận yêu cầu từ hệ thống.</div>
+              <div className="settings-79-row-title">{t('settings.domainTitle')}</div>
+              <div className="settings-79-row-desc">{t('settings.domainDesc')}</div>
             </div>
             <span className="settings-79-domain">{domain}</span>
           </div>
           <div className="settings-79-row">
             <div>
-              <div className="settings-79-row-title">API Access Token</div>
-              <div className="settings-79-row-desc">
-                Sử dụng token này để kết nối với các ứng dụng bên thứ 3.
-              </div>
+              <div className="settings-79-row-title">{t('settings.tokenTitle')}</div>
+              <div className="settings-79-row-desc">{t('settings.tokenDesc')}</div>
             </div>
             <Link to="/settings/tokens" className="btn secondary sm">
-              Sao chép &amp; Tạo mới
+              {t('settings.tokenBtn')}
             </Link>
           </div>
         </section>
 
         <section className="panel settings-79-section">
-          <h2>🛠 Ops — Gommo / PayOS / Telegram</h2>
+          <h2>{t('settings.opsTitle')}</h2>
           <p className="muted" style={{ marginTop: 0 }}>
-            MCP Cursor (<code>79ai</code>) dùng trong IDE. Trang này kiểm tra runtime site (Railway).
+            {t('settings.opsLead')}
           </p>
           <div className="settings-79-openai-row" style={{ marginBottom: '0.75rem' }}>
             <input
               value={opsKey}
               onChange={(e) => setOpsKey(e.target.value)}
-              placeholder="x-ops-key (TELEGRAM_WEBHOOK_SECRET hoặc OPS_STATUS_KEY)"
+              placeholder={t('settings.opsKeyPlaceholder')}
               className="settings-79-openai-input"
               type="password"
               autoComplete="off"
             />
             <button type="button" className="btn primary sm" onClick={() => void loadOps()} disabled={opsLoading}>
-              {opsLoading ? 'Đang tải…' : 'Làm mới'}
+              {opsLoading ? t('settings.loading') : t('settings.refresh')}
             </button>
           </div>
           {opsError && <p className="muted" style={{ color: 'var(--danger)' }}>{opsError}</p>}
@@ -179,34 +178,36 @@ export default function SettingsPage() {
                   <div className="settings-79-row-desc">{ops.payos?.message || ops.payos?.webhookUrl || '—'}</div>
                 </div>
                 <span className={`status-pill ${pill(Boolean(ops.payos?.configured && ops.payos?.valid !== false))}`}>
-                  {ops.payos?.configured ? (ops.payos.valid === false ? 'Key lỗi' : 'OK') : 'Chưa cấu hình'}
+                  {ops.payos?.configured
+                    ? (ops.payos.valid === false ? t('settings.opsKeyError') : t('settings.opsOk'))
+                    : t('settings.opsNotConfigured')}
                 </span>
               </div>
               <div className="settings-79-row">
                 <div>
-                  <div className="settings-79-row-title">Merchant Gommo</div>
+                  <div className="settings-79-row-title">{t('settings.opsMerchantTitle')}</div>
                   <div className="settings-79-row-desc">
                     Domain {ops.merchant?.domain || '—'}
                     {ops.detail && ops.merchant?.available != null
-                      ? ` · khả dụng ${ops.merchant.available.toLocaleString('vi-VN')} credit`
+                      ? ` · ${t('settings.opsMerchantAvailable', { credits: ops.merchant.available.toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US') })}`
                       : ''}
                     {ops.merchant?.error ? ` · ${ops.merchant.error}` : ''}
                   </div>
                 </div>
                 <span className={`status-pill ${pill(Boolean(ops.merchant?.configured && !ops.merchant?.error))}`}>
-                  {ops.merchant?.configured ? 'OK' : 'Chưa cấu hình'}
+                  {ops.merchant?.configured ? t('settings.opsOk') : t('settings.opsNotConfigured')}
                 </span>
               </div>
               <div className="settings-79-row">
                 <div>
-                  <div className="settings-79-row-title">Telegram bot (site)</div>
+                  <div className="settings-79-row-title">{t('settings.opsTelegramTitle')}</div>
                   <div className="settings-79-row-desc">
-                    Chat admin: {ops.telegram?.notifyChatIdsConfigured ?? 0}
+                    {t('settings.opsTelegramAdmin')}: {ops.telegram?.notifyChatIdsConfigured ?? 0}
                     {ops.telegram?.webhookError ? ` · ${ops.telegram.webhookError}` : ''}
                   </div>
                 </div>
                 <span className={`status-pill ${pill(ops.telegram?.configured)}`}>
-                  {ops.telegram?.configured ? 'Token OK' : 'Chưa cấu hình'}
+                  {ops.telegram?.configured ? 'Token OK' : t('settings.opsNotConfigured')}
                 </span>
               </div>
               {!ops.detail && ops.hint && (
@@ -221,28 +222,32 @@ export default function SettingsPage() {
 
         <section className="panel settings-79-section">
           <h2>
-            ✨ API Key OpenAI
-            <span className="settings-79-tag">Dùng API riêng</span>
+            {t('settings.openaiTitle')}
+            <span className="settings-79-tag">{t('settings.openaiTag')}</span>
           </h2>
           <form onSubmit={saveOpenai} className="settings-79-openai-row">
             <input
               value={openaiKey}
               onChange={(e) => setOpenaiKey(e.target.value)}
-              placeholder="sk-..."
+              placeholder={t('settings.openaiPlaceholder')}
               className="settings-79-openai-input"
             />
-            <button type="submit" className="btn primary sm">Lưu</button>
+            <button type="submit" className="btn primary sm">{t('settings.save')}</button>
           </form>
           <p className="settings-79-openai-foot muted">
-            {openaiSaved ? 'Đã lưu key.' : openaiKey ? 'Key đã cấu hình (ẩn khi reload).' : 'Chưa có key nào được thêm vào hệ thống'}
+            {openaiSaved
+              ? t('settings.openaiSaved')
+              : openaiKey
+                ? t('settings.openaiConfigured')
+                : t('settings.openaiEmpty')}
           </p>
         </section>
 
         <section className="panel settings-79-section">
-          <h2>🎨 Giao diện</h2>
+          <h2>{t('settings.appearanceTitle')}</h2>
           <div className="settings-79-row">
             <div>
-              <div className="settings-79-row-title">Chế độ giao diện</div>
+              <div className="settings-79-row-title">{t('settings.appearanceTitle')}</div>
             </div>
             <div className="settings-79-segment">
               <button
@@ -250,21 +255,21 @@ export default function SettingsPage() {
                 className={theme === 'light' ? 'active' : ''}
                 onClick={() => setThemeMode('light')}
               >
-                Sáng
+                {t('settings.themeLight')}
               </button>
               <button
                 type="button"
                 className={theme === 'dark' ? 'active' : ''}
                 onClick={() => setThemeMode('dark')}
               >
-                Tối
+                {t('settings.themeDark')}
               </button>
             </div>
           </div>
           <div className="settings-79-row">
             <div>
-              <div className="settings-79-row-title">Bố cục</div>
-              <div className="settings-79-row-desc">Thay đổi bố cục hiển thị của trang web.</div>
+              <div className="settings-79-row-title">{t('settings.layoutTitle')}</div>
+              <div className="settings-79-row-desc">{t('settings.layoutDesc')}</div>
             </div>
             <label className="settings-79-toggle">
               <input
@@ -278,18 +283,18 @@ export default function SettingsPage() {
         </section>
 
         <section className="panel settings-79-section">
-          <h2>🔔 Thông báo</h2>
+          <h2>{t('settings.notificationsTitle')}</h2>
           <div className="settings-79-row">
             <div>
-              <div className="settings-79-row-title">Thông báo đẩy</div>
+              <div className="settings-79-row-title">{t('settings.pushTitle')}</div>
               <div className="settings-79-row-desc">
                 {pushStatus === 'granted'
-                  ? 'Đã bật — thiết bị này sẽ nhận thông báo đẩy.'
+                  ? t('settings.pushGranted')
                   : pushStatus === 'denied'
-                    ? 'Bị chặn bởi trình duyệt — bấm nút để xem cách mở lại quyền.'
+                    ? t('settings.pushDenied')
                     : pushStatus === 'unsupported'
-                      ? 'Trình duyệt không hỗ trợ thông báo đẩy.'
-                      : 'Nhận thông báo về các cập nhật, tin nhắn mới và các hoạt động khác.'}
+                      ? t('settings.pushUnsupported')
+                      : t('settings.pushDefault')}
                 {pushError ? (
                   <div style={{ color: 'var(--danger)', marginTop: 6 }}>{pushError}</div>
                 ) : null}
@@ -301,13 +306,13 @@ export default function SettingsPage() {
               onClick={() => void handleEnablePush()}
               disabled={pushBusy || pushStatus === 'unsupported' || pushStatus === 'granted'}
             >
-              {pushBusy ? 'Đang bật…' : pushStatus === 'granted' ? 'Đã bật' : 'Bật thông báo'}
+              {pushBusy ? t('settings.loading') : pushStatus === 'granted' ? t('settings.pushEnabled') : t('settings.pushEnable')}
             </button>
           </div>
           <div className="settings-79-row">
             <div>
-              <div className="settings-79-row-title">Thông báo Email</div>
-              <div className="settings-79-row-desc">Nhận thông báo qua email cá nhân của bạn.</div>
+              <div className="settings-79-row-title">{t('settings.emailTitle')}</div>
+              <div className="settings-79-row-desc">{t('settings.emailDesc')}</div>
             </div>
             <label className="settings-79-toggle">
               <input
@@ -321,22 +326,22 @@ export default function SettingsPage() {
         </section>
 
         <section className="panel settings-79-section">
-          <h2>🛡 Bảo mật</h2>
+          <h2>{t('settings.securityTitle')}</h2>
           <div className="settings-79-row">
             <div>
-              <div className="settings-79-row-title">Phiên hoạt động</div>
-              <div className="settings-79-row-desc">Quản lý các thiết bị đang đăng nhập vào tài khoản.</div>
+              <div className="settings-79-row-title">{t('settings.sessionsTitle')}</div>
+              <div className="settings-79-row-desc">{t('settings.sessionsDesc')}</div>
             </div>
             <button type="button" className="btn ghost sm" onClick={handleLogout}>
-              Đăng xuất hết
+              {t('settings.logout')}
             </button>
           </div>
           <div className="settings-79-row">
             <div>
-              <div className="settings-79-row-title">Đổi mật khẩu</div>
-              <div className="settings-79-row-desc">Thay đổi mật khẩu đăng nhập của bạn.</div>
+              <div className="settings-79-row-title">{t('account.settings.passwordTitle')}</div>
+              <div className="settings-79-row-desc">{t('account.settings.updatePassword')}</div>
             </div>
-            <Link to="/account" className="btn ghost sm">Đổi mật khẩu</Link>
+            <Link to="/account" className="btn ghost sm">{t('account.settings.passwordTitle')}</Link>
           </div>
         </section>
       </div>

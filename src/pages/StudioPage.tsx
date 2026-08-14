@@ -10,7 +10,7 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Check,
   ChevronDown,
@@ -39,7 +39,6 @@ import {
   type GommoModel,
   type JobType,
 } from '../services/api';
-import StudioGallery, { type SessionItem } from '../components/StudioGallery';
 import ComposerHistory from '../components/ComposerHistory';
 import ComposerLibrary from '../components/ComposerLibrary';
 import ComposerLibraryItem from '../components/ComposerLibraryItem';
@@ -47,13 +46,11 @@ import ComposerLibraryPreviewModal, {
   type ComposerPreviewHandlers,
 } from '../components/ComposerLibraryPreviewModal';
 import ComposerSelectCircle from '../components/ComposerSelectCircle';
-import UrlField from '../components/UrlField';
 import {
   defaultSelectionsForType,
   historyPromptFromSelections,
   jobTypeToHistoryType,
   REUSABLE_JOB_TYPES,
-  STUDIO_JOB_TYPES,
 } from '../constants/studioTypes';
 import {
   getCreditsAi,
@@ -66,18 +63,20 @@ import { consumeChatStudioPrompt } from '../services/chatPageData';
 
 import {
   addLocalJob,
-  listLocalJobs,
   updateLocalJob,
-  type LocalJob,
 } from '../services/jobHistoryStore';
 import {
   analyzeModel,
   buildJobPayload,
+  filterModelsForJobType,
+  getCachedModels,
+  isMusicModel,
   mergeSelectionsForSchema,
   modelSlug,
   normalizeComponentSelections,
   parseModelsList,
   pickAllowedOption,
+  setCachedModels,
   type JobSelections,
   type ModelOption,
   type ModelSchema,
@@ -133,6 +132,11 @@ import type { TranslateFn } from '../i18n/LanguageProvider';
 import ComposerMediaSlot from '../components/ComposerMediaSlot';
 import ComposerMediaPickButton from '../components/ComposerMediaPickButton';
 import ComposerUploadOverlay from '../components/ComposerUploadOverlay';
+import ComposerImageOnboarding from '../components/composer/ComposerImageOnboarding';
+import ComposerVideoOnboarding from '../components/composer/ComposerVideoOnboarding';
+import ComposerMusicOnboarding from '../components/composer/ComposerMusicOnboarding';
+import ComposerSideSettingsSkeleton from '../components/composer/ComposerSideSettingsSkeleton';
+import { studioTypeFromPath } from '../lib/studioRoutes';
 import MusicTrackList, { type MusicTrackItem } from '../components/MusicTrackList';
 import { mediaKindFromUrl, validateMediaUrl } from '../services/mediaUrlValidation';
 import {
@@ -354,11 +358,13 @@ function modelOnSale(m: GommoModel): boolean {
   return false;
 }
 
-const RECENT_MODELS_KEY = 'studio:recent-models';
+function recentModelsKey(type: JobType): string {
+  return `studio:recent-models:${type}`;
+}
 
-function loadRecentModelSlugs(): string[] {
+function loadRecentModelSlugs(type: JobType): string[] {
   try {
-    const raw = localStorage.getItem(RECENT_MODELS_KEY);
+    const raw = localStorage.getItem(recentModelsKey(type));
     const arr = raw ? (JSON.parse(raw) as unknown) : [];
     return Array.isArray(arr) ? arr.filter((s): s is string => typeof s === 'string') : [];
   } catch {
@@ -366,11 +372,11 @@ function loadRecentModelSlugs(): string[] {
   }
 }
 
-function pushRecentModelSlug(slug: string): void {
+function pushRecentModelSlug(slug: string, type: JobType): void {
   if (!slug) return;
   try {
-    const list = [slug, ...loadRecentModelSlugs().filter((s) => s !== slug)].slice(0, 6);
-    localStorage.setItem(RECENT_MODELS_KEY, JSON.stringify(list));
+    const list = [slug, ...loadRecentModelSlugs(type).filter((s) => s !== slug)].slice(0, 6);
+    localStorage.setItem(recentModelsKey(type), JSON.stringify(list));
   } catch {
     /* ignore */
   }
@@ -460,6 +466,7 @@ function ModelPicker({
   value,
   onChange,
   loading,
+  jobType,
   multi = false,
   multiValues = [],
   onMultiChange,
@@ -471,6 +478,7 @@ function ModelPicker({
   value: string;
   onChange: (slug: string) => void;
   loading: boolean;
+  jobType: JobType;
   multi?: boolean;
   multiValues?: string[];
   onMultiChange?: (slugs: string[]) => void;
@@ -487,14 +495,14 @@ function ModelPicker({
   const current = models.find((m) => modelSlug(m) === value) ?? null;
 
   useEffect(() => {
-    if (open) setRecent(loadRecentModelSlugs());
-  }, [open]);
+    if (open) setRecent(loadRecentModelSlugs(jobType));
+  }, [open, jobType]);
 
   const isNew = useMemo(() => buildNewModelChecker(models), [models]);
   const hasSale = useMemo(() => models.some(modelOnSale), [models]);
 
   const select = (slug: string) => {
-    pushRecentModelSlug(slug);
+    pushRecentModelSlug(slug, jobType);
     if (multi && onMultiChange) {
       const has = multiValues.includes(slug);
       onMultiChange(has ? multiValues.filter((s) => s !== slug) : [...multiValues, slug]);
@@ -758,11 +766,9 @@ function OptionDropdown({
 export default function StudioPage({
   initialType = 'image',
   lockType = false,
-  layout = 'classic',
 }: {
   initialType?: JobType;
   lockType?: boolean;
-  layout?: 'classic' | 'composer';
 }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -778,8 +784,6 @@ export default function StudioPage({
   const [error, setError] = useState('');
   const [progress, setProgress] = useState('');
   const [resultUrl, setResultUrl] = useState<string | null>(null);
-  const [recentJobs, setRecentJobs] = useState<LocalJob[]>([]);
-  const [sessionItems, setSessionItems] = useState<SessionItem[]>([]);
   const [credits, setCredits] = useState(getCreditsAi());
   const [qty, setQty] = useState(1);
   const [composerMode, setComposerMode] = useState<ComposerMode>(() => {
@@ -834,6 +838,8 @@ export default function StudioPage({
   useHistoryUpdated(() => setHistoryTick((n) => n + 1));
 
   const abortRef = useRef<AbortController | null>(null);
+  const modelsLoadGenRef = useRef(0);
+  const jobTypeRef = useRef(jobType);
   const sessionStartRef = useRef(Date.now());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [currentPreviewIndex, setCurrentPreviewIndex] = useState<number | null>(null);
@@ -849,6 +855,11 @@ export default function StudioPage({
 
   const client = useMemo(() => (loadAuth() ? getGommoClient() : null), []);
   const auth = loadAuth();
+
+  useEffect(() => {
+    jobTypeRef.current = jobType;
+  }, [jobType]);
+
   // Chỉ /video mới có chế độ Motion; tab chỉ hiện khi list có ít nhất 1 model motion.
   const hasMotionModels = useMemo(
     () => jobType === 'video' && models.some(isMotionModel),
@@ -873,18 +884,27 @@ export default function StudioPage({
     videoMode === 'create' &&
     !isMotionView &&
     !isEditView;
-  // Lọc model cho picker theo chế độ video đang chọn.
+  const isVideoCreateComposer =
+    jobType === 'video' &&
+    videoMode === 'create' &&
+    !isMotionView &&
+    !isEditView &&
+    !isVideoAgentView;
+  const isStudioPinnedSide = isImageComposer || isVideoCreateComposer || isMusicComposer;
+  // Lọc model cho picker theo chế độ video / loại job đang chọn.
   const pickerModels = useMemo(() => {
-    if (jobType !== 'video') return models;
-    if (videoMode === 'motion' && hasMotionModels) return models.filter(isMotionModel);
-    if (videoMode === 'edit' && hasEditModels) return models.filter(isEditModel);
+    let list =
+      jobType === 'music' ? models.filter(isMusicModel) : models;
+    if (jobType !== 'video') return list;
+    if (videoMode === 'motion' && hasMotionModels) return list.filter(isMotionModel);
+    if (videoMode === 'edit' && hasEditModels) return list.filter(isEditModel);
     if (hasMotionModels || hasEditModels) {
-      return models.filter((m) => !isMotionModel(m) && !isEditModel(m));
+      return list.filter((m) => !isMotionModel(m) && !isEditModel(m));
     }
-    return models;
+    return list;
   }, [models, jobType, videoMode, hasMotionModels, hasEditModels]);
 
-  const currentModel = models.find((m) => modelSlug(m) === selectedSlug) ?? null;
+  const currentModel = pickerModels.find((m) => modelSlug(m) === selectedSlug) ?? null;
   const multiShotConfig = useMemo(() => getMultiShotConfig(currentModel), [currentModel]);
   const activeShots = useMemo(
     () => (selections.shots || []).filter((s) => s.prompt?.trim()),
@@ -1051,44 +1071,69 @@ export default function StudioPage({
   }, [schema?.fields.multiShots, selectedSlug]);
 
   const loadModelsList = useCallback(
-    async (type: JobType) => {
-      if (!client) return;
+    async (type: JobType, { force = false }: { force?: boolean } = {}) => {
+      if (!client) {
+        setModels([]);
+        setError('');
+        return;
+      }
+
+      const gen = ++modelsLoadGenRef.current;
+
+      const applyList = (raw: GommoModel[]) => {
+        if (gen !== modelsLoadGenRef.current || type !== jobTypeRef.current) return;
+        const list = filterModelsForJobType(raw, type);
+        setCachedModels(type, raw);
+        setModels(list);
+        if (!list.length) setError(t('composer.modelsEmpty', { type }));
+        else setError('');
+      };
+
+      const cached = !force ? getCachedModels(type) : null;
+      if (cached?.length) {
+        applyList(cached);
+        setLoadingModels(false);
+        void (async () => {
+          try {
+            const raw = parseModelsList(await client.fetchModels(type));
+            setCachedModels(type, raw);
+            applyList(raw);
+          } catch {
+            /* keep stale cache on background refresh failure */
+          }
+        })();
+        return;
+      }
+
       setLoadingModels(true);
       setError('');
       try {
-        const list = parseModelsList(await client.fetchModels(type));
-        setModels(list);
-        if (!list.length) setError(`Không có model ${type}.`);
+        applyList(parseModelsList(await client.fetchModels(type)));
       } catch (err) {
+        if (gen !== modelsLoadGenRef.current || type !== jobTypeRef.current) return;
         setError(err instanceof GommoApiError ? err.message : String(err));
         setModels([]);
       } finally {
-        setLoadingModels(false);
+        if (gen === modelsLoadGenRef.current && type === jobTypeRef.current) {
+          setLoadingModels(false);
+        }
       }
     },
-    [client],
+    [client, t],
   );
 
-  const loadRecentJobs = useCallback(() => {
-    setRecentJobs(listLocalJobs());
-  }, []);
-
-  useEffect(() => {
-    loadRecentJobs();
-  }, [loadRecentJobs]);
-
   const applyReuse = useCallback((entry: HistoryEntry & { references?: string[] }) => {
-    const t = entry.type as JobType;
-    if (!REUSABLE_JOB_TYPES.includes(t)) return;
-    setJobType(t);
+    const reuseType = entry.type as JobType;
+    if (!REUSABLE_JOB_TYPES.includes(reuseType)) return;
+    setJobType(reuseType);
     setSelectedSlug(entry.modelSlug || '');
-    const base = defaultSelectionsForType(t);
+    const base = defaultSelectionsForType(reuseType);
     const refs = entry.references?.filter(Boolean) ?? [];
     setSelections({
       ...base,
-      prompt: t === 'tts' || t === 'music' ? base.prompt : entry.prompt || base.prompt,
-      text: t === 'tts' ? entry.prompt || base.text : base.text,
-      name: t === 'music' ? entry.prompt || base.name : base.name,
+      prompt: reuseType === 'tts' || reuseType === 'music' ? base.prompt : entry.prompt || base.prompt,
+      text: reuseType === 'tts' ? entry.prompt || base.text : base.text,
+      name: reuseType === 'music' ? entry.prompt || base.name : base.name,
       mode: entry.meta?.mode || '',
       resolution: entry.meta?.resolution || '',
       ratio: entry.meta?.ratio || '',
@@ -1096,7 +1141,7 @@ export default function StudioPage({
       ...(refs.length
         ? {
             references: refs,
-            images: t === 'video' || t === 'image' ? refs : base.images,
+            images: reuseType === 'video' || reuseType === 'image' ? refs : base.images,
           }
         : {}),
     });
@@ -1185,6 +1230,15 @@ export default function StudioPage({
   }, [jobType, loadModelsList]);
 
   useEffect(() => {
+    if (!lockType) return;
+    const routeType = studioTypeFromPath(location.pathname);
+    if (routeType && routeType !== jobType) {
+      switchJobType(routeType);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, lockType]);
+
+  useEffect(() => {
     const reuse = (location.state as { reuseHistory?: {
       type: JobType;
       modelSlug?: string;
@@ -1209,13 +1263,13 @@ export default function StudioPage({
     if (!pickerModels.length) return;
     if (selectedSlug && pickerModels.some((m) => modelSlug(m) === selectedSlug)) return;
     const bySlug = new Map(pickerModels.map((m) => [modelSlug(m), m] as const));
-    const recent = loadRecentModelSlugs()
+    const recent = loadRecentModelSlugs(jobType)
       .map((s) => bySlug.get(s))
       .find((m) => m && !isModelMaintenance(m));
     const fallback = pickerModels.find((m) => !isModelMaintenance(m)) ?? pickerModels[0];
     const pick = recent ?? fallback;
     if (pick) setSelectedSlug(modelSlug(pick));
-  }, [pickerModels, selectedSlug]);
+  }, [pickerModels, selectedSlug, jobType]);
 
   useEffect(() => {
     if (!currentModel) {
@@ -1298,7 +1352,6 @@ export default function StudioPage({
       duration: selections.duration || '',
     };
     if (coverUrl?.trim()) meta.coverUrl = coverUrl.trim();
-    const createdAt = new Date().toISOString();
 
     addHistoryEntry({
       type: jobTypeToHistoryType(jobType),
@@ -1308,19 +1361,6 @@ export default function StudioPage({
       modelSlug: slug,
       meta,
     });
-
-    setSessionItems((prev) => [
-      {
-        id: crypto.randomUUID(),
-        type: jobType,
-        resultUrl: url,
-        prompt,
-        modelName: model?.name || slug,
-        modelSlug: slug,
-        createdAt,
-      },
-      ...prev,
-    ]);
   }
 
   // Chạy 1 job với prompt riêng (dùng cho cả tạo đơn và batch multi-prompt).
@@ -1358,8 +1398,6 @@ export default function StudioPage({
       status: 'processing',
       created_at: new Date().toISOString(),
     });
-    loadRecentJobs();
-
     try {
       const { resultUrl: finalUrl, coverUrl, acceptedPending, providerJobId } =
         await generateViaGommo(slug, payload, pendingId);
@@ -1369,7 +1407,6 @@ export default function StudioPage({
         updateLocalJob(localId, { status: 'success', result_url: finalUrl });
         recordSuccess(finalUrl, slug, prompt, model, coverUrl);
         setPendingJobs((prev) => prev.filter((p) => p.id !== pendingId));
-        loadRecentJobs();
         return true;
       }
 
@@ -1383,7 +1420,6 @@ export default function StudioPage({
             p.id === pendingId ? { ...p, status: 'processing', progress: 40 } : p,
           ),
         );
-        loadRecentJobs();
         window.setTimeout(() => {
           setPendingJobs((prev) => prev.filter((p) => p.id !== pendingId));
           setProgress((cur) =>
@@ -1399,7 +1435,6 @@ export default function StudioPage({
       setPendingJobs((prev) =>
         prev.map((p) => (p.id === pendingId ? { ...p, status: 'failed' } : p)),
       );
-      loadRecentJobs();
       return false;
     } catch (err) {
       if (isJobAcceptedPendingError(err)) {
@@ -1412,7 +1447,6 @@ export default function StudioPage({
             p.id === pendingId ? { ...p, status: 'processing', progress: 40 } : p,
           ),
         );
-        loadRecentJobs();
         window.setTimeout(() => {
           setPendingJobs((prev) => prev.filter((p) => p.id !== pendingId));
         }, 45_000);
@@ -1424,7 +1458,6 @@ export default function StudioPage({
       setPendingJobs((prev) =>
         prev.map((p) => (p.id === pendingId ? { ...p, status: 'failed' } : p)),
       );
-      loadRecentJobs();
       return false;
     }
   }
@@ -1813,8 +1846,6 @@ export default function StudioPage({
     throw new Error(pollResult?.error || 'Job thất bại');
   }
 
-  const processingJobs = recentJobs.filter((j) => j.type === jobType && j.status === 'processing');
-
   function switchJobType(type: JobType) {
     setJobType(type);
     setSelectedSlug('');
@@ -1866,6 +1897,38 @@ export default function StudioPage({
   }, [displayedResults, t]);
 
   const visibleIds = useMemo(() => displayedResults.map((e) => e.id), [displayedResults]);
+
+  const showImageOnboarding =
+    isImageComposer &&
+    mainTab === 'current' &&
+    displayedResults.length === 0 &&
+    pendingJobs.length === 0;
+  const showVideoOnboarding =
+    isVideoCreateComposer &&
+    mainTab === 'current' &&
+    displayedResults.length === 0 &&
+    pendingJobs.length === 0;
+  const showMusicOnboarding =
+    isMusicComposer &&
+    mainTab === 'current' &&
+    displayedResults.length === 0 &&
+    pendingJobs.length === 0;
+  const showStudioOnboarding =
+    showImageOnboarding || showVideoOnboarding || showMusicOnboarding;
+
+  const showModelsSkeleton =
+    !isVideoAgentView &&
+    loadingModels &&
+    (jobType === 'image' || jobType === 'video' || jobType === 'music');
+  const modelsLoadFailed = !loadingModels && !isVideoAgentView && Boolean(client) && models.length === 0;
+  const showEarlyPrompt =
+    !isVideoAgentView &&
+    !isMotionView &&
+    !isEditView &&
+    !isMusicComposer &&
+    (jobType === 'image' || jobType === 'video') &&
+    composerMode !== 'ai' &&
+    !schema?.fields.prompt;
 
   const currentPreviewItems = useMemo(
     () => historyEntriesToFeedItems(displayedResults, jobType),
@@ -2002,7 +2065,7 @@ export default function StudioPage({
     const onMove = (ev: PointerEvent) => {
       if (!resizingRef.current || !composerRef.current) return;
       const rect = composerRef.current.getBoundingClientRect();
-      const w = Math.max(320, Math.min(640, ev.clientX - rect.left - 16));
+      const w = Math.max(320, Math.min(640, ev.clientX - rect.left - 14));
       sideWidthRef.current = w;
       setSideWidth(w);
     };
@@ -2019,9 +2082,13 @@ export default function StudioPage({
   }
 
   // Khối nhập media: model có thể hỗ trợ Ảnh Frame (start/end) và/hoặc Thành phần (tham chiếu).
-  const hasFrame = !isMotionView && !isEditView && Boolean(schema?.fields.startFrame);
+  const hasFrame =
+    !isMusicComposer && !isMotionView && !isEditView && Boolean(schema?.fields.startFrame);
   const hasComponent =
-    !isMotionView && !isEditView && Boolean(schema?.fields.references || schema?.fields.subjects);
+    !isMusicComposer &&
+    !isMotionView &&
+    !isEditView &&
+    Boolean(schema?.fields.references || schema?.fields.subjects);
   const showInputTabs = hasFrame && hasComponent;
   const inputView: 'frame' | 'component' = showInputTabs
     ? inputMode
@@ -2299,15 +2366,17 @@ export default function StudioPage({
     );
   }
 
-  if (layout === 'composer') {
-    return (
-      <div
-        className="studio-composer"
+  return (
+    <div
+      className="studio-composer"
         ref={composerRef}
-        style={{ gridTemplateColumns: `${sideWidth}px 6px 1fr` }}
+        style={{
+          gridTemplateColumns: `${sideWidth}px 1fr`,
+          ['--composer-side-width' as string]: `${sideWidth}px`,
+        }}
       >
         <aside
-          className={`composer-side${isVideoAgentView ? ' composer-side-agent' : ''}`}
+          className={`composer-side${isVideoAgentView ? ' composer-side-agent' : ''}${isStudioPinnedSide ? ' composer-side--studio' : ''}`}
           onPaste={(e) => {
             if (mediaUploading) return;
             const file = [...(e.clipboardData?.files ?? [])][0];
@@ -2443,6 +2512,8 @@ export default function StudioPage({
             </div>
           )}
 
+          <div className="composer-side-scroll">
+
           {isVideoAgentView ? (
             <>
               <div className="composer-field composer-agent-model">
@@ -2452,6 +2523,7 @@ export default function StudioPage({
                 <ModelPicker
                   models={pickerModels}
                   value={selectedSlug}
+                  jobType={jobType}
                   onChange={setSelectedSlug}
                   loading={loadingModels}
                   motionPricing={isMotionView}
@@ -2479,6 +2551,7 @@ export default function StudioPage({
             <ModelPicker
               models={pickerModels}
               value={selectedSlug}
+              jobType={jobType}
               onChange={(slug) => {
                 setSelectedSlug(slug);
                 if (composerMode === 'multi') {
@@ -2497,7 +2570,54 @@ export default function StudioPage({
             />
           </div>
 
+          {!isVideoAgentView && !client && (
+            <div className="composer-models-status composer-models-status--warn">
+              <p>{t('composer.modelsNeedAuth')}</p>
+              <Link to="/settings/tokens" className="composer-models-retry">
+                {t('composer.modelsOpenTokens')}
+              </Link>
+            </div>
+          )}
+
+          {modelsLoadFailed && (
+            <div className="composer-models-status composer-models-status--error">
+              <p>{error || t('composer.modelsLoadFailed')}</p>
+              <button
+                type="button"
+                className="composer-models-retry"
+                onClick={() => void loadModelsList(jobType, { force: true })}
+              >
+                {t('composer.modelsRetry')}
+              </button>
+            </div>
+          )}
+
+          {showEarlyPrompt && (
+            <div className="composer-field">
+              <div className="composer-label-row">
+                <span className="composer-label">{t('composer.prompt')}</span>
+              </div>
+              <textarea
+                className="composer-textarea"
+                rows={4}
+                placeholder={
+                  loadingModels
+                    ? t('composer.promptWaitingModel')
+                    : 'Mô tả nội dung của bạn…'
+                }
+                value={selections.prompt || ''}
+                onChange={(e) => updateSelection('prompt', e.target.value)}
+              />
+              {loadingModels && (
+                <p className="composer-models-hint">{t('composer.modelsLoadingHint')}</p>
+              )}
+            </div>
+          )}
+
+          {showModelsSkeleton && <ComposerSideSettingsSkeleton withSelectors />}
+
           {schema &&
+            !isMusicComposer &&
             (schema.fields.ratio ||
               schema.fields.mode ||
               schema.fields.resolution ||
@@ -3276,6 +3396,9 @@ export default function StudioPage({
             </div>
           )}
 
+          </div>
+
+          <div className="composer-side-foot">
           <div className="composer-cost">
             <span className="composer-coin">
               <Sparkles size={13} />
@@ -3321,17 +3444,11 @@ export default function StudioPage({
                 : Number(submitTotalCost).toLocaleString('vi-VN')}
             </span>
           </div>
+          </div>
         </aside>
 
-        <div
-          className="composer-resizer"
-          onPointerDown={startResize}
-          role="separator"
-          aria-orientation="vertical"
-          aria-label={t('composer.resizer')}
-        />
-
-        <section className="composer-main">
+        <section className={`composer-main${showStudioOnboarding ? ' composer-main--onboarding' : ''}`}>
+          {!showStudioOnboarding && (
           <div className="composer-toolbar">
             <div className="composer-toolbar-tabs">
               {([
@@ -3418,8 +3535,17 @@ export default function StudioPage({
               )}
             </div>
           </div>
+          )}
 
           {isMusicComposer ? (
+            showMusicOnboarding ? (
+              <ComposerMusicOnboarding
+                onApplyStyle={(style) => {
+                  updateSelection('style', style);
+                  if (!selections.name) updateSelection('name', style.slice(0, 48));
+                }}
+              />
+            ) : (
             (() => {
               const pendingItems: MusicTrackItem[] =
                 mainTab === 'current'
@@ -3467,6 +3593,7 @@ export default function StudioPage({
                 </>
               );
             })()
+            )
           ) : mainTab === 'history' ? (
             <ComposerHistory
               jobType={jobType}
@@ -3495,6 +3622,10 @@ export default function StudioPage({
               onItemDeleted={handleFeedItemDeleted}
               buildPreviewHandlers={buildPreviewHandlers}
             />
+          ) : showImageOnboarding ? (
+            <ComposerImageOnboarding onApplyPrompt={(prompt) => updateSelection('prompt', prompt)} />
+          ) : showVideoOnboarding ? (
+            <ComposerVideoOnboarding onApplyPrompt={(prompt) => updateSelection('prompt', prompt)} />
           ) : displayedResults.length === 0 && !(mainTab === 'current' && pendingJobs.length > 0) ? (
             <p className="muted composer-empty">
               {t('composer.gallery.empty', { type: typeLabel() })}
@@ -3701,6 +3832,14 @@ export default function StudioPage({
           )}
         </section>
 
+        <div
+          className="composer-resizer"
+          onPointerDown={startResize}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={t('composer.resizer')}
+        />
+
         {promptModalOpen &&
           createPortal(
             <div className="composer-prompt-modal" role="dialog" aria-modal="true">
@@ -3725,270 +3864,8 @@ export default function StudioPage({
                 />
               </div>
             </div>,
-            document.body,
-          )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="page">
-      <div className="page-head">
-        <p className="kicker">AI Studio</p>
-        <h1>{t('composer.create', { type: typeLabel() })}</h1>
-        <p className="lead">
-          Gọi thẳng <strong>v2.api.gommo.net</strong> — credit upstream:{' '}
-          <strong>{credits.toLocaleString('vi-VN')}</strong>
-          {unitCost > 0 && <> · Chi phí ~{unitCost} credit</>}
-        </p>
-      </div>
-
-      {!lockType && (
-        <div className="type-tabs studio-type-tabs">
-          {STUDIO_JOB_TYPES.map((t) => (
-            <button
-              key={t.value}
-              type="button"
-              className={`tab ${jobType === t.value ? 'active' : ''}`}
-              onClick={() => switchJobType(t.value)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className="pg-grid studio-grid">
-        <section className="panel">
-          <div className="panel-head">
-            <h2>Models</h2>
-            <button
-              type="button"
-              className="btn ghost sm"
-              onClick={() => loadModelsList(jobType)}
-              disabled={loadingModels}
-            >
-              Refresh
-            </button>
-          </div>
-          {loadingModels && <p className="muted">Đang tải…</p>}
-          <ul className="model-list">
-            {models.map((m) => {
-              const slug = modelSlug(m);
-              return (
-                <li key={slug}>
-                  <button
-                    type="button"
-                    className={`model-item ${selectedSlug === slug ? 'selected' : ''}`}
-                    onClick={() => setSelectedSlug(slug)}
-                  >
-                    <span className="model-name">{m.name || slug}</span>
-                    <span className="model-slug">{slug}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-
-        <section className="panel">
-          <h2>Tạo job</h2>
-          {!schema ? (
-            <p className="muted">Chọn model.</p>
-          ) : (
-            <form onSubmit={handleSubmit} className="form">
-              {schema.fields.prompt && !(schema.fields.musicName && selections.instrumental) && (
-                <label className="field">
-                  <span className="label">{schema.fields.musicName ? 'Lời bài hát' : 'Prompt'}</span>
-                  <textarea
-                    rows={3}
-                    value={selections.prompt || ''}
-                    onChange={(e) => updateSelection('prompt', e.target.value)}
-                  />
-                </label>
-              )}
-              {schema.fields.text && (
-                <label className="field">
-                  <span className="label">Text (TTS)</span>
-                  <textarea
-                    rows={3}
-                    value={selections.text || ''}
-                    onChange={(e) => updateSelection('text', e.target.value)}
-                  />
-                </label>
-              )}
-              {schema.fields.musicName && (
-                <label className="field">
-                  <span className="label">Tên bài (music)</span>
-                  <input
-                    value={selections.name || ''}
-                    onChange={(e) => updateSelection('name', e.target.value)}
-                  />
-                </label>
-              )}
-              {schema.fields.musicStyle && (
-                <label className="field">
-                  <span className="label">Phong cách (styles)</span>
-                  <textarea
-                    rows={2}
-                    value={selections.style || ''}
-                    onChange={(e) => updateSelection('style', e.target.value)}
-                  />
-                </label>
-              )}
-              {schema.fields.musicName && (
-                <label className="field composer-switch-row">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(selections.instrumental)}
-                    onChange={(e) => updateSelection('instrumental', e.target.checked)}
-                  />
-                  <span className="label" style={{ margin: 0 }}>Không lời (instrumental)</span>
-                </label>
-              )}
-              {schema.fields.ratio && (
-                <label className="field">
-                  <span className="label">Ratio</span>
-                  <select
-                    value={selections.ratio || ''}
-                    onChange={(e) => updateSelection('ratio', e.target.value)}
-                  >
-                    {schema.options.ratios.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              {schema.fields.mode && (
-                <label className="field">
-                  <span className="label">Mode</span>
-                  <select
-                    value={selections.mode || ''}
-                    onChange={(e) => updateSelection('mode', e.target.value)}
-                  >
-                    {schema.options.modes.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              {schema.fields.resolution && (
-                <label className="field">
-                  <span className="label">Resolution</span>
-                  <select
-                    value={selections.resolution || ''}
-                    onChange={(e) => updateSelection('resolution', e.target.value)}
-                  >
-                    {schema.options.resolutions.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              {schema.fields.duration && (
-                <label className="field">
-                  <span className="label">Duration</span>
-                  <select
-                    value={selections.duration || ''}
-                    onChange={(e) => updateSelection('duration', e.target.value)}
-                  >
-                    {schema.options.durations.map((o) => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              {schema.fields.startFrame && (
-                <UrlField
-                  label={schema.fields.endFrame ? 'Start frame URL' : 'First frame URL'}
-                  value={selections.images?.[0] || ''}
-                  onChange={(v) => updateUrlList('images', 0, v)}
-                  onUpload={async (f) => {
-                    const uploaded = await handleUpload(f, 'image');
-                    if (uploaded) updateUrlList('images', 0, uploaded);
-                  }}
-                />
-              )}
-              {schema.fields.endFrame && (
-                <UrlField
-                  label="End frame URL"
-                  value={selections.images?.[1] || ''}
-                  onChange={(v) => updateUrlList('images', 1, v)}
-                  onUpload={async (f) => {
-                    const uploaded = await handleUpload(f, 'image');
-                    if (uploaded) updateUrlList('images', 1, uploaded);
-                  }}
-                />
-              )}
-              {schema.fields.references && (
-                <UrlField
-                  label={`Reference URL (max ${schema.limits.maxReference})`}
-                  value={selections.references?.[0] || ''}
-                  onChange={(v) => updateUrlList('references', 0, v)}
-                  onUpload={async (f) => {
-                    const uploaded = await handleUpload(f, 'image');
-                    if (uploaded) updateUrlList('references', 0, uploaded);
-                  }}
-                />
-              )}
-              {schema.fields.subjects && (
-                <UrlField
-                  label={`Subject URL (max ${schema.limits.maxSubject})`}
-                  value={selections.subjects?.[0] || ''}
-                  onChange={(v) => updateUrlList('subjects', 0, v)}
-                  onUpload={async (f) => {
-                    const uploaded = await handleUpload(f, 'image');
-                    if (uploaded) updateUrlList('subjects', 0, uploaded);
-                  }}
-                />
-              )}
-              <div className="actions">
-                <button type="submit" className="btn primary btn-job" disabled={submitting}>
-                  {submitting
-                    ? t('composer.submitting')
-                    : t('composer.submit', { type: typeLabel() })}
-                </button>
-                {submitting && (
-                  <button type="button" className="btn secondary" onClick={() => abortRef.current?.abort()}>
-                    Hủy poll
-                  </button>
-                )}
-              </div>
-            </form>
-          )}
-
-          {processingJobs.length > 0 && (
-            <p className="progress muted" style={{ marginTop: '0.75rem' }}>
-              Đang xử lý: {processingJobs.map((j) => j.model_id).join(', ')}
-            </p>
-          )}
-
-          {error && <p className="error">{error}</p>}
-          {progress && <p className="progress">{progress}</p>}
-
-          {resultUrl && (
-            <div className="result-preview">
-              <h3>Kết quả</h3>
-              <a href={resultUrl} target="_blank" rel="noreferrer">{resultUrl}</a>
-              {/\.(png|jpe?g|webp|gif)/i.test(resultUrl) && (
-                <img src={resultUrl} alt="result" />
-              )}
-              {/\.(mp4|webm|mov)/i.test(resultUrl) && (
-                <video src={resultUrl} controls />
-              )}
-              {/\.(mp3|wav|ogg|m4a)/i.test(resultUrl) && (
-                <audio src={resultUrl} controls />
-              )}
-            </div>
-          )}
-        </section>
-
-        <StudioGallery
-          jobType={jobType}
-          sessionItems={sessionItems}
-          onReuse={applyReuse}
-        />
-      </div>
+          document.body,
+        )}
     </div>
   );
 }

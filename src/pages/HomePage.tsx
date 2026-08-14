@@ -1,65 +1,116 @@
 import { useState } from 'react';
+import { Heart, LayoutGrid, Sparkles, User } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import HomeFeed from '../components/HomeFeed';
 import HomeFavoritesFeed from '../components/HomeFavoritesFeed';
 import HomeMyContent, { type MineFilter } from '../components/HomeMyContent';
 import HomePublicFeed from '../components/HomePublicFeed';
-import HomeQuickCreateBar from '../components/HomeQuickCreateBar';
+import HomeHero from '../components/home/HomeHero';
+import HomeProjectsPanel from '../components/home/HomeProjectsPanel';
+import HomeWhatsNewStrip from '../components/home/HomeWhatsNewStrip';
+import HomeCategoryIcon from '../components/home/HomeCategoryIcon';
+import { HOME_QUICK_MENU } from '../lib/homeQuickMenu';
+import { useLocale } from '../i18n';
+import type { TranslationKey } from '../i18n';
 
-const HOME_TABS = [
-  'Bảng tin',
-  'Của tôi',
-  'Hướng cho bạn',
-  'Videos',
-  'Hình ảnh',
-  'Nhạc',
-  'Âm thanh',
-  'Yêu thích',
-] as const;
+type ExploreFilter =
+  | 'feed'
+  | 'mine'
+  | 'foryou'
+  | 'videos'
+  | 'images'
+  | 'music'
+  | 'audio'
+  | 'favorites';
 
-type HomeTab = (typeof HOME_TABS)[number];
+interface ExploreFilterDef {
+  id: ExploreFilter;
+  labelKey: TranslationKey;
+  mine?: MineFilter;
+  icon: LucideIcon;
+  tint: string;
+}
 
-const MINE_TABS: Partial<Record<HomeTab, MineFilter>> = {
-  'Của tôi': 'all',
-  Videos: 'video',
-  'Hình ảnh': 'image',
-  Nhạc: 'music',
-  'Âm thanh': 'tts',
-};
+const menuById = Object.fromEntries(HOME_QUICK_MENU.map((item) => [item.id, item]));
+
+const EXPLORE_FILTERS: ExploreFilterDef[] = [
+  { id: 'feed', labelKey: 'home.filter.feed', icon: LayoutGrid, tint: 'rgba(255, 255, 255, 0.08)' },
+  { id: 'mine', labelKey: 'home.filter.mine', mine: 'all', icon: User, tint: 'rgba(255, 255, 255, 0.08)' },
+  { id: 'foryou', labelKey: 'home.filter.foryou', icon: Sparkles, tint: 'rgba(234, 179, 8, 0.12)' },
+  {
+    id: 'videos',
+    labelKey: 'home.filter.videos',
+    mine: 'video',
+    icon: menuById.video!.icon,
+    tint: menuById.video!.tint,
+  },
+  {
+    id: 'images',
+    labelKey: 'home.filter.images',
+    mine: 'image',
+    icon: menuById.image!.icon,
+    tint: menuById.image!.tint,
+  },
+  {
+    id: 'music',
+    labelKey: 'home.filter.music',
+    mine: 'music',
+    icon: menuById.music!.icon,
+    tint: menuById.music!.tint,
+  },
+  {
+    id: 'audio',
+    labelKey: 'home.filter.audio',
+    mine: 'tts',
+    icon: menuById.audio!.icon,
+    tint: menuById.audio!.tint,
+  },
+  { id: 'favorites', labelKey: 'home.filter.favorites', icon: Heart, tint: 'rgba(239, 68, 68, 0.12)' },
+];
 
 export default function HomePage() {
-  const [tab, setTab] = useState<HomeTab>('Bảng tin');
-  const mineFilter = MINE_TABS[tab];
+  const { t } = useLocale();
+  const [filter, setFilter] = useState<ExploreFilter>('feed');
+  const active = EXPLORE_FILTERS.find((f) => f.id === filter)!;
 
   return (
-    <div className="home-explore home-explore--has-qc">
-      <div className="home-tabs" role="tablist" aria-label="Home">
-        {HOME_TABS.map((t) => (
-          <button
-            key={t}
-            type="button"
-            role="tab"
-            aria-selected={tab === t}
-            className={`home-tab ${tab === t ? 'active' : ''}`}
-            onClick={() => setTab(t)}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
+    <div className="home-dashboard">
+      <HomeHero />
 
-      {tab === 'Yêu thích' ? (
-        <HomeFavoritesFeed />
-      ) : mineFilter ? (
-        <HomeMyContent key={mineFilter} filter={mineFilter} />
-      ) : tab === 'Hướng cho bạn' ? (
-        <HomePublicFeed />
-      ) : (
-        <HomeFeed />
-      )}
+      <HomeProjectsPanel />
 
-      <div className="home-quick-create-dock">
-        <HomeQuickCreateBar />
-      </div>
+      <HomeWhatsNewStrip />
+
+      <section className="home-explore-section" id="home-explore">
+        <div className="home-explore-head">
+          <h2 className="home-section-title">{t('home.section.explore')}</h2>
+          <div className="home-explore-filters" role="tablist" aria-label={t('home.section.explore')}>
+            {EXPLORE_FILTERS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                role="tab"
+                aria-selected={filter === f.id}
+                className={`home-explore-filter${filter === f.id ? ' active' : ''}`}
+                onClick={() => setFilter(f.id)}
+              >
+                <HomeCategoryIcon icon={f.icon} tint={f.tint} size="sm" />
+                <span>{t(f.labelKey)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {filter === 'favorites' ? (
+          <HomeFavoritesFeed />
+        ) : filter === 'foryou' ? (
+          <HomePublicFeed />
+        ) : active.mine ? (
+          <HomeMyContent key={active.mine} filter={active.mine} />
+        ) : (
+          <HomeFeed />
+        )}
+      </section>
     </div>
   );
 }

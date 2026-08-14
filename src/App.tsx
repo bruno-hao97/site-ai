@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link, NavLink, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
-import { Coins, Globe, Menu, X } from 'lucide-react';
+import { Link, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
+import { Globe, Menu } from 'lucide-react';
 import {
   clearAuth,
   getCreditsAi,
@@ -10,8 +10,12 @@ import {
 } from './services/authStore';
 import { UpstreamMeError } from './services/upstreamMe';
 import { setupOneSignalFromAuth } from './services/oneSignal';
+import { applyTheme } from './services/themeStore';
+import { prefetchStudioModels } from './lib/studioModelPrefetch';
+import { STUDIO_COMPOSER_PATHS } from './lib/studioRoutes';
 import { useCreditsUpdated } from './hooks/useCreditsUpdated';
-import type { JobType } from './services/api';
+import ComposerShell from './pages/ComposerShell';
+import AppSidebar from './components/AppSidebar';
 import BrandLogo from './components/BrandLogo';
 import ProtectedRoute from './components/ProtectedRoute';
 import QuickChatWidget from './components/QuickChatWidget';
@@ -27,7 +31,6 @@ import ProjectsPage from './pages/ProjectsPage';
 import WorkflowPage from './pages/WorkflowPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
-import StudioPage from './pages/StudioPage';
 import AudioPage from './pages/AudioPage';
 import ProfilePage from './pages/ProfilePage';
 import SettingsPage from './pages/SettingsPage';
@@ -45,41 +48,18 @@ import AccountSubscriptionPage from './pages/account/AccountSubscriptionPage';
 import AccountTransferPage from './pages/account/AccountTransferPage';
 import AccountTransactionsPage from './pages/account/AccountTransactionsPage';
 import { useLocale } from './i18n';
-import type { TranslationKey } from './i18n';
 
-const MAIN_NAV: { to: string; labelKey: TranslationKey }[] = [
-  { to: '/home', labelKey: 'nav.home' },
-  { to: '/home', labelKey: 'nav.explore' },
-  { to: '/projects', labelKey: 'nav.projects' },
-  { to: '/image', labelKey: 'nav.image' },
-  { to: '/video', labelKey: 'nav.video' },
-  { to: '/audio', labelKey: 'nav.audio' },
-  { to: '/music', labelKey: 'nav.music' },
-  { to: '/chat', labelKey: 'nav.chat' },
-  { to: '/workflow', labelKey: 'nav.workflow' },
-];
-
-const STUDIO_NAV: Record<string, JobType> = {
-  '/image': 'image',
-  '/video': 'video',
-  '/music': 'music',
-};
+const STUDIO_NAV = STUDIO_COMPOSER_PATHS;
 
 function StudioHistoryRedirect() {
   const { type } = useParams<{ type: string }>();
   return <Navigate to={type ? `/studio-history/${type}` : '/studio-history'} replace />;
 }
 
-function AppHeader() {
+function AppHeader({ slim = false, onOpenSidebar }: { slim?: boolean; onOpenSidebar?: () => void }) {
   const { t, locale, toggleLocale } = useLocale();
   const [credits, setCredits] = useState(getCreditsAi());
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const loggedIn = isLoggedIn();
-  const location = useLocation();
-
-  useEffect(() => {
-    setMobileNavOpen(false);
-  }, [location.pathname]);
 
   function refreshCredits() {
     if (!loadAuth()) return;
@@ -104,61 +84,43 @@ function AppHeader() {
   });
 
   return (
-    <header className="app-header">
+    <header className={`app-header${slim ? ' app-header--slim' : ''}`}>
       <div className="app-header-inner">
-        {loggedIn && (
+        {slim && onOpenSidebar && (
           <button
             type="button"
-            className="nav-toggle"
+            className="app-shell-menu-btn"
             aria-label={t('header.openMenu')}
-            aria-expanded={mobileNavOpen}
-            onClick={() => setMobileNavOpen((v) => !v)}
+            onClick={onOpenSidebar}
           >
-            {mobileNavOpen ? <X size={20} /> : <Menu size={20} />}
+            <Menu size={20} />
           </button>
         )}
-        <BrandLogo to="/" />
+        {!slim && loggedIn && (
+          <button type="button" className="nav-toggle" aria-label={t('header.openMenu')}>
+            <Menu size={20} />
+          </button>
+        )}
+        {!slim && <BrandLogo to="/" />}
         {loggedIn ? (
-          <>
-            <nav className={`nav-main ${mobileNavOpen ? 'open' : ''}`}>
-              {MAIN_NAV.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={({ isActive }) => `nav-main-link ${isActive ? 'active' : ''}`}
-                >
-                  {t(item.labelKey)}
-                </NavLink>
-              ))}
-            </nav>
-            {mobileNavOpen && (
-              <div
-                className="nav-backdrop"
-                onClick={() => setMobileNavOpen(false)}
-                aria-hidden="true"
-              />
-            )}
-            <div className="header-meta">
-              <button
-                type="button"
-                className="lang-pill"
-                aria-label={t('header.switchLang')}
-                onClick={toggleLocale}
-              >
-                <Globe size={14} /> {locale === 'vi' ? 'VI' : 'EN'}
-              </button>
-              <Link to="/pricing" className="price-pill">
-                <Coins size={15} /> {t('header.pricing')}
-              </Link>
-              <div className="header-balance">
-                <span className="header-balance-label">{t('header.balance')}</span>
-                <span className="header-credit-pill">
-                  {credits.toLocaleString('vi-VN')}
-                </span>
-              </div>
-              <UserMenuDropdown credits={credits} onCreditsRefresh={refreshCredits} />
+          <div className="header-meta">
+            <button
+              type="button"
+              className="lang-pill"
+              aria-label={t('header.switchLang')}
+              onClick={toggleLocale}
+            >
+              <Globe size={14} /> {locale === 'vi' ? 'VI' : 'EN'}
+            </button>
+            <Link to="/pricing" className={slim ? 'app-header-pricing-link' : 'price-pill'}>
+              {t('header.pricing')}
+            </Link>
+            <div className="header-balance">
+              <span className="header-balance-label">{t('header.balance')}</span>
+              <span className="header-credit-pill">{credits.toLocaleString('vi-VN')}</span>
             </div>
-          </>
+            <UserMenuDropdown credits={credits} onCreditsRefresh={refreshCredits} />
+          </div>
         ) : (
           <nav className="nav">
             <Link to="/login">{t('header.login')}</Link>
@@ -169,88 +131,156 @@ function AppHeader() {
   );
 }
 
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/featured" element={<Navigate to={{ pathname: '/', hash: 'product' }} replace />} />
+      <Route path="/explore" element={<Navigate to={{ pathname: '/', hash: 'community' }} replace />} />
+      <Route path="/models" element={<ModelsPage />} />
+      <Route path="/pricing" element={<PublicPricingPage />} />
+      <Route element={<LegalShellLayout />}>
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+      </Route>
+      <Route path="/login" element={isLoggedIn() ? <Navigate to="/home" /> : <LoginPage />} />
+      <Route path="/register" element={isLoggedIn() ? <Navigate to="/home" /> : <RegisterPage />} />
+      <Route element={<ProtectedRoute />}>
+        <Route path="/home" element={<HomePage />} />
+        <Route path="/projects" element={<ProjectsPage />} />
+        <Route path="/chat" element={<ChatPage />} />
+        <Route path="/workflow" element={<WorkflowPage />} />
+        <Route path="/audio" element={<AudioPage />} />
+        <Route element={<ComposerShell />}>
+          {Object.keys(STUDIO_NAV).map((path) => (
+            <Route key={path} path={path} element={null} />
+          ))}
+        </Route>
+        <Route path="/app" element={<Navigate to="/image" replace />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/playground" element={<ApiPlaygroundPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings/tokens" element={<SettingsTokensPage />} />
+        <Route path="/usage-history" element={<UsageHistoryPage />} />
+        <Route path="/usage-history/:type" element={<UsageHistoryPage />} />
+        <Route path="/studio-history" element={<StudioHistoryPage />} />
+        <Route path="/studio-history/:type" element={<StudioHistoryPage />} />
+        <Route path="/history" element={<Navigate to="/studio-history" replace />} />
+        <Route path="/history/:type" element={<StudioHistoryRedirect />} />
+        <Route path="/account" element={<AccountLayout />}>
+          <Route index element={<AccountSettingsPage />} />
+          <Route path="promo" element={<AccountPromoPage />} />
+          <Route path="subscription" element={<AccountSubscriptionPage />} />
+          <Route path="transfer" element={<AccountTransferPage />} />
+          <Route path="topup" element={<Navigate to="/pricing" replace />} />
+          <Route path="transactions" element={<AccountTransactionsPage />} />
+        </Route>
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/wallet" element={<WalletPage />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
 function AppShell() {
   const location = useLocation();
+  const { t } = useLocale();
   const loggedIn = isLoggedIn();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (loggedIn) void setupOneSignalFromAuth();
   }, [loggedIn]);
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
 
   const isBarePage =
     ['/', '/login', '/register', '/privacy', '/terms'].includes(location.pathname) ||
     ((location.pathname === '/models' || location.pathname === '/pricing') && !loggedIn);
   const isWorkflow = location.pathname === '/workflow';
   const isChat = location.pathname === '/chat';
+  const isHome = location.pathname === '/home';
+  const isProjects = location.pathname === '/projects';
+  const isAccount = location.pathname.startsWith('/account');
+  const isSecondary =
+    location.pathname === '/dashboard' ||
+    location.pathname === '/wallet' ||
+    location.pathname === '/profile' ||
+    location.pathname === '/playground' ||
+    location.pathname.startsWith('/settings') ||
+    location.pathname.startsWith('/usage-history') ||
+    location.pathname.startsWith('/studio-history');
+  const isAppShell = loggedIn && !isBarePage;
+
+  useEffect(() => {
+    if (!isAppShell) return;
+    applyTheme('dark');
+  }, [isAppShell]);
+
+  useEffect(() => {
+    if (!loggedIn || !isAppShell) return;
+    prefetchStudioModels();
+  }, [loggedIn, isAppShell]);
   const isFullBleed =
     location.pathname in STUDIO_NAV ||
     location.pathname === '/audio' ||
     isWorkflow ||
     isChat;
   const hideHeader = isBarePage || isWorkflow || isChat;
-  const showQuickChat = isLoggedIn() && !isBarePage && !isWorkflow && !isChat;
+  const showQuickChat = isLoggedIn() && !isBarePage && !isWorkflow && !isChat && !isHome;
+
+  const mainClass = [
+    !isBarePage && 'app-main',
+    isFullBleed && 'app-main-full',
+    isWorkflow && 'app-main-workflow',
+    isChat && 'app-main-chat',
+    isHome && 'app-main-home',
+    isProjects && 'app-main-projects',
+    isAccount && 'app-main-account',
+    isSecondary && 'app-main-secondary',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  if (isAppShell) {
+    return (
+      <div className={`app app-magnific${isAccount ? ' app-magnific--account' : ''}`}>
+        {!isAccount && (
+          <AppSidebar mobileOpen={sidebarOpen} onCloseMobile={() => setSidebarOpen(false)} />
+        )}
+        {hideHeader && (
+          <button
+            type="button"
+            className="app-shell-floating-menu"
+            aria-label={t('header.openMenu')}
+            onClick={() => setSidebarOpen(true)}
+          >
+            <Menu size={20} />
+          </button>
+        )}
+        <div className={`app-shell-body${isAccount ? ' app-shell-body--full' : ''}`}>
+          <div className="app-shell-panel">
+            {!hideHeader && (
+              <AppHeader slim onOpenSidebar={() => setSidebarOpen(true)} />
+            )}
+            <main className={mainClass}>
+              <AppRoutes />
+            </main>
+          </div>
+        </div>
+        {showQuickChat && <QuickChatWidget />}
+      </div>
+    );
+  }
 
   return (
     <div className={isBarePage ? '' : 'app'}>
       {!hideHeader && <AppHeader />}
-      <main
-        className={
-          isBarePage
-            ? ''
-            : `app-main ${isFullBleed ? 'app-main-full' : ''} ${isWorkflow ? 'app-main-workflow' : ''} ${isChat ? 'app-main-chat' : ''}`
-        }
-      >
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/featured" element={<Navigate to={{ pathname: '/', hash: 'product' }} replace />} />
-          <Route path="/explore" element={<Navigate to={{ pathname: '/', hash: 'community' }} replace />} />
-          <Route path="/models" element={<ModelsPage />} />
-          <Route path="/pricing" element={<PublicPricingPage />} />
-          <Route element={<LegalShellLayout />}>
-            <Route path="/privacy" element={<PrivacyPage />} />
-            <Route path="/terms" element={<TermsPage />} />
-          </Route>
-          <Route path="/login" element={isLoggedIn() ? <Navigate to="/home" /> : <LoginPage />} />
-          <Route path="/register" element={isLoggedIn() ? <Navigate to="/home" /> : <RegisterPage />} />
-          <Route element={<ProtectedRoute />}>
-            <Route path="/home" element={<HomePage />} />
-            <Route path="/projects" element={<ProjectsPage />} />
-            <Route path="/chat" element={<ChatPage />} />
-            <Route path="/workflow" element={<WorkflowPage />} />
-            <Route path="/audio" element={<AudioPage />} />
-            {Object.entries(STUDIO_NAV).map(([path, type]) => (
-              <Route
-                key={path}
-                path={path}
-                element={
-                  <StudioPage key={path} initialType={type} lockType layout="composer" />
-                }
-              />
-            ))}
-            <Route path="/app" element={<Navigate to="/image" replace />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/playground" element={<ApiPlaygroundPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/settings/tokens" element={<SettingsTokensPage />} />
-            <Route path="/usage-history" element={<UsageHistoryPage />} />
-            <Route path="/usage-history/:type" element={<UsageHistoryPage />} />
-            <Route path="/studio-history" element={<StudioHistoryPage />} />
-            <Route path="/studio-history/:type" element={<StudioHistoryPage />} />
-            <Route path="/history" element={<Navigate to="/studio-history" replace />} />
-            <Route path="/history/:type" element={<StudioHistoryRedirect />} />
-            <Route path="/account" element={<AccountLayout />}>
-              <Route index element={<AccountSettingsPage />} />
-              <Route path="promo" element={<AccountPromoPage />} />
-              <Route path="subscription" element={<AccountSubscriptionPage />} />
-              <Route path="transfer" element={<AccountTransferPage />} />
-              <Route path="topup" element={<Navigate to="/pricing" replace />} />
-              <Route path="transactions" element={<AccountTransactionsPage />} />
-            </Route>
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/wallet" element={<WalletPage />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+      <main className={isBarePage ? '' : mainClass}>
+        <AppRoutes />
       </main>
       {showQuickChat && <QuickChatWidget />}
     </div>

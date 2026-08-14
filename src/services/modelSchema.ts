@@ -103,6 +103,31 @@ export function isModelAvailable(model: GommoModel): boolean {
   return s === 'ON' || s === 'ACTIVE';
 }
 
+/** Model tạo nhạc (Suno…): không có field ảnh/video như ratio, mode, subject. */
+export function isMusicModel(model: GommoModel): boolean {
+  const modes = model.modes ?? (model as { mode?: unknown[] }).mode;
+  const durations = model.durations ?? (model as { duration?: unknown[] }).duration;
+  const hasImageVideoTraits =
+    (Array.isArray(model.ratios) && model.ratios.length > 0) ||
+    (Array.isArray(modes) && modes.length > 0) ||
+    (Array.isArray(model.resolutions) && model.resolutions.length > 0) ||
+    (Array.isArray(durations) && durations.length > 0) ||
+    Boolean(
+      model.withSubject ||
+        model.withReference ||
+        model.startImage ||
+        model.startImageAndEnd ||
+        model.withMotion ||
+        model.withEdit,
+    );
+  return !hasImageVideoTraits;
+}
+
+export function filterModelsForJobType(models: GommoModel[], jobType: JobType): GommoModel[] {
+  if (jobType !== 'music') return models;
+  return models.filter(isMusicModel);
+}
+
 export function normalizeOptions(list: unknown): ModelOption[] {
   if (!Array.isArray(list) || list.length === 0) return [];
   return list.map((item) => {
@@ -419,4 +444,22 @@ export function setCachedModels(type: JobType, models: GommoModel[]): void {
 
 export function clearModelsCache(): void {
   MODELS_CACHE.clear();
+}
+
+/** Prefetch model lists into memory cache (skips types already cached). */
+export function prefetchModelsCache(
+  types: JobType[],
+  fetchEnvelope: (type: JobType) => Promise<unknown>,
+): void {
+  for (const type of types) {
+    if (getCachedModels(type)?.length) continue;
+    void fetchEnvelope(type)
+      .then((env) => {
+        const list = parseModelsList(env);
+        if (list.length) setCachedModels(type, list);
+      })
+      .catch(() => {
+        /* ignore — composer will retry on demand */
+      });
+  }
 }
