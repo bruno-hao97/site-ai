@@ -174,7 +174,7 @@ export default function SettingsPage() {
             <div style={{ display: 'grid', gap: '0.5rem' }}>
               <div className="settings-79-row">
                 <div>
-                  <div className="settings-79-row-title">PayOS</div>
+                  <div className="settings-79-row-title">{t('settings.ops.payos')}</div>
                   <div className="settings-79-row-desc">{ops.payos?.message || ops.payos?.webhookUrl || '—'}</div>
                 </div>
                 <span className={`status-pill ${pill(Boolean(ops.payos?.configured && ops.payos?.valid !== false))}`}>
@@ -187,7 +187,6 @@ export default function SettingsPage() {
                 <div>
                   <div className="settings-79-row-title">{t('settings.opsMerchantTitle')}</div>
                   <div className="settings-79-row-desc">
-                    Domain {ops.merchant?.domain || '—'}
                     {ops.detail && ops.merchant?.available != null
                       ? ` · ${t('settings.opsMerchantAvailable', { credits: ops.merchant.available.toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US') })}`
                       : ''}

@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { motion, useInView } from 'framer-motion';
 import { ArrowUpRight } from 'lucide-react';
 import { useRef } from 'react';
+import { useLocale } from '../../i18n';
 import { registerPathWithNext } from '../../lib/landingConfig';
 import { SITE_DISPLAY_NAME } from '../../services/siteConfig';
 
@@ -9,6 +10,7 @@ const FINAL_CTA_IMAGE =
   'https://media.magnific.com/home/relaunch/media/start/start-2x.webp?w=1974&h=1175';
 
 export default function FinalCtaSection() {
+  const { t } = useLocale();
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: '-80px' });
 
@@ -29,7 +31,7 @@ export default function FinalCtaSection() {
       >
         <h2>{SITE_DISPLAY_NAME}</h2>
         <Link to={registerPathWithNext('/home')} className="final-cta-start-btn">
-          Bắt đầu ngay
+          {t('landing.finalCta.cta')}
           <ArrowUpRight size={16} strokeWidth={2.25} />
         </Link>
       </motion.div>

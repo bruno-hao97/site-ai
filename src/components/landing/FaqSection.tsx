@@ -1,10 +1,13 @@
 import { useState, useRef } from 'react';
 import { motion, useInView } from 'framer-motion';
 import { Minus, Plus } from 'lucide-react';
-import { FAQ_ITEMS } from '../../lib/faqContent';
+import { getFaqItems } from '../../lib/faqContent';
 import { HOME_NOTIF_CONTACT } from '../../services/siteConfig';
+import { useLocale } from '../../i18n';
 
 export default function FaqSection() {
+  const { t } = useLocale();
+  const faqItems = getFaqItems(t);
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: '-80px' });
   const [openIdx, setOpenIdx] = useState(-1);
@@ -19,19 +22,19 @@ export default function FaqSection() {
           transition={{ duration: 0.5 }}
         >
           <div className="landing-faq-intro">
-            <h2>Những điều bạn cần biết</h2>
+            <h2>{t('pricing.faq.title')}</h2>
             <a
               href={HOME_NOTIF_CONTACT.zaloSupport}
               target="_blank"
               rel="noreferrer"
               className="landing-faq-support-btn"
             >
-              Liên hệ hỗ trợ
+              {t('pricing.faq.support')}
             </a>
           </div>
 
           <div className="landing-faq-list">
-            {FAQ_ITEMS.map((item, idx) => {
+            {faqItems.map((item, idx) => {
               const opened = openIdx === idx;
               return (
                 <div key={item.q} className={`landing-faq-item${opened ? ' open' : ''}`}>

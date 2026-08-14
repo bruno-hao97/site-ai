@@ -234,7 +234,7 @@ function modelProvider(m: GommoModel): string {
   if (/minimax|hailuo/.test(n)) return 'MiniMax';
   if (/elevenlabs|eleven\s*labs/.test(n)) return 'ElevenLabs';
   if (/suno/.test(n)) return 'Suno';
-  return 'Khác';
+  return '__other__';
 }
 
 function providerSubtitle(provider: string): string {
@@ -486,6 +486,7 @@ function ModelPicker({
   selectionMode?: string;
   selectionResolution?: string;
 }) {
+  const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'new' | 'sale'>('new');
@@ -605,8 +606,8 @@ function ModelPicker({
       const m = models.find((x) => modelSlug(x) === multiValues[0]);
       return m?.name || multiValues[0];
     }
-    return `${multiValues.length} model đã chọn`;
-  }, [multi, multiValues, models]);
+    return t('studio.modelPicker.multiSelected', { count: multiValues.length });
+  }, [multi, multiValues, models, t]);
 
   return (
     <div className="model-picker" ref={triggerRef}>
@@ -618,12 +619,12 @@ function ModelPicker({
       >
         <span className="model-picker-current">
           {loading
-            ? 'Đang tải…'
+            ? t('common.loading')
             : multi
-              ? multiLabel || '— Chọn model —'
+              ? multiLabel || t('studio.modelPicker.placeholder')
               : current
                 ? current.name || modelSlug(current)
-                : '— Chọn model —'}
+                : t('studio.modelPicker.placeholder')}
         </span>
         {!multi && triggerPrice && <span className="model-picker-price">{triggerPrice}</span>}
         {multi && multiValues.length > 1 && (
@@ -668,12 +669,12 @@ function ModelPicker({
 
             <div className="model-picker-list">
               {totalShown === 0 && (
-                <div className="model-picker-empty">Không có model phù hợp</div>
+                <div className="model-picker-empty">{t('studio.modelPicker.empty')}</div>
               )}
 
               {recentModels.length > 0 && (
                 <div className="model-picker-group">
-                  <div className="model-picker-group-head">Gần đây</div>
+                  <div className="model-picker-group-head">{t('studio.modelPicker.recent')}</div>
                   {recentModels.map(renderItem)}
                 </div>
               )}
@@ -681,7 +682,9 @@ function ModelPicker({
               {grouped.map(([provider, list]) => (
                 <div key={provider} className="model-picker-group">
                   <div className="model-picker-group-head model-picker-provider-head">
-                    <span className="model-picker-provider-name">{provider}</span>
+                    <span className="model-picker-provider-name">
+                      {provider === '__other__' ? t('studio.provider.other') : provider}
+                    </span>
                     <span className="model-picker-provider-sub">
                       {providerSubtitle(provider)}
                     </span>
@@ -1188,9 +1191,9 @@ export default function StudioPage({
           addHistoryEntry({
             type: 'image',
             resultUrl,
-            prompt: item.prompt ? `${item.prompt} (upscale)` : 'Upscale ảnh',
+            prompt: item.prompt ? `${item.prompt}${t('studio.upscale.promptSuffix')}` : t('studio.upscale.modelName'),
             modelSlug: 'generative_upscale_v2',
-            modelName: 'Nâng cấp ảnh AI',
+            modelName: t('studio.upscale.modelName'),
             meta: {
               resolution: item.resolution || '',
               ratio: item.ratio || '',
@@ -1429,7 +1432,7 @@ export default function StudioPage({
         return true;
       }
 
-      const errMsg = 'Job thất bại';
+      const errMsg = t('studio.error.jobFailed');
       setError(errMsg);
       updateLocalJob(localId, { status: 'failed', error: errMsg });
       setPendingJobs((prev) =>
@@ -1465,7 +1468,7 @@ export default function StudioPage({
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!client || !currentModel || !schema) {
-      setError('Chọn model trước.');
+      setError(t('studio.error.selectModel'));
       return;
     }
 
@@ -1481,17 +1484,17 @@ export default function StudioPage({
         const vidC = refs.filter((u) => urlMediaKind(u) === 'video').length;
         const limits = getReferenceLimits(currentModel, schema, jobType);
         if (imgC > limits.image) {
-          setError(`Quá nhiều ảnh tham chiếu (tối đa ${limits.image}).`);
+          setError(t('studio.error.tooManyRefImages', { max: limits.image }));
           return;
         }
         if (vidC > limits.video) {
-          setError(`Quá nhiều video tham chiếu (tối đa ${limits.video}).`);
+          setError(t('studio.error.tooManyRefVideos', { max: limits.video }));
           return;
         }
       } else {
         const max = schema.limits.maxSubject || 1;
         if (refs.length > max) {
-          setError(`Quá nhiều ảnh nhân vật (tối đa ${max}).`);
+          setError(t('studio.error.tooManyCharacterImages', { max }));
           return;
         }
       }
@@ -1509,11 +1512,11 @@ export default function StudioPage({
     if (isMotionView) {
       const charUrl = (selections.images || []).find(Boolean) || '';
       if (!charUrl) {
-        setError('Tải ảnh nhân vật trước.');
+        setError(t('studio.error.uploadCharacter'));
         return;
       }
       if (!motionVideoUrl) {
-        setError('Tải video tham chiếu trước.');
+        setError(t('studio.error.uploadRefVideo'));
         return;
       }
 
@@ -1528,7 +1531,7 @@ export default function StudioPage({
           .map((p) => p.trim())
           .filter(Boolean);
         if (motionPrompts.length === 0) {
-          setError(`Nhập ít nhất 1 prompt (mỗi prompt cách nhau bằng ${sep}).`);
+          setError(t('studio.error.multiPromptMin', { sep }));
           return;
         }
       } else {
@@ -1539,7 +1542,7 @@ export default function StudioPage({
       abortRef.current = new AbortController();
       setSubmitting(true);
       setError('');
-      setProgress('Đang tạo job…');
+      setProgress(t('studio.progress.creatingJob'));
       setResultUrl(null);
       const slug = modelSlug(currentModel);
 
@@ -1577,7 +1580,7 @@ export default function StudioPage({
           }
         };
         await Promise.all(Array.from({ length: limit }, () => worker()));
-        setProgress('Hoàn tất!');
+        setProgress(t('studio.progress.done'));
         await refreshCreditsAfterJob();
       } finally {
         setSubmitting(false);
@@ -1588,12 +1591,12 @@ export default function StudioPage({
     // Chế độ Edit: sửa video có sẵn theo prompt.
     if (isEditView) {
       if (!editVideoUrl) {
-        setError('Tải video cần sửa trước.');
+        setError(t('studio.error.uploadEditVideo'));
         return;
       }
       const editPrompt = (selections.prompt || '').trim();
       if (!editPrompt) {
-        setError('Nhập mô tả chỉnh sửa.');
+        setError(t('studio.error.enterEditPrompt'));
         return;
       }
 
@@ -1601,7 +1604,7 @@ export default function StudioPage({
       abortRef.current = new AbortController();
       setSubmitting(true);
       setError('');
-      setProgress('Đang tạo job…');
+      setProgress(t('studio.progress.creatingJob'));
       setResultUrl(null);
       const slug = modelSlug(currentModel);
       const pendingId = crypto.randomUUID();
@@ -1622,7 +1625,7 @@ export default function StudioPage({
             video_url: editVideoUrl,
           },
         });
-        setProgress('Hoàn tất!');
+        setProgress(t('studio.progress.done'));
         await refreshCreditsAfterJob();
       } finally {
         setSubmitting(false);
@@ -1646,7 +1649,7 @@ export default function StudioPage({
           ? true
           : Boolean(basePrompt.trim());
       if (!hasAgentScript) {
-        setError('Chat với Video Agent để có kịch bản / prompt trước khi tạo.');
+        setError(t('studio.error.videoAgentScript'));
         return;
       }
     }
@@ -1656,18 +1659,18 @@ export default function StudioPage({
         pickerModels.some((m) => modelSlug(m) === s),
       );
       if (validSlugs.length === 0) {
-        setError('Chọn ít nhất 1 model.');
+        setError(t('studio.error.selectAtLeastOneModel'));
         return;
       }
     }
 
     if (multiShotEnabled && schema.fields.multiShots) {
       if (activeShots.length < multiShotConfig.minShots) {
-        setError(`Cần ít nhất ${multiShotConfig.minShots} cảnh (kịch bản).`);
+        setError(t('studio.error.multiShotMin', { min: multiShotConfig.minShots }));
         return;
       }
       if (activeShots.length > multiShotConfig.maxShots) {
-        setError(`Tối đa ${multiShotConfig.maxShots} cảnh.`);
+        setError(t('studio.error.multiShotMax', { max: multiShotConfig.maxShots }));
         return;
       }
     }
@@ -1683,7 +1686,7 @@ export default function StudioPage({
         .map((p) => p.trim())
         .filter(Boolean);
       if (prompts.length === 0) {
-        setError(`Nhập ít nhất 1 prompt (mỗi prompt cách nhau bằng ${sep}).`);
+        setError(t('studio.error.multiPromptMin', { sep }));
         return;
       }
     } else {
@@ -1736,7 +1739,7 @@ export default function StudioPage({
 
     setSubmitting(true);
     setError('');
-    setProgress('Đang tạo job…');
+    setProgress(t('studio.progress.creatingJob'));
     setResultUrl(null);
 
     const newPending: PendingJob[] = tasks.map((t) => ({
@@ -1765,7 +1768,7 @@ export default function StudioPage({
         }
       };
       await Promise.all(Array.from({ length: limit }, () => worker()));
-      setProgress('Hoàn tất!');
+      setProgress(t('studio.progress.done'));
       await refreshCreditsAfterJob();
     } finally {
       setSubmitting(false);
@@ -1806,7 +1809,7 @@ export default function StudioPage({
       payload,
       (p) => {
         if ('phase' in p && p.phase === 'creating') {
-          setProgress('Đang gửi request tạo job…');
+          setProgress(t('studio.progress.sendingRequest'));
           if (pendingId) bumpPendingProgress(pendingId, 10);
           return;
         }
@@ -1843,7 +1846,7 @@ export default function StudioPage({
     if (pollResult?.success === false && pollResult.error) {
       throw new Error(pollResult.error);
     }
-    throw new Error(pollResult?.error || 'Job thất bại');
+    throw new Error(pollResult?.error || t('studio.error.jobFailed'));
   }
 
   function switchJobType(type: JobType) {
@@ -2009,8 +2012,8 @@ export default function StudioPage({
   function deleteSelected() {
     if (mainTab === 'folder' || mainTab === 'history') {
       if (!selectedIds.size) return;
-      const label = mainTab === 'folder' ? 'thư viện' : 'lịch sử';
-      if (!window.confirm(`Xóa ${selectedIds.size} mục đã chọn khỏi ${label}?`)) return;
+      const label = mainTab === 'folder' ? t('studio.bulkDelete.library') : t('studio.bulkDelete.history');
+      if (!window.confirm(t('studio.bulkDelete.confirm', { count: selectedIds.size, label }))) return;
       void (async () => {
         setError('');
         try {
@@ -2040,7 +2043,7 @@ export default function StudioPage({
   }
 
   function handleCurrentDelete(entry: HistoryEntry) {
-    if (!window.confirm('Xóa mục này khỏi phiên hiện tại?')) return;
+    if (!window.confirm(t('studio.deleteSessionConfirm'))) return;
     setCurrentDeletingId(entry.id);
     try {
       removeHistoryEntry(entry.id);
@@ -2148,11 +2151,11 @@ export default function StudioPage({
     if (target === 'component') {
       const fileKind = mediaKindFromFile(file);
       if (fileKind === 'video' && !canAddComponentVideo) {
-        setError('Đã đạt giới hạn video tham chiếu.');
+        setError(t('studio.error.refVideoLimit'));
         return;
       }
       if (fileKind === 'image' && !canAddComponentImage) {
-        setError('Đã đạt giới hạn ảnh tham chiếu.');
+        setError(t('studio.error.refImageLimit'));
         return;
       }
     }
@@ -2209,11 +2212,11 @@ export default function StudioPage({
 
     if (target === 'component') {
       if (kind === 'video' && !canAddComponentVideo) {
-        setError('Đã đạt giới hạn video tham chiếu.');
+        setError(t('studio.error.refVideoLimit'));
         return;
       }
       if (kind === 'image' && !canAddComponentImage) {
-        setError('Đã đạt giới hạn ảnh tham chiếu.');
+        setError(t('studio.error.refImageLimit'));
         return;
       }
     }
@@ -2283,7 +2286,7 @@ export default function StudioPage({
   async function generateShotsFromBrief() {
     const source = aiBrief.trim() || selections.prompt?.trim() || '';
     if (!source) {
-      setError('Nhập ý tưởng trước khi sinh kịch bản.');
+      setError(t('studio.error.enterIdea'));
       return;
     }
     setEnhancingPrompt(true);
@@ -2309,7 +2312,7 @@ export default function StudioPage({
   async function generateAiPrompt() {
     const source = aiBrief.trim() || selections.prompt?.trim() || '';
     if (!source) {
-      setError('Nhập ý tưởng ngắn trước.');
+      setError(t('studio.error.enterBrief'));
       return;
     }
     setEnhancingPrompt(true);
@@ -2329,7 +2332,7 @@ export default function StudioPage({
   async function enhanceCurrentPrompt() {
     const source = selections.prompt?.trim() || aiBrief.trim() || '';
     if (!source) {
-      setError('Nhập prompt trước.');
+      setError(t('studio.error.enterPrompt'));
       return;
     }
     setEnhancingPrompt(true);
@@ -2682,8 +2685,8 @@ export default function StudioPage({
                     onFile={(file) => ingestMediaFile(file, 'motionChar')}
                     onUrl={(url) => ingestMediaUrl(url, 'motionChar')}
                     emptyIcon={<PersonStanding size={18} />}
-                    emptyTitle="Tải ảnh nhân vật"
-                    emptyHint="JPG / PNG, ≥ 1K"
+                    emptyTitle={t('composer.uploadCharacter')}
+                    emptyHint={t('composer.mediaHint.jpgPng')}
                   />
                 </div>
 
@@ -2696,8 +2699,8 @@ export default function StudioPage({
                     onFile={(file) => ingestMediaFile(file, 'motionVideo')}
                     onUrl={(url) => ingestMediaUrl(url, 'motionVideo')}
                     emptyIcon={<Video size={18} />}
-                    emptyTitle="Tải video động tác"
-                    emptyHint="≤ 30s / 50MB, 720p"
+                    emptyTitle={t('composer.uploadMotionVideo')}
+                    emptyHint={t('composer.mediaHint.motionVideo')}
                   />
                 </div>
               </div>
@@ -2724,10 +2727,10 @@ export default function StudioPage({
                 onFile={(file) => ingestMediaFile(file, 'editVideo')}
                 onUrl={(url) => ingestMediaUrl(url, 'editVideo')}
                 emptyIcon={<Film size={18} />}
-                emptyTitle="Tải video nguồn"
-                emptyHint="MP4 / WebM"
+                emptyTitle={t('composer.uploadSourceVideo')}
+                emptyHint={t('composer.mediaHint.mp4Webm')}
               />
-              <p className="composer-mp-hint">Mô tả thay đổi bạn muốn (prompt) ở ô bên dưới.</p>
+              <p className="composer-mp-hint">{t('composer.editVideoHint')}</p>
             </div>
           )}
 
@@ -2740,14 +2743,14 @@ export default function StudioPage({
                     className={inputView === 'frame' ? 'active' : ''}
                     onClick={() => switchInputMode('frame')}
                   >
-                    Từ Ảnh Frame
+                    {t('composer.inputTab.frame')}
                   </button>
                   <button
                     type="button"
                     className={inputView === 'component' ? 'active' : ''}
                     onClick={() => switchInputMode('component')}
                   >
-                    Từ Thành Phần
+                    {t('composer.inputTab.component')}
                   </button>
                 </div>
               )}
@@ -2763,7 +2766,7 @@ export default function StudioPage({
                       onFile={(file) => ingestMediaFile(file, 'frameStart')}
                       onUrl={(url) => ingestMediaUrl(url, 'frameStart')}
                       emptyIcon={<Plus size={18} />}
-                      emptyTitle="Tự chọn"
+                      emptyTitle={t('composer.pickSelf')}
                     />
                   </div>
 
@@ -2777,7 +2780,7 @@ export default function StudioPage({
                         onFile={(file) => ingestMediaFile(file, 'frameEnd')}
                         onUrl={(url) => ingestMediaUrl(url, 'frameEnd')}
                         emptyIcon={<Plus size={18} />}
-                        emptyTitle="Tự chọn"
+                        emptyTitle={t('composer.pickSelf')}
                       />
                     </div>
                   )}
@@ -2796,12 +2799,12 @@ export default function StudioPage({
                       {componentKey === 'references' ? (
                         <>
                           {refLimits.image > 0 && (
-                            <span title="Ảnh tham chiếu">
+                            <span title={t('composer.references')}>
                               {componentImageCount}/{refLimits.image}
                             </span>
                           )}
                           {refLimits.video > 0 && (
-                            <span title="Video tham chiếu">
+                            <span title={t('composer.refVideo')}>
                               {refLimits.image > 0 ? ' ' : ''}
                               {componentVideoCount}/{refLimits.video}
                             </span>
@@ -2859,7 +2862,7 @@ export default function StudioPage({
                       <span className="composer-addmedia-text">{t('composer.addMedia')}</span>
                       <span className="composer-dropzone-hint">{t('composer.addMediaHint')}</span>
                       {mediaUploading === 'component' && (
-                        <ComposerUploadOverlay minimal hint="Đang tải lên" />
+                        <ComposerUploadOverlay minimal hint={t('common.uploading')} />
                       )}
                     </div>
                   )}
@@ -2894,7 +2897,7 @@ export default function StudioPage({
               <div className="composer-label-row">
                 <span className="composer-label">{t('composer.tts')}</span>
                 <div className="composer-desc-tools">
-                  <button type="button" aria-label="Xóa" onClick={() => updateSelection('text', '')}>
+                  <button type="button" aria-label={t('common.delete')} onClick={() => updateSelection('text', '')}>
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -2902,7 +2905,7 @@ export default function StudioPage({
               <textarea
                 className="composer-textarea"
                 rows={4}
-                placeholder="Nhập văn bản cần chuyển thành giọng nói…"
+                placeholder={t('composer.ttsPlaceholder')}
                 value={selections.text || ''}
                 onChange={(e) => updateSelection('text', e.target.value)}
               />
@@ -3131,7 +3134,7 @@ export default function StudioPage({
                         <div className="composer-mp-refgrid">
                           {mediaUploading === 'multiRef' && (
                             <div className="composer-mp-refthumb composer-mp-refthumb-pending">
-                              <ComposerUploadOverlay minimal hint="Đang tải lên" />
+                              <ComposerUploadOverlay minimal hint={t('common.uploading')} />
                             </div>
                           )}
                           {multiRefs.map((url, i) => (
@@ -3139,7 +3142,7 @@ export default function StudioPage({
                               <img src={url} alt={`ref ${i + 1}`} />
                               <button
                                 type="button"
-                                aria-label="Xóa ảnh"
+                                aria-label={t('composer.deleteImage')}
                                 onClick={() =>
                                   setMultiRefs((prev) => prev.filter((_, idx) => idx !== i))
                                 }
@@ -3243,7 +3246,7 @@ export default function StudioPage({
                         <button
                           type="button"
                           className="composer-shot-remove"
-                          aria-label="Xóa cảnh"
+                          aria-label={t('composer.deleteScene')}
                           onClick={() => removeShotRow(shot.id)}
                         >
                           <Trash2 size={14} />
@@ -3312,7 +3315,7 @@ export default function StudioPage({
                     onClick={() => void enhanceCurrentPrompt()}
                   >
                     <Sparkles size={13} />
-                    {enhancingPrompt ? 'Đang nâng cao…' : 'Nâng cao'}
+                    {enhancingPrompt ? t('studio.enhancing') : t('composer.enhance')}
                   </button>
                 </div>
               </div>
@@ -3324,7 +3327,7 @@ export default function StudioPage({
                     ? 'Prompt 1\n=====\nPrompt 2\n=====\nPrompt 3'
                     : schema.fields.musicName
                       ? t('composer.musicLyricsPlaceholder')
-                      : 'Mô tả nội dung của bạn…'
+                      : t('studio.promptPlaceholder')
                 }
                 value={selections.prompt || ''}
                 onChange={(e) => updateSelection('prompt', e.target.value)}
@@ -3340,8 +3343,8 @@ export default function StudioPage({
                   <strong>{t('composer.normalize')}</strong>
                   <small>
                     {canUseComposerPromptAi()
-                      ? 'Tự động chuẩn hóa prompt bằng AI trước khi tạo.'
-                      : 'Gộp khoảng trắng thừa (đăng nhập Gommo token để dùng AI).'}
+                      ? t('studio.normalizeAiHint')
+                      : t('studio.normalizeGuestHint')}
                   </small>
                 </span>
               </span>
@@ -3386,7 +3389,7 @@ export default function StudioPage({
                 </span>
               </span>
               {motionVideoUrl && !motionDurationLoading && motionVideoDuration <= 0 && (
-                <p className="composer-mp-hint">Không đọc được thời lượng video — giá tổng có thể sai.</p>
+                <p className="composer-mp-hint">{t('composer.videoDurationUnreadable')}</p>
               )}
               {!motionVideoUrl && motionRatePerSec > 0 && (
                 <p className="composer-mp-hint">
@@ -3503,7 +3506,7 @@ export default function StudioPage({
                     onClick={downloadSelected}
                   >
                     <Download size={14} />
-                    Download ({selectionCount})
+                    {t('composer.batch.download', { count: selectionCount })}
                   </button>
                   <button
                     type="button"
@@ -3511,7 +3514,7 @@ export default function StudioPage({
                     onClick={deleteSelected}
                   >
                     <Trash2 size={14} />
-                    Xóa ({selectionCount})
+                    {t('composer.batch.delete', { count: selectionCount })}
                   </button>
                   <button
                     type="button"
@@ -3551,7 +3554,7 @@ export default function StudioPage({
                 mainTab === 'current'
                   ? pendingJobs.map((p) => ({
                       id: p.id,
-                      title: p.prompt || selections.name || 'Đang tạo…',
+                      title: p.prompt || selections.name || t('studio.music.pendingTitle'),
                       status: p.status === 'failed' ? 'failed' : 'processing',
                       progress: p.progress,
                     }))
@@ -3560,7 +3563,7 @@ export default function StudioPage({
                 mainTab === 'folder' ? composerResults : displayedResults;
               const doneItems: MusicTrackItem[] = source.map((e) => ({
                 id: e.id,
-                title: e.prompt || e.modelName || 'Bản nhạc',
+                title: e.prompt || e.modelName || t('studio.music.trackTitle'),
                 modelLabel: e.modelName || e.modelSlug,
                 createdAt: e.createdAt,
                 resultUrl: e.resultUrl,
@@ -3574,7 +3577,7 @@ export default function StudioPage({
                     items={items}
                     emptyText={
                       mainTab === 'folder'
-                        ? 'Chưa có bài nào trong thư viện nhạc.'
+                        ? t('studio.music.folderEmpty')
                         : t('composer.gallery.empty', { type: typeLabel() })
                     }
                     selectedIds={selectedIds}
@@ -3636,11 +3639,11 @@ export default function StudioPage({
                 <section className={useClibLayout ? 'clib-group' : 'composer-day-group'}>
                   {useClibLayout ? (
                     <header className="clib-group-head">
-                      <span className="clib-group-label">Đang tạo</span>
+                      <span className="clib-group-label">{t('studio.pending.section')}</span>
                       <span className="clib-count">({pendingJobs.length})</span>
                     </header>
                   ) : (
-                    <h3 className="composer-day">Đang tạo</h3>
+                    <h3 className="composer-day">{t('studio.pending.section')}</h3>
                   )}
                   <div
                     className={useClibLayout ? 'clib-grid' : 'composer-grid'}
@@ -3659,14 +3662,14 @@ export default function StudioPage({
                           {p.status === 'processing' ? (
                             <>
                               <span className="pending-spinner-lg" aria-hidden />
-                              <span className="pending-vmedia-label">ĐANG TẠO</span>
+                              <span className="pending-vmedia-label">{t('studio.pending.badge')}</span>
                               <div
                                 className="pending-vmedia-bar"
                                 role="progressbar"
                                 aria-valuenow={p.progress ?? 12}
                                 aria-valuemin={0}
                                 aria-valuemax={100}
-                                aria-label="Tiến độ tạo"
+                                aria-label={t('studio.pending.progressAria')}
                               >
                                 <div
                                   className="pending-vmedia-bar-fill"
@@ -3677,7 +3680,7 @@ export default function StudioPage({
                           ) : (
                             <>
                               <span className="pending-failed-icon-lg">!</span>
-                              <span className="pending-vmedia-label failed">THẤT BẠI</span>
+                              <span className="pending-vmedia-label failed">{t('studio.pending.failed')}</span>
                             </>
                           )}
                         </div>
@@ -3725,7 +3728,7 @@ export default function StudioPage({
                             deleting={currentDeletingId === entry.id}
                             extraMenuItems={[
                               {
-                                label: 'Dùng lại',
+                                label: t('studio.reuse'),
                                 icon: <Clipboard size={14} />,
                                 onClick: () => applyReuse(entry),
                               },
@@ -3846,7 +3849,7 @@ export default function StudioPage({
               <button
                 type="button"
                 className="composer-prompt-modal-backdrop"
-                aria-label="Đóng"
+                aria-label={t('common.close')}
                 onClick={() => setPromptModalOpen(false)}
               />
               <div className="composer-prompt-modal-panel">

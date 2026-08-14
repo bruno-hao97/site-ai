@@ -23,6 +23,7 @@ import {
   type AgentState,
 } from '../../services/workflowAgentStore';
 import { WORKFLOW_CHAT_CONFIG } from '../../services/gommoChatConfig';
+import { useLocale } from '../../i18n';
 import { askGommo, isGommoChatConfigured, type ChatTurn } from '../../services/gommoChat';
 import {
   applyWorkflowActions,
@@ -52,6 +53,7 @@ export default function WorkflowAgentPanel({
   edges,
   onApplyGraph,
 }: Props) {
+  const { t } = useLocale();
   const [state, setState] = useState<AgentState>(() => loadAgentState());
   const [input, setInput] = useState('');
   const [chatSettingsOpen, setChatSettingsOpen] = useState(false);
@@ -106,7 +108,7 @@ export default function WorkflowAgentPanel({
     if (!text || thinking) return;
 
     if (!isGommoChatConfigured()) {
-      window.alert('Bạn cần đăng nhập (Access Token Gommo) để chat với Agent.');
+      window.alert(t('workflow.agent.loginRequired'));
       return;
     }
 
@@ -264,7 +266,7 @@ export default function WorkflowAgentPanel({
               type="button"
               className="wf-agent-head-btn icon-only"
               onClick={() => onOpenChange(false)}
-              title="Đóng"
+              title={t('common.close')}
             >
               <X size={16} />
             </button>
@@ -311,7 +313,7 @@ export default function WorkflowAgentPanel({
                     <div
                       className={`wf-agent-bubble${isEmptyStreaming ? ' wf-agent-bubble--typing' : ''}`}
                     >
-                      {isEmptyStreaming ? 'Đang suy nghĩ…' : renderContent(displayText)}
+                      {isEmptyStreaming ? t('workflow.agent.thinking') : renderContent(displayText)}
                     </div>
                   )}
                   {m.actions && m.actions.length > 0 && (

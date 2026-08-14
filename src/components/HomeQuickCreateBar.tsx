@@ -38,38 +38,39 @@ import { isJobAcceptedPendingError } from '../services/jobInfraErrors';
 import { HOME_QUICK_MENU, type HomeQuickMenuItem } from '../lib/homeQuickMenu';
 import HomeCategoryIcon from './home/HomeCategoryIcon';
 import { useLocale } from '../i18n';
+import type { TranslationKey } from '../i18n/types';
 
 const JOB_TYPES: JobType[] = ['video', 'image', 'tts', 'music'];
 
 const MAX_MEDIA = 4;
 
-function typeShortLabel(type: JobType): string {
+function typeShortLabel(type: JobType, t: (key: TranslationKey) => string): string {
   switch (type) {
     case 'video':
-      return 'VIDEO';
+      return t('home.quickCreate.type.video');
     case 'image':
-      return 'ẢNH';
+      return t('home.quickCreate.type.image');
     case 'tts':
-      return 'GIỌNG';
+      return t('home.quickCreate.type.tts');
     case 'music':
-      return 'NHẠC';
+      return t('home.quickCreate.type.music');
     default:
       return type.toUpperCase();
   }
 }
 
-function promptPlaceholder(type: JobType): string {
+function promptPlaceholder(type: JobType, t: (key: TranslationKey) => string): string {
   switch (type) {
     case 'video':
-      return 'Mô tả video bạn muốn tạo…';
+      return t('home.quickCreate.placeholder.video');
     case 'image':
-      return 'Mô tả ảnh bạn muốn tạo…';
+      return t('home.quickCreate.placeholder.image');
     case 'tts':
-      return 'Nhập văn bản cần đọc…';
+      return t('home.quickCreate.placeholder.tts');
     case 'music':
-      return 'Mô tả phong cách nhạc…';
+      return t('home.quickCreate.placeholder.music');
     default:
-      return 'Mô tả nội dung…';
+      return t('home.quickCreate.placeholder.default');
   }
 }
 
@@ -302,16 +303,16 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
   const submit = async () => {
     if (submitting || providerBusy) return;
     if (!canQuickCreate()) {
-      setError('Bạn cần đăng nhập để tạo nội dung.');
+      setError(t('home.quickCreate.loginRequired'));
       return;
     }
     if (!currentModel || !schema) {
-      setError('Đang tải model, thử lại sau giây lát.');
+      setError(t('home.quickCreate.modelsLoading'));
       return;
     }
     const text = prompt.trim();
     if (!text && refs.length === 0) {
-      setError('Nhập mô tả trước khi tạo.');
+      setError(t('home.quickCreate.promptRequired'));
       return;
     }
 
@@ -338,7 +339,7 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
     setError('');
     setInfo('');
     setResult(null);
-    setProgress('Đang tạo job…');
+    setProgress(t('home.quickCreate.creatingJob'));
 
     try {
       const url = await quickGenerate({
@@ -416,7 +417,7 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
             <audio src={result.url} controls className="qc-result-audio" />
           )}
           <a href={result.url} target="_blank" rel="noreferrer" className="qc-result-link">
-            Mở kết quả
+            {t('home.quickCreate.openResult')}
           </a>
         </div>
       )}
@@ -425,7 +426,7 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
         <div className="qc-storyboard">
           <div className="qc-sb-group">
             <span className="qc-sb-title">
-              ĐA PHƯƠNG TIỆN ({refs.length}/{MAX_MEDIA})
+              {t('home.quickCreate.multimedia', { count: refs.length, max: MAX_MEDIA })}
             </span>
             <div className="qc-sb-frames">
               {refs.map((url, i) => (
@@ -448,7 +449,7 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
                 <ComposerMediaPickButton
                   kind={mediaPickKind}
                   className="qc-sb-frame qc-sb-add"
-                  title="Thêm media"
+                  title={t('home.quickCreate.addMedia')}
                   uploading={mediaUploading}
                   onFile={ingestMediaFile}
                   onUrl={ingestMediaUrl}
@@ -472,7 +473,7 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
             type="button"
             className="qc-expand-toggle"
             onClick={() => setExpanded((v) => !v)}
-            title={expanded ? 'Thu gọn' : 'Mở rộng'}
+            title={expanded ? t('home.quickCreate.collapse') : t('home.quickCreate.expand')}
           >
             {expanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
           </button>
@@ -481,7 +482,7 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
           ref={promptRef}
           className="qc-prompt"
           rows={expanded && !isHero ? 2 : 1}
-          placeholder={isHero ? heroPlaceholder : promptPlaceholder(type)}
+          placeholder={isHero ? heroPlaceholder : promptPlaceholder(type, t)}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onFocus={() => setExpanded(true)}
@@ -501,7 +502,7 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
             className="qc-send"
             onClick={() => void submit()}
             disabled={submitting || providerBusy || loadingModels}
-            title={t('composer.submit', { type: typeShortLabel(type) })}
+            title={t('composer.submit', { type: typeShortLabel(type, t) })}
           >
             {submitting || providerBusy ? (
               <Loader2 size={16} className="qc-spin" />
@@ -522,7 +523,7 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
             className="qc-type-trigger"
             onClick={() => setTypeMenuOpen((v) => !v)}
           >
-            <span className="qc-dot" /> {typeShortLabel(type)}
+            <span className="qc-dot" /> {typeShortLabel(type, t)}
             <ChevronUp size={12} />
           </button>
           {typeMenuOpen && (
@@ -564,8 +565,8 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
             <Sparkles size={13} />
             <span>
               {loadingModels
-                ? 'Đang tải…'
-                : currentModel?.name || modelSlugSel || 'Chọn model'}
+                ? t('home.quickCreate.loadingModels')
+                : currentModel?.name || modelSlugSel || t('home.quickCreate.selectModel')}
             </span>
             <ChevronDown size={12} />
           </button>
@@ -643,7 +644,7 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
             className="qc-send"
             onClick={() => void submit()}
             disabled={submitting || providerBusy || loadingModels}
-            title="Tạo"
+            title={t('home.quickCreate.create')}
           >
             {submitting || providerBusy ? (
               <Loader2 size={16} className="qc-spin" />

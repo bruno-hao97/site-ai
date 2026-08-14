@@ -3,7 +3,9 @@ import { motion, useInView } from 'framer-motion';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { useRef } from 'react';
 import { useLandingFeedPreview } from '../../hooks/useLandingFeedPreview';
+import { useLocale } from '../../i18n';
 import { feedThumb } from '../../services/feedApi';
+import { SITE_DISPLAY_NAME } from '../../services/siteConfig';
 
 const PLACEHOLDER_COUNT = 11;
 
@@ -28,6 +30,7 @@ function galleryCellClass(index: number): string {
 }
 
 export default function CommunityGallerySection() {
+  const { t } = useLocale();
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: '-80px' });
   const { items, loading } = useLandingFeedPreview(12);
@@ -43,11 +46,11 @@ export default function CommunityGallerySection() {
         >
           <div className="landing-section-head landing-section-head-row">
             <div>
-              <h2>Cộng đồng sáng tạo</h2>
-              <p>Ảnh và video thật từ người dùng Trung tâm AI.</p>
+              <h2>{t('landing.community.title')}</h2>
+              <p>{t('landing.community.subtitle', { siteName: SITE_DISPLAY_NAME })}</p>
             </div>
             <a href="#community" className="landing-link-btn">
-              Xem thêm
+              {t('landing.community.viewMore')}
               <ArrowRight size={14} />
             </a>
           </div>
@@ -55,9 +58,9 @@ export default function CommunityGallerySection() {
           <div className="community-gallery-grid">
             <Link to="/image" className="community-featured-card">
               <Sparkles size={22} />
-              <h3>Bắt đầu tạo ảnh</h3>
-              <p>Mở studio ảnh — chọn model và chạy thử ngay.</p>
-              <span className="community-featured-cta">Vào studio ảnh</span>
+              <h3>{t('landing.community.featured.title')}</h3>
+              <p>{t('landing.community.featured.desc')}</p>
+              <span className="community-featured-cta">{t('landing.community.featured.cta')}</span>
             </Link>
 
             {loading
@@ -69,7 +72,7 @@ export default function CommunityGallerySection() {
             {!loading && galleryItems.length === 0
               ? Array.from({ length: PLACEHOLDER_COUNT }, (_, i) => (
                   <div key={`empty-${i}`} className={`${galleryCellClass(i)} placeholder`}>
-                    <span>Đang cập nhật</span>
+                    <span>{t('landing.community.updating')}</span>
                   </div>
                 ))
               : null}
@@ -77,15 +80,20 @@ export default function CommunityGallerySection() {
             {!loading
               ? galleryItems.map((item, index) => {
                   const thumb = feedThumb(item);
+                  const isImage = item.type === 'image';
                   return (
                     <div
                       key={item.id_base}
                       className={galleryCellClass(index)}
                       style={thumb ? { backgroundImage: `url(${thumb})` } : undefined}
                       role="img"
-                      aria-label={item.type === 'image' ? 'Ảnh cộng đồng' : 'Video cộng đồng'}
+                      aria-label={
+                        isImage ? t('landing.community.imageAlt') : t('landing.community.videoAlt')
+                      }
                     >
-                      {!thumb ? <span>{item.type === 'image' ? 'Ảnh' : 'Video'}</span> : null}
+                      {!thumb ? (
+                        <span>{isImage ? t('landing.community.image') : t('landing.community.video')}</span>
+                      ) : null}
                     </div>
                   );
                 })

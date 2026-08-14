@@ -170,7 +170,7 @@ export default function ProfilePage() {
   const cover = info?.cover as string | undefined;
   const verified = info?.verify_email === 1 || info?.activate === 1;
   const planActive = info?.activate === 1;
-  const planLabel = (info?.partner_level_key as string | undefined)?.trim() || 'Free';
+  const planLabel = (info?.partner_level_key as string | undefined)?.trim() || t('profile.planFree');
 
   async function copyId() {
     const id = info?.id_base || '';

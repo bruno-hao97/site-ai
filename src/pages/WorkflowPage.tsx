@@ -6,7 +6,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type ComponentType,
   type DragEvent,
   type ReactNode,
 } from 'react';
@@ -58,7 +57,6 @@ import {
   Repeat,
   Scissors,
   Search,
-  Sparkles,
   Square,
   StickyNote,
   Timer,
@@ -157,8 +155,21 @@ import { buildWorkflowSnapshot } from '../services/workflowAgentActions';
 import { getWorkflowKol, WORKFLOW_KOLS } from '../services/workflowKols';
 import { parseTableInput, tableToJson, type ParsedTable } from '../services/workflowDataTable';
 import { runWorkflowProcessJob } from '../services/workflowProcessJobs';
+import { useLocale, type TranslateFn } from '../i18n/LanguageProvider';
+import {
+  getNodeGroups,
+  translatePorts,
+} from '../lib/workflowI18n';
 
 type WFStatus = 'idle' | 'running' | 'done' | 'error';
+
+const WorkflowI18nCtx = createContext<TranslateFn | null>(null);
+
+function useWorkflowT(): TranslateFn {
+  const t = useContext(WorkflowI18nCtx);
+  if (!t) throw new Error('useWorkflowT must be used within WorkflowI18nProvider');
+  return t;
+}
 
 interface NodeData {
   modelId?: string;
@@ -281,6 +292,7 @@ function NodeHead({
   collapsed?: boolean;
   onToggleCollapse?: () => void;
 }) {
+  const t = useWorkflowT();
   const del = useDeleteNode(id);
   return (
     <div
@@ -298,7 +310,7 @@ function NodeHead({
         <button
           type="button"
           className="wf-node-del nodrag"
-          title="Xóa node"
+          title={t('workflow.deleteNode')}
           onClick={(e) => {
             e.stopPropagation();
             del();
@@ -320,6 +332,7 @@ function NodeLoadingResult({
   status?: WFStatus;
   statusText?: string;
 }) {
+  const t = useWorkflowT();
   if (!resultUrl && status !== 'running') return null;
   return (
     <div className="wf-node-result-wrap">
@@ -327,7 +340,7 @@ function NodeLoadingResult({
       {status === 'running' && (
         <div className="wf-node-loading-overlay">
           <div className="wf-node-loading-spinner" />
-          <p className="wf-node-loading-text">{statusText || 'Đang xử lý...'}</p>
+          <p className="wf-node-loading-text">{statusText || t('workflow.processing')}</p>
         </div>
       )}
     </div>
@@ -395,6 +408,7 @@ function ModelSelect({
 }
 
 function TextNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const update = useUpdateNode(id);
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
   return (
@@ -402,17 +416,17 @@ function TextNode({ id, data }: NodeProps<WFNode>) {
       <NodeHead
         id={id}
         icon={<Type size={14} />}
-        title="Nhập văn bản"
+        title={t('workflow.node.text.title')}
         status={data.status}
         collapsed={!portsExpanded}
         onToggleCollapse={togglePorts}
       />
-      <WfNodePortsGrid ports={TEXT_PORTS} expanded={portsExpanded} />
+      <WfNodePortsGrid ports={translatePorts(t, TEXT_PORTS)} expanded={portsExpanded} />
       <div className="wf-gen-body nodrag">
         <textarea
           className="wf-gen-prompt nodrag"
           value={data.prompt || ''}
-          placeholder="Nhập mô tả / prompt…"
+          placeholder={t('workflow.node.text.placeholder')}
           onChange={(e) => update({ prompt: e.target.value })}
         />
       </div>
@@ -425,10 +439,14 @@ function CompactMediaInputNode({
   data,
   kind,
 }: NodeProps<WFNode> & { kind: MediaInputKind }) {
+  const t = useWorkflowT();
   const { openMediaInputModal, imageSlotForNode } = useContext(WorkflowCtx);
   const del = useDeleteNode(id);
-  const ports = MEDIA_INPUT_PORTS[kind];
-  const title = kind === 'image' ? 'Nhập ảnh' : 'Nhập Video';
+  const ports = translatePorts(t, MEDIA_INPUT_PORTS[kind], kind);
+  const title =
+    kind === 'image'
+      ? t('workflow.node.input-image')
+      : t('workflow.node.input-video');
   const Icon = kind === 'image' ? Image : Video;
   const imageSlot = kind === 'image' ? imageSlotForNode(id) : 0;
   const slotLabel = kind === 'image' ? imageSlotLabel(imageSlot) : '@video';
@@ -455,7 +473,7 @@ function CompactMediaInputNode({
         extra: 'wf-node-media-compact',
       })}
       onDoubleClick={() => openMediaInputModal(id)}
-      title="Double-click để chỉnh sửa"
+      title={t('workflow.doubleClickEdit')}
     >
       <div
         className="wf-node-head wf-node-head--toggle"
@@ -473,7 +491,7 @@ function CompactMediaInputNode({
           <button
             type="button"
             className="wf-node-del nodrag"
-            title="Xóa node"
+            title={t('workflow.deleteNode')}
             onClick={(e) => {
               e.stopPropagation();
               del();
@@ -531,7 +549,7 @@ function CompactMediaInputNode({
           onClick={() => openMediaInputModal(id)}
         >
           <Icon size={22} />
-          <span>Double-click để thêm</span>
+          <span>{t('workflow.doubleClickAdd')}</span>
         </div>
       )}
     </div>
@@ -547,6 +565,7 @@ function InputVideoNode(props: NodeProps<WFNode>) {
 }
 
 function ImageNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const update = useUpdateNode(id);
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
   const { openResultPreview } = useContext(WorkflowCtx);
@@ -559,12 +578,12 @@ function ImageNode({ id, data }: NodeProps<WFNode>) {
       update={update}
       portsExpanded={portsExpanded}
       onOpenResultPreview={openResultPreview}
-      placeholder="Prompt (bỏ trống nếu nối từ node text)"
+      placeholder={t('workflow.node.image.placeholder')}
       head={
         <NodeHead
           id={id}
           icon={<Image size={14} />}
-          title="Tạo ảnh AI"
+          title={t('workflow.node.image')}
           status={data.status}
           collapsed={!portsExpanded}
           onToggleCollapse={togglePorts}
@@ -575,6 +594,7 @@ function ImageNode({ id, data }: NodeProps<WFNode>) {
 }
 
 function VideoNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const update = useUpdateNode(id);
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
   const { openResultPreview } = useContext(WorkflowCtx);
@@ -587,12 +607,12 @@ function VideoNode({ id, data }: NodeProps<WFNode>) {
       update={update}
       portsExpanded={portsExpanded}
       onOpenResultPreview={openResultPreview}
-      placeholder="Prompt mô tả chuyển động"
+      placeholder={t('workflow.node.video.placeholder')}
       head={
         <NodeHead
           id={id}
           icon={<Video size={14} />}
-          title="Tạo video AI"
+          title={t('workflow.node.video')}
           status={data.status}
           collapsed={!portsExpanded}
           onToggleCollapse={togglePorts}
@@ -603,6 +623,7 @@ function VideoNode({ id, data }: NodeProps<WFNode>) {
 }
 
 function TtsNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const update = useUpdateNode(id);
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
 
@@ -611,12 +632,12 @@ function TtsNode({ id, data }: NodeProps<WFNode>) {
       <NodeHead
         id={id}
         icon={<Volume2 size={14} />}
-        title="Đọc giọng"
+        title={t('workflow.node.tts.title')}
         status={data.status}
         collapsed={!portsExpanded}
         onToggleCollapse={togglePorts}
       />
-      <Port side="in" label="Văn bản" hideLabel={!portsExpanded} />
+      <Port side="in" label={t('workflow.port.text')} hideLabel={!portsExpanded} />
       <div className="wf-gen-body nodrag">
         <div className="wf-gen-model-block">
           <ModelSelect
@@ -629,7 +650,7 @@ function TtsNode({ id, data }: NodeProps<WFNode>) {
         <textarea
           className="wf-gen-prompt nodrag"
           value={data.text || ''}
-          placeholder="Văn bản (bỏ trống nếu nối từ node text)"
+          placeholder={t('workflow.node.tts.placeholder')}
           onChange={(e) => update({ text: e.target.value })}
         />
         <NodeLoadingResult
@@ -639,12 +660,13 @@ function TtsNode({ id, data }: NodeProps<WFNode>) {
         />
         {data.error && <p className="wf-node-error">{data.error}</p>}
       </div>
-      <Port side="out" label="URL Âm thanh" hideLabel={!portsExpanded} />
+      <Port side="out" label={t('workflow.port.urlAudio')} hideLabel={!portsExpanded} />
     </div>
   );
 }
 
 function MusicNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const update = useUpdateNode(id);
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
 
@@ -653,12 +675,12 @@ function MusicNode({ id, data }: NodeProps<WFNode>) {
       <NodeHead
         id={id}
         icon={<Music size={14} />}
-        title="Tạo nhạc AI"
+        title={t('workflow.node.music')}
         status={data.status}
         collapsed={!portsExpanded}
         onToggleCollapse={togglePorts}
       />
-      <Port side="in" label="Văn bản" hideLabel={!portsExpanded} />
+      <Port side="in" label={t('workflow.port.text')} hideLabel={!portsExpanded} />
       <div className="wf-gen-body nodrag">
         <div className="wf-gen-model-block">
           <ModelSelect
@@ -671,7 +693,7 @@ function MusicNode({ id, data }: NodeProps<WFNode>) {
         <textarea
           className="wf-gen-prompt nodrag"
           value={data.prompt || ''}
-          placeholder="Mô tả bản nhạc (hoặc nối từ node text)"
+          placeholder={t('workflow.node.music.placeholder')}
           onChange={(e) => update({ prompt: e.target.value })}
         />
         <NodeLoadingResult
@@ -681,21 +703,22 @@ function MusicNode({ id, data }: NodeProps<WFNode>) {
         />
         {data.error && <p className="wf-node-error">{data.error}</p>}
       </div>
-      <Port side="out" label="URL Nhạc" hideLabel={!portsExpanded} />
+      <Port side="out" label={t('workflow.port.urlMusic')} hideLabel={!portsExpanded} />
     </div>
   );
 }
 
 function NoteNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const update = useUpdateNode(id);
   return (
     <div className="wf-node wf-node-note wf-node-wide">
-      <NodeHead id={id} icon={<StickyNote size={14} />} title="Ghi chú" showStatus={false} />
+      <NodeHead id={id} icon={<StickyNote size={14} />} title={t('workflow.node.note')} showStatus={false} />
       <div className="wf-gen-body nodrag">
         <textarea
           className="wf-gen-prompt nodrag"
           value={data.prompt || ''}
-          placeholder="Ghi chú…"
+          placeholder={t('workflow.node.note.placeholder')}
           onChange={(e) => update({ prompt: e.target.value })}
         />
       </div>
@@ -704,6 +727,7 @@ function NoteNode({ id, data }: NodeProps<WFNode>) {
 }
 
 function OutputNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
   const displayUrl = data.resultUrl || (isHttpUrl(String(data.prompt || '')) ? String(data.prompt) : '');
   const displayText =
@@ -714,12 +738,12 @@ function OutputNode({ id, data }: NodeProps<WFNode>) {
       <NodeHead
         id={id}
         icon={<Package size={14} />}
-        title="Đầu ra"
+        title={t('workflow.node.output')}
         status={data.status}
         collapsed={!portsExpanded}
         onToggleCollapse={togglePorts}
       />
-      <WfNodePortsGrid ports={OUTPUT_PORTS} expanded={portsExpanded} />
+      <WfNodePortsGrid ports={translatePorts(t, OUTPUT_PORTS)} expanded={portsExpanded} />
       <div className="wf-gen-body nodrag">
         {displayUrl ? (
           <>
@@ -731,13 +755,13 @@ function OutputNode({ id, data }: NodeProps<WFNode>) {
                 target="_blank"
                 rel="noreferrer"
               >
-                Mở
+                {t('workflow.open')}
               </a>
               <ProjectPicker
                 snapshot={{
                   itemId: displayUrl,
                   type: guessProjectType(displayUrl),
-                  prompt: 'Từ workflow',
+                  prompt: t('workflow.fromWorkflow'),
                   thumbnailUrl: displayUrl,
                   downloadUrl: displayUrl,
                 }}
@@ -749,7 +773,7 @@ function OutputNode({ id, data }: NodeProps<WFNode>) {
             {displayText}
           </p>
         ) : (
-          <p className="wf-node-empty">Chạy quy trình để nhận kết quả.</p>
+          <p className="wf-node-empty">{t('workflow.node.output.empty')}</p>
         )}
         {data.error && <p className="wf-node-error">{data.error}</p>}
       </div>
@@ -758,27 +782,29 @@ function OutputNode({ id, data }: NodeProps<WFNode>) {
 }
 
 function StartNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const { portsExpanded } = usePortsExpanded(id);
   return (
     <div className={wfNodeClass({ status: data.status, portsExpanded, extra: 'wf-node-wide wf-node-start' })}>
-      <NodeHead id={id} icon={<Play size={14} />} title="Bắt đầu" status={data.status} />
+      <NodeHead id={id} icon={<Play size={14} />} title={t('workflow.node.start')} status={data.status} />
       <div className="wf-gen-body nodrag">
-        <p className="wf-node-empty">Điểm khởi động quy trình.</p>
+        <p className="wf-node-empty">{t('workflow.node.start.empty')}</p>
       </div>
-      <Port side="out" label="Bắt đầu" color="#fbbf24" />
+      <Port side="out" label={t('workflow.port.start')} color="#fbbf24" />
     </div>
   );
 }
 
 function EndNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const { portsExpanded } = usePortsExpanded(id);
   return (
     <div className={wfNodeClass({ status: data.status, portsExpanded, extra: 'wf-node-wide wf-node-end' })}>
-      <NodeHead id={id} icon={<Flag size={14} />} title="Kết thúc" status={data.status} />
-      <Port side="in" label="Kết thúc" color="#fbbf24" />
+      <NodeHead id={id} icon={<Flag size={14} />} title={t('workflow.node.end')} status={data.status} />
+      <Port side="in" label={t('workflow.port.end')} color="#fbbf24" />
       <div className="wf-gen-body nodrag">
         <p className="wf-node-empty">
-          {data.status === 'done' ? 'Quy trình hoàn tất.' : 'Điểm kết thúc quy trình.'}
+          {data.status === 'done' ? t('workflow.node.end.complete') : t('workflow.node.end.empty')}
         </p>
       </div>
     </div>
@@ -786,21 +812,23 @@ function EndNode({ id, data }: NodeProps<WFNode>) {
 }
 
 function RenderNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
   return (
     <div className={wfNodeClass({ status: data.status, portsExpanded, extra: 'wf-node-wide' })}>
       <NodeHead
         id={id}
         icon={<Film size={14} />}
-        title="Render Video"
+        title={t('workflow.node.render')}
         status={data.status}
         collapsed={!portsExpanded}
         onToggleCollapse={togglePorts}
       />
-      <WfNodePortsGrid ports={RENDER_PORTS} expanded={portsExpanded} />
+      <WfNodePortsGrid ports={translatePorts(t, RENDER_PORTS)} expanded={portsExpanded} />
       <div className="wf-gen-body nodrag">
         <p className="wf-node-empty">
-          Ghép các video đầu vào{data.exportMode ? ` · ${String(data.exportMode)}` : ''}
+          {t('workflow.node.render.empty')}
+          {data.exportMode ? ` · ${String(data.exportMode)}` : ''}
           {data.resolution ? ` · ${String(data.resolution)}` : ''}
         </p>
         <NodeLoadingResult
@@ -815,6 +843,7 @@ function RenderNode({ id, data }: NodeProps<WFNode>) {
 }
 
 function UpscaleImageNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const update = useUpdateNode(id);
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
 
@@ -823,12 +852,12 @@ function UpscaleImageNode({ id, data }: NodeProps<WFNode>) {
       <NodeHead
         id={id}
         icon={<ArrowUpCircle size={14} />}
-        title="Nâng cấp ảnh"
+        title={t('workflow.node.upscale-image')}
         status={data.status}
         collapsed={!portsExpanded}
         onToggleCollapse={togglePorts}
       />
-      <WfNodePortsGrid ports={UPSCALE_IMAGE_PORTS} expanded={portsExpanded} />
+      <WfNodePortsGrid ports={translatePorts(t, UPSCALE_IMAGE_PORTS, 'image')} expanded={portsExpanded} />
       <div className="wf-gen-body nodrag">
         <div className="wf-gen-model-block">
           <ModelSelect
@@ -841,20 +870,20 @@ function UpscaleImageNode({ id, data }: NodeProps<WFNode>) {
             <select
               className="wf-gen-pill wf-gen-pill--select nodrag"
               value={data.mode || 'standard'}
-              aria-label="Chế độ"
+              aria-label={t('workflow.config.mode')}
               onChange={(e) => update({ mode: e.target.value })}
             >
-              <option value="standard">Standard</option>
-              <option value="creative">Creative</option>
+              <option value="standard">{t('workflow.config.modeStandard')}</option>
+              <option value="creative">{t('workflow.config.modeCreative')}</option>
             </select>
             <select
               className="wf-gen-pill wf-gen-pill--select nodrag"
               value={data.resolution || '2k'}
-              aria-label="Phân giải"
+              aria-label={t('workflow.config.resolution')}
               onChange={(e) => update({ resolution: e.target.value })}
             >
-              <option value="2k">2K</option>
-              <option value="4k">4K</option>
+              <option value="2k">{t('workflow.config.res2k')}</option>
+              <option value="4k">{t('workflow.config.res4k')}</option>
             </select>
           </div>
         </div>
@@ -870,6 +899,7 @@ function UpscaleImageNode({ id, data }: NodeProps<WFNode>) {
 }
 
 function LipsyncNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const update = useUpdateNode(id);
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
 
@@ -878,12 +908,12 @@ function LipsyncNode({ id, data }: NodeProps<WFNode>) {
       <NodeHead
         id={id}
         icon={<Video size={14} />}
-        title="Video khẩu hình"
+        title={t('workflow.node.lipsync')}
         status={data.status}
         collapsed={!portsExpanded}
         onToggleCollapse={togglePorts}
       />
-      <WfNodePortsGrid ports={LIPSYNC_PORTS} expanded={portsExpanded} />
+      <WfNodePortsGrid ports={translatePorts(t, LIPSYNC_PORTS, 'video')} expanded={portsExpanded} />
       <div className="wf-gen-body nodrag">
         <div className="wf-gen-model-block">
           <ModelSelect
@@ -896,7 +926,7 @@ function LipsyncNode({ id, data }: NodeProps<WFNode>) {
         <textarea
           className="wf-gen-prompt nodrag"
           value={data.prompt || ''}
-          placeholder="Prompt (tuỳ chọn)"
+          placeholder={t('workflow.node.lipsync.placeholder')}
           onChange={(e) => update({ prompt: e.target.value })}
         />
         <NodeLoadingResult
@@ -911,6 +941,7 @@ function LipsyncNode({ id, data }: NodeProps<WFNode>) {
 }
 
 function MergeNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
   const itemsRaw = typeof data.allJson === 'string' ? data.allJson : '';
   let count = 0;
@@ -929,12 +960,12 @@ function MergeNode({ id, data }: NodeProps<WFNode>) {
       <NodeHead
         id={id}
         icon={<Combine size={14} />}
-        title="Gộp dữ liệu"
+        title={t('workflow.node.merge')}
         status={data.status}
         collapsed={!portsExpanded}
         onToggleCollapse={togglePorts}
       />
-      <WfNodePortsGrid ports={MERGE_PORTS} expanded={portsExpanded} />
+      <WfNodePortsGrid ports={translatePorts(t, MERGE_PORTS)} expanded={portsExpanded} />
       <div className="wf-gen-body nodrag">
         {displayUrl ? (
           <Preview url={displayUrl} />
@@ -944,11 +975,13 @@ function MergeNode({ id, data }: NodeProps<WFNode>) {
           </p>
         ) : (
           <p className="wf-node-empty">
-            Nối Ảnh / Video / Âm thanh / Văn bản để gộp.
-            {count > 0 ? ` · ${count} mục` : ''}
+            {t('workflow.node.merge.empty')}
+            {count > 0 ? t('workflow.node.merge.itemCount', { count }) : ''}
           </p>
         )}
-        {count > 0 && <p className="wf-node-status">{count} mục đã gộp</p>}
+        {count > 0 && (
+          <p className="wf-node-status">{t('workflow.node.merge.items', { count })}</p>
+        )}
         {data.error && <p className="wf-node-error">{data.error}</p>}
       </div>
     </div>
@@ -956,21 +989,22 @@ function MergeNode({ id, data }: NodeProps<WFNode>) {
 }
 
 function ExtractMediaNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
   return (
     <div className={wfNodeClass({ status: data.status, portsExpanded, extra: 'wf-node-wide' })}>
       <NodeHead
         id={id}
         icon={<Download size={14} />}
-        title="Trích xuất Media"
+        title={t('workflow.node.extract-media')}
         status={data.status}
         collapsed={!portsExpanded}
         onToggleCollapse={togglePorts}
       />
-      <WfNodePortsGrid ports={EXTRACT_MEDIA_PORTS} expanded={portsExpanded} />
+      <WfNodePortsGrid ports={translatePorts(t, EXTRACT_MEDIA_PORTS)} expanded={portsExpanded} />
       <div className="wf-gen-body nodrag">
         <p className="wf-node-empty">
-          Tách URL thành ảnh / video / audio
+          {t('workflow.node.extract.empty')}
           {data.statusText ? ` · ${data.statusText}` : ''}
         </p>
         <NodeLoadingResult
@@ -985,6 +1019,7 @@ function ExtractMediaNode({ id, data }: NodeProps<WFNode>) {
 }
 
 function AgentNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const update = useUpdateNode(id);
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
   const chatModelId = String(data.modelId || loadAgentState().chatModelId);
@@ -995,12 +1030,12 @@ function AgentNode({ id, data }: NodeProps<WFNode>) {
       <NodeHead
         id={id}
         icon={<Bot size={14} />}
-        title="Tác Nhân AI"
+        title={t('workflow.node.agent')}
         status={data.status}
         collapsed={!portsExpanded}
         onToggleCollapse={togglePorts}
       />
-      <WfNodePortsGrid ports={AGENT_PORTS} expanded={portsExpanded} />
+      <WfNodePortsGrid ports={translatePorts(t, AGENT_PORTS)} expanded={portsExpanded} />
       <div className="wf-gen-body nodrag">
         <div className="wf-gen-model-block">
           <WfNodeModelPicker
@@ -1013,11 +1048,11 @@ function AgentNode({ id, data }: NodeProps<WFNode>) {
         <textarea
           className="wf-gen-prompt nodrag"
           value={data.prompt || ''}
-          placeholder="Prompt (hoặc nối từ node văn bản)"
+          placeholder={t('workflow.node.agent.placeholder')}
           onChange={(e) => update({ prompt: e.target.value })}
         />
         {data.status === 'running' && (
-          <p className="wf-node-status">{data.statusText || 'Đang hỏi agent…'}</p>
+          <p className="wf-node-status">{data.statusText || t('workflow.node.agent.asking')}</p>
         )}
         {reply && (
           <div className="wf-gen-prompt-snippet nodrag" title={reply}>
@@ -1025,7 +1060,7 @@ function AgentNode({ id, data }: NodeProps<WFNode>) {
           </div>
         )}
         {!reply && data.status !== 'running' && (
-          <p className="wf-node-empty">Chat prompt → trả lời văn bản khi chạy workflow.</p>
+          <p className="wf-node-empty">{t('workflow.node.agent.empty')}</p>
         )}
         {data.error && <p className="wf-node-error">{data.error}</p>}
       </div>
@@ -1041,6 +1076,7 @@ function ProcessJobNodeShell({
   ports,
   jobType,
   placeholder,
+  portContext,
   children,
 }: {
   id: string;
@@ -1050,8 +1086,10 @@ function ProcessJobNodeShell({
   ports: { in: readonly { id: string; label: string; color?: string }[]; out: readonly { id: string; label: string; color?: string }[] };
   jobType: JobType;
   placeholder?: string;
+  portContext?: string;
   children?: ReactNode;
 }) {
+  const t = useWorkflowT();
   const update = useUpdateNode(id);
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
 
@@ -1065,7 +1103,7 @@ function ProcessJobNodeShell({
         collapsed={!portsExpanded}
         onToggleCollapse={togglePorts}
       />
-      <WfNodePortsGrid ports={ports} expanded={portsExpanded} />
+      <WfNodePortsGrid ports={translatePorts(t, ports, portContext)} expanded={portsExpanded} />
       <div className="wf-gen-body nodrag">
         <div className="wf-gen-model-block">
           <ModelSelect
@@ -1096,42 +1134,46 @@ function ProcessJobNodeShell({
 }
 
 function RemoveBgNode(props: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const { id, data } = props;
   return (
     <ProcessJobNodeShell
       id={id}
       data={data}
-      title="Xóa nền ảnh"
+      title={t('workflow.node.remove-bg')}
       icon={<Eraser size={14} />}
       ports={REMOVE_BG_PORTS}
       jobType="remove-bg"
+      portContext="image"
     />
   );
 }
 
 function UpscaleVideoNode(props: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const { id, data } = props;
   const update = useUpdateNode(id);
   return (
     <ProcessJobNodeShell
       id={id}
       data={data}
-      title="Nâng cấp video"
+      title={t('workflow.node.upscale-video')}
       icon={<ArrowUpCircle size={14} />}
       ports={UPSCALE_VIDEO_PORTS}
       jobType="video-upscale"
+      portContext="video"
     >
       <div className="wf-gen-config-pills">
         <select
           className="wf-gen-pill wf-gen-pill--select nodrag"
           value={data.resolution || '720p'}
-          aria-label="Phân giải"
+          aria-label={t('workflow.config.resolution')}
           onChange={(e) => update({ resolution: e.target.value })}
         >
-          <option value="720p">720p</option>
-          <option value="1080p">1080p</option>
-          <option value="2k">2K</option>
-          <option value="4k">4K</option>
+          <option value="720p">{t('workflow.config.res720p')}</option>
+          <option value="1080p">{t('workflow.config.res1080p')}</option>
+          <option value="2k">{t('workflow.config.res2k')}</option>
+          <option value="4k">{t('workflow.config.res4k')}</option>
         </select>
       </div>
     </ProcessJobNodeShell>
@@ -1139,45 +1181,51 @@ function UpscaleVideoNode(props: NodeProps<WFNode>) {
 }
 
 function VfxNode(props: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const { id, data } = props;
   return (
     <ProcessJobNodeShell
       id={id}
       data={data}
-      title="Tạo hiệu ứng video"
+      title={t('workflow.node.vfx')}
       icon={<Wand2 size={14} />}
       ports={VFX_PORTS}
       jobType="video-vfx"
-      placeholder="Mô tả hiệu ứng (tuỳ chọn)"
+      placeholder={t('workflow.node.vfx.placeholder')}
+      portContext="video"
     />
   );
 }
 
 function SubtitleNode(props: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const { id, data } = props;
   return (
     <ProcessJobNodeShell
       id={id}
       data={data}
-      title="Subtitle"
+      title={t('workflow.node.subtitle')}
       icon={<Captions size={14} />}
       ports={SUBTITLE_PORTS}
       jobType="video-subtitle"
-      placeholder="Nội dung phụ đề (tuỳ chọn)"
+      placeholder={t('workflow.node.subtitle.placeholder')}
+      portContext="video"
     />
   );
 }
 
 function CutVideoNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const update = useUpdateNode(id);
   return (
     <ProcessJobNodeShell
       id={id}
       data={data}
-      title="Cắt Video"
+      title={t('workflow.node.cut')}
       icon={<Scissors size={14} />}
       ports={CUT_VIDEO_PORTS}
       jobType="video-cut"
+      portContext="video"
     >
       <div className="wf-gen-config-pills">
         <input
@@ -1186,8 +1234,8 @@ function CutVideoNode({ id, data }: NodeProps<WFNode>) {
           min={0}
           step={0.1}
           value={data.startSec ?? 0}
-          placeholder="Bắt đầu (s)"
-          aria-label="Bắt đầu (s)"
+          placeholder={t('workflow.config.startSec')}
+          aria-label={t('workflow.config.startSec')}
           onChange={(e) => update({ startSec: Number(e.target.value) })}
         />
         <input
@@ -1196,8 +1244,8 @@ function CutVideoNode({ id, data }: NodeProps<WFNode>) {
           min={0}
           step={0.1}
           value={data.endSec ?? 0}
-          placeholder="Kết thúc (s)"
-          aria-label="Kết thúc (s)"
+          placeholder={t('workflow.config.endSec')}
+          aria-label={t('workflow.config.endSec')}
           onChange={(e) => update({ endSec: Number(e.target.value) })}
         />
       </div>
@@ -1206,6 +1254,7 @@ function CutVideoNode({ id, data }: NodeProps<WFNode>) {
 }
 
 function KolsNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const update = useUpdateNode(id);
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
   const kolId = String(data.kolId || WORKFLOW_KOLS[0]?.id || '');
@@ -1216,24 +1265,24 @@ function KolsNode({ id, data }: NodeProps<WFNode>) {
     <div
       className={wfNodeClass({ status: data.status, portsExpanded, extra: 'wf-node-kols' })}
       onDoubleClick={() => update({ configured: true })}
-      title="Double-click để xác nhận KOL"
+      title={t('workflow.node.kols.confirmHint')}
     >
       <NodeHead
         id={id}
         icon={<Users size={14} />}
-        title="KOLs"
+        title={t('workflow.node.kols')}
         status={data.status}
         collapsed={!portsExpanded}
         onToggleCollapse={togglePorts}
       />
-      <WfNodePortsGrid ports={KOLS_PORTS} expanded={portsExpanded} />
+      <WfNodePortsGrid ports={translatePorts(t, KOLS_PORTS, 'kols')} expanded={portsExpanded} />
       <div className="wf-gen-body nodrag">
         <div className="wf-gen-model-block">
           <WfNodeModelPicker
             value={kolId}
             options={WORKFLOW_KOLS.map((k) => ({ value: k.id, label: k.name }))}
             onChange={(v) => update({ kolId: v })}
-            emptyLabel="Không có KOL"
+            emptyLabel={t('workflow.node.kols.noKol')}
             variant="gen"
           />
         </div>
@@ -1241,10 +1290,10 @@ function KolsNode({ id, data }: NodeProps<WFNode>) {
           className="wf-gen-url nodrag"
           type="text"
           value={data.customImageUrl || ''}
-          placeholder="URL ảnh tuỳ chỉnh (tuỳ chọn)"
+          placeholder={t('workflow.node.kols.imagePlaceholder')}
           onChange={(e) => update({ customImageUrl: e.target.value })}
         />
-        {imageUrl ? <Preview url={imageUrl} /> : <p className="wf-node-empty">Chọn KOL hoặc nhập URL ảnh.</p>}
+        {imageUrl ? <Preview url={imageUrl} /> : <p className="wf-node-empty">{t('workflow.node.kols.empty')}</p>}
         {kol && <p className="wf-node-status">{kol.name}</p>}
         {data.error && <p className="wf-node-error">{data.error}</p>}
       </div>
@@ -1253,6 +1302,7 @@ function KolsNode({ id, data }: NodeProps<WFNode>) {
 }
 
 function DataTableNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const update = useUpdateNode(id);
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
   const raw = String(data.tableRaw || data.prompt || '');
@@ -1269,17 +1319,17 @@ function DataTableNode({ id, data }: NodeProps<WFNode>) {
       <NodeHead
         id={id}
         icon={<Database size={14} />}
-        title="Bảng dữ liệu"
+        title={t('workflow.node.data-table')}
         status={data.status}
         collapsed={!portsExpanded}
         onToggleCollapse={togglePorts}
       />
-      <WfNodePortsGrid ports={DATA_TABLE_PORTS} expanded={portsExpanded} />
+      <WfNodePortsGrid ports={translatePorts(t, DATA_TABLE_PORTS, 'data-table')} expanded={portsExpanded} />
       <div className="wf-gen-body nodrag">
         <textarea
           className="wf-gen-prompt nodrag"
           value={raw}
-          placeholder={'JSON array hoặc CSV\nname,url\nA,https://…'}
+          placeholder={t('workflow.node.data-table.placeholder')}
           onChange={(e) => update({ tableRaw: e.target.value, prompt: e.target.value })}
         />
         {previewRows.length > 0 ? (
@@ -1303,11 +1353,15 @@ function DataTableNode({ id, data }: NodeProps<WFNode>) {
               </tbody>
             </table>
             {table.rows.length > previewRows.length && (
-              <p className="wf-node-status">+{table.rows.length - previewRows.length} hàng nữa</p>
+              <p className="wf-node-status">
+                {t('workflow.node.data-table.moreRows', {
+                  count: table.rows.length - previewRows.length,
+                })}
+              </p>
             )}
           </div>
         ) : (
-          <p className="wf-node-empty">Nhập CSV/JSON hoặc nối cổng Dữ liệu.</p>
+          <p className="wf-node-empty">{t('workflow.node.data-table.empty')}</p>
         )}
         {data.error && <p className="wf-node-error">{data.error}</p>}
       </div>
@@ -1316,6 +1370,7 @@ function DataTableNode({ id, data }: NodeProps<WFNode>) {
 }
 
 function ApiNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const update = useUpdateNode(id);
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
   return (
@@ -1323,12 +1378,12 @@ function ApiNode({ id, data }: NodeProps<WFNode>) {
       <NodeHead
         id={id}
         icon={<Globe size={14} />}
-        title="Gọi API"
+        title={t('workflow.node.api')}
         status={data.status}
         collapsed={!portsExpanded}
         onToggleCollapse={togglePorts}
       />
-      <Port side="in" label="Payload" hideLabel={!portsExpanded} />
+      <Port side="in" label={t('workflow.port.payload')} hideLabel={!portsExpanded} />
       <div className="wf-gen-body nodrag">
         <div className="wf-gen-config-pills">
           <select
@@ -1348,24 +1403,25 @@ function ApiNode({ id, data }: NodeProps<WFNode>) {
           className="wf-gen-url nodrag"
           type="text"
           value={data.url || ''}
-          placeholder="https://api.example.com/…"
+          placeholder={t('workflow.node.api.urlPlaceholder')}
           onChange={(e) => update({ url: e.target.value })}
         />
         <textarea
           className="wf-gen-prompt nodrag"
           value={data.prompt || ''}
-          placeholder="Body JSON (bỏ trống nếu nối từ node text)"
+          placeholder={t('workflow.node.api.bodyPlaceholder')}
           onChange={(e) => update({ prompt: e.target.value })}
         />
         {data.statusText && <p className="wf-node-status">{data.statusText}</p>}
         {data.error && <p className="wf-node-error">{data.error}</p>}
       </div>
-      <Port side="out" label="Phản hồi" hideLabel={!portsExpanded} />
+      <Port side="out" label={t('workflow.port.response')} hideLabel={!portsExpanded} />
     </div>
   );
 }
 
 function ConditionNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const update = useUpdateNode(id);
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
   const op = data.op || 'not_empty';
@@ -1375,26 +1431,26 @@ function ConditionNode({ id, data }: NodeProps<WFNode>) {
       <NodeHead
         id={id}
         icon={<GitBranch size={14} />}
-        title="Điều kiện"
+        title={t('workflow.node.condition')}
         status={data.status}
         collapsed={!portsExpanded}
         onToggleCollapse={togglePorts}
       />
-      <Port side="in" label="Giá trị" hideLabel={!portsExpanded} />
+      <Port side="in" label={t('workflow.port.value')} hideLabel={!portsExpanded} />
       <div className="wf-gen-body nodrag">
         <div className="wf-gen-config-pills">
           <select
             className="wf-gen-pill wf-gen-pill--select nodrag"
             value={op}
-            aria-label="Điều kiện"
+            aria-label={t('workflow.condition.ariaLabel')}
             onChange={(e) => update({ op: e.target.value })}
           >
-            <option value="not_empty">Không rỗng</option>
-            <option value="empty">Rỗng</option>
-            <option value="contains">Chứa</option>
-            <option value="equals">Bằng</option>
-            <option value="gt">Lớn hơn (số)</option>
-            <option value="lt">Nhỏ hơn (số)</option>
+            <option value="not_empty">{t('workflow.condition.notEmpty')}</option>
+            <option value="empty">{t('workflow.condition.empty')}</option>
+            <option value="contains">{t('workflow.condition.contains')}</option>
+            <option value="equals">{t('workflow.condition.equals')}</option>
+            <option value="gt">{t('workflow.condition.gt')}</option>
+            <option value="lt">{t('workflow.condition.lt')}</option>
           </select>
         </div>
         {needsCompare && (
@@ -1402,19 +1458,20 @@ function ConditionNode({ id, data }: NodeProps<WFNode>) {
             className="wf-gen-url nodrag"
             type="text"
             value={data.compare || ''}
-            placeholder="Giá trị so sánh"
+            placeholder={t('workflow.condition.comparePlaceholder')}
             onChange={(e) => update({ compare: e.target.value })}
           />
         )}
         {data.statusText && <p className="wf-node-status">{data.statusText}</p>}
       </div>
-      <Port side="out" label="Đúng" color="#34d399" handleId="true" hideLabel={!portsExpanded} />
-      <Port side="out" label="Sai" color="#f87171" handleId="false" hideLabel={!portsExpanded} />
+      <Port side="out" label={t('workflow.port.true')} color="#34d399" handleId="true" hideLabel={!portsExpanded} />
+      <Port side="out" label={t('workflow.port.false')} color="#f87171" handleId="false" hideLabel={!portsExpanded} />
     </div>
   );
 }
 
 function DelayNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const update = useUpdateNode(id);
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
   return (
@@ -1422,12 +1479,12 @@ function DelayNode({ id, data }: NodeProps<WFNode>) {
       <NodeHead
         id={id}
         icon={<Timer size={14} />}
-        title="Trì hoãn"
+        title={t('workflow.node.delay')}
         status={data.status}
         collapsed={!portsExpanded}
         onToggleCollapse={togglePorts}
       />
-      <Port side="in" label="Kích hoạt" hideLabel={!portsExpanded} />
+      <Port side="in" label={t('workflow.port.activate')} hideLabel={!portsExpanded} />
       <div className="wf-gen-body nodrag">
         <div className="wf-node-row wf-node-inline">
           <input
@@ -1438,16 +1495,17 @@ function DelayNode({ id, data }: NodeProps<WFNode>) {
             value={data.seconds ?? 1}
             onChange={(e) => update({ seconds: Number(e.target.value) })}
           />
-          <span className="wf-node-suffix">giây</span>
+          <span className="wf-node-suffix">{t('workflow.delay.seconds')}</span>
         </div>
         {data.statusText && <p className="wf-node-status">{data.statusText}</p>}
       </div>
-      <Port side="out" label="Xong" hideLabel={!portsExpanded} />
+      <Port side="out" label={t('workflow.port.done')} hideLabel={!portsExpanded} />
     </div>
   );
 }
 
 function LoopNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const update = useUpdateNode(id);
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
   return (
@@ -1455,15 +1513,15 @@ function LoopNode({ id, data }: NodeProps<WFNode>) {
       <NodeHead
         id={id}
         icon={<Repeat size={14} />}
-        title="Vòng lặp"
+        title={t('workflow.node.loop')}
         status={data.status}
         collapsed={!portsExpanded}
         onToggleCollapse={togglePorts}
       />
-      <Port side="in" label="Kích hoạt" hideLabel={!portsExpanded} />
+      <Port side="in" label={t('workflow.port.activate')} hideLabel={!portsExpanded} />
       <div className="wf-gen-body nodrag">
         <div className="wf-node-row wf-node-inline">
-          <span className="wf-node-suffix">Lặp</span>
+          <span className="wf-node-suffix">{t('workflow.loop.repeat')}</span>
           <input
             className="wf-gen-url nodrag"
             type="number"
@@ -1472,38 +1530,40 @@ function LoopNode({ id, data }: NodeProps<WFNode>) {
             value={data.count ?? 3}
             onChange={(e) => update({ count: Number(e.target.value) })}
           />
-          <span className="wf-node-suffix">lần</span>
+          <span className="wf-node-suffix">{t('workflow.loop.times')}</span>
         </div>
         {data.statusText && <p className="wf-node-status">{data.statusText}</p>}
       </div>
-      <Port side="out" label="Mỗi vòng" color="#fbbf24" handleId="each" hideLabel={!portsExpanded} />
-      <Port side="out" label="Hoàn tất" handleId="done" hideLabel={!portsExpanded} />
+      <Port side="out" label={t('workflow.port.eachLoop')} color="#fbbf24" handleId="each" hideLabel={!portsExpanded} />
+      <Port side="out" label={t('workflow.port.loopDone')} handleId="done" hideLabel={!portsExpanded} />
     </div>
   );
 }
 
 function CloneNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
   return (
     <div className={wfNodeClass({ status: data.status, portsExpanded, extra: 'wf-node-control' })}>
       <NodeHead
         id={id}
         icon={<Copy size={14} />}
-        title="Nhân Bản"
+        title={t('workflow.node.clone')}
         status={data.status}
         collapsed={!portsExpanded}
         onToggleCollapse={togglePorts}
       />
-      <Port side="in" label="Đầu vào" hideLabel={!portsExpanded} />
+      <Port side="in" label={t('workflow.port.input')} hideLabel={!portsExpanded} />
       <div className="wf-gen-body nodrag">
-        <p className="wf-node-empty">Sao chép dữ liệu sang nhiều nhánh.</p>
+        <p className="wf-node-empty">{t('workflow.node.clone.empty')}</p>
       </div>
-      <Port side="out" label="Bản sao" hideLabel={!portsExpanded} />
+      <Port side="out" label={t('workflow.port.copy')} hideLabel={!portsExpanded} />
     </div>
   );
 }
 
 function NotifyNode({ id, data }: NodeProps<WFNode>) {
+  const t = useWorkflowT();
   const update = useUpdateNode(id);
   const { portsExpanded, togglePorts } = usePortsExpanded(id);
   return (
@@ -1511,22 +1571,22 @@ function NotifyNode({ id, data }: NodeProps<WFNode>) {
       <NodeHead
         id={id}
         icon={<Bell size={14} />}
-        title="Gửi thông báo"
+        title={t('workflow.node.notify')}
         status={data.status}
         collapsed={!portsExpanded}
         onToggleCollapse={togglePorts}
       />
-      <Port side="in" label="Kích hoạt" hideLabel={!portsExpanded} />
+      <Port side="in" label={t('workflow.port.activate')} hideLabel={!portsExpanded} />
       <div className="wf-gen-body nodrag">
         <textarea
           className="wf-gen-prompt nodrag"
           value={data.prompt || ''}
-          placeholder="Nội dung (bỏ trống để dùng dữ liệu nối vào)"
+          placeholder={t('workflow.node.notify.placeholder')}
           onChange={(e) => update({ prompt: e.target.value })}
         />
         {data.statusText && <p className="wf-node-status">{data.statusText}</p>}
       </div>
-      <Port side="out" label="Xong" hideLabel={!portsExpanded} />
+      <Port side="out" label={t('workflow.port.done')} hideLabel={!portsExpanded} />
     </div>
   );
 }
@@ -1576,6 +1636,7 @@ function WfEdge({
   style,
   selected,
 }: EdgeProps) {
+  const t = useWorkflowT();
   const { deleteElements } = useReactFlow();
   const [hovered, setHovered] = useState(false);
   const [path, labelX, labelY] = getBezierPath({
@@ -1608,7 +1669,7 @@ function WfEdge({
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
             opacity: active ? 1 : 0,
           }}
-          title="Hủy nối"
+          title={t('workflow.disconnectEdge')}
           onClick={() => deleteElements({ edges: [{ id }] })}
         >
           <X size={11} />
@@ -1620,114 +1681,6 @@ function WfEdge({
 
 const edgeTypes = { wf: WfEdge };
 
-type IconType = ComponentType<{ size?: number }>;
-
-interface NodeDef {
-  key: string;
-  label: string;
-  icon: IconType;
-  implemented: boolean;
-}
-
-interface NodeGroup {
-  id: string;
-  label: string;
-  color: string;
-  icon: IconType;
-  defaultOpen?: boolean;
-  nodes: NodeDef[];
-}
-
-const soon = (key: string, label: string, icon: IconType): NodeDef => ({
-  key,
-  label,
-  icon,
-  implemented: false,
-});
-
-const NODE_GROUPS: NodeGroup[] = [
-  {
-    id: 'frequent',
-    label: 'Dùng thường xuyên',
-    color: '#fbbf24',
-    icon: Sparkles,
-    defaultOpen: true,
-    nodes: [
-      { key: 'start', label: 'Bắt đầu', icon: Play, implemented: true },
-      { key: 'api', label: 'Gọi API', icon: Globe, implemented: true },
-      { key: 'end', label: 'Kết thúc', icon: Flag, implemented: true },
-      { key: 'image', label: 'Tạo ảnh AI', icon: Image, implemented: true },
-      { key: 'agent', label: 'Tác Nhân AI', icon: Bot, implemented: true },
-      { key: 'text', label: 'Nhập văn bản', icon: Type, implemented: true },
-    ],
-  },
-  {
-    id: 'control',
-    label: 'Luồng điều khiển',
-    color: '#a78bfa',
-    icon: GitBranch,
-    nodes: [
-      { key: 'start', label: 'Bắt đầu', icon: Play, implemented: true },
-      { key: 'end', label: 'Kết thúc', icon: Flag, implemented: true },
-      { key: 'condition', label: 'Điều kiện', icon: GitBranch, implemented: true },
-      { key: 'delay', label: 'Trì hoãn', icon: Timer, implemented: true },
-      { key: 'loop', label: 'Vòng lặp', icon: Repeat, implemented: true },
-      { key: 'clone', label: 'Nhân Bản', icon: Copy, implemented: true },
-      { key: 'notify', label: 'Gửi thông báo', icon: Bell, implemented: true },
-    ],
-  },
-  {
-    id: 'content',
-    label: 'Tạo nội dung AI',
-    color: '#2dd4bf',
-    icon: Sparkles,
-    defaultOpen: true,
-    nodes: [
-      { key: 'image', label: 'Tạo ảnh AI', icon: Image, implemented: true },
-      { key: 'video', label: 'Tạo video AI', icon: Video, implemented: true },
-      { key: 'tts', label: 'Tạo giọng nói', icon: Volume2, implemented: true },
-      { key: 'music', label: 'Tạo nhạc AI', icon: Music, implemented: true },
-      soon('prompt', 'Tạo Prompt AI', Wand2),
-      soon('storyboard', 'Storyboard', LayoutGrid),
-    ],
-  },
-  {
-    id: 'process',
-    label: 'Xử lý',
-    color: '#a78bfa',
-    icon: Wand2,
-    nodes: [
-      { key: 'api', label: 'Gọi API', icon: Globe, implemented: true },
-      { key: 'upscale-image', label: 'Nâng cấp ảnh', icon: ArrowUpCircle, implemented: true },
-      { key: 'upscale-video', label: 'Nâng cấp video', icon: ArrowUpCircle, implemented: true },
-      { key: 'remove-bg', label: 'Xóa nền ảnh', icon: Eraser, implemented: true },
-      { key: 'lipsync', label: 'Video khẩu hình', icon: Video, implemented: true },
-      { key: 'vfx', label: 'Tạo hiệu ứng video', icon: Wand2, implemented: true },
-      { key: 'subtitle', label: 'Subtitle', icon: Captions, implemented: true },
-      { key: 'render', label: 'Render Video', icon: Film, implemented: true },
-      { key: 'cut', label: 'Cắt Video', icon: Scissors, implemented: true },
-    ],
-  },
-  {
-    id: 'io',
-    label: 'Đầu vào / Đầu ra',
-    color: '#34d399',
-    icon: Package,
-    nodes: [
-      { key: 'agent', label: 'Tác Nhân AI', icon: Bot, implemented: true },
-      { key: 'text', label: 'Nhập văn bản', icon: Type, implemented: true },
-      { key: 'input-image', label: 'Nhập ảnh', icon: Image, implemented: true },
-      { key: 'input-video', label: 'Nhập Video', icon: Video, implemented: true },
-      { key: 'output', label: 'Đầu ra', icon: Package, implemented: true },
-      { key: 'merge', label: 'Gộp dữ liệu', icon: Combine, implemented: true },
-      { key: 'note', label: 'Ghi chú', icon: StickyNote, implemented: true },
-      { key: 'data-table', label: 'Bảng dữ liệu', icon: Database, implemented: true },
-      { key: 'extract-media', label: 'Trích xuất Media', icon: Download, implemented: true },
-      { key: 'kols', label: 'KOLs', icon: Users, implemented: true },
-    ],
-  },
-];
-
 function Palette({
   onAdd,
   open,
@@ -1737,9 +1690,11 @@ function Palette({
   open: boolean;
   onToggle: () => void;
 }) {
+  const t = useWorkflowT();
+  const nodeGroups = useMemo(() => getNodeGroups(t), [t]);
   const [query, setQuery] = useState('');
   const [openMap, setOpenMap] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(NODE_GROUPS.map((g) => [g.id, Boolean(g.defaultOpen)])),
+    Object.fromEntries(nodeGroups.map((g) => [g.id, Boolean(g.defaultOpen)])),
   );
   const q = query.trim().toLowerCase();
 
@@ -1751,12 +1706,12 @@ function Palette({
   return (
     <aside className={`wf-palette${open ? '' : ' collapsed'}`}>
       <div className="wf-palette-head">
-        <span>CÁC NODE</span>
+        <span>{t('workflow.palette.title')}</span>
         <button
           type="button"
           className="wf-palette-toggle"
           onClick={onToggle}
-          title="Thu gọn sidebar"
+          title={t('workflow.palette.collapseSidebar')}
         >
           <PanelLeftClose size={16} />
         </button>
@@ -1767,15 +1722,15 @@ function Palette({
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Tìm node…"
+          placeholder={t('workflow.palette.searchPlaceholder')}
         />
       </div>
 
       <div className="wf-palette-groups">
-        {NODE_GROUPS.map((g) => {
+        {nodeGroups.map((g) => {
           const nodes = q ? g.nodes.filter((n) => n.label.toLowerCase().includes(q)) : g.nodes;
           if (q && nodes.length === 0) return null;
-          const open = q ? true : openMap[g.id];
+          const groupOpen = q ? true : openMap[g.id];
           return (
             <section key={g.id} className="wf-group">
               <button
@@ -1789,9 +1744,9 @@ function Palette({
                 </span>
                 <span className="wf-group-name">{g.label}</span>
                 <span className="wf-group-count">{g.nodes.length}</span>
-                <ChevronDown size={14} className={`wf-group-caret${open ? ' open' : ''}`} />
+                <ChevronDown size={14} className={`wf-group-caret${groupOpen ? ' open' : ''}`} />
               </button>
-              {open && (
+              {groupOpen && (
                 <div className="wf-group-grid">
                   {nodes.map((n, i) => (
                     <button
@@ -1802,11 +1757,15 @@ function Palette({
                       onDragStart={n.implemented ? (e) => onDragStart(e, n.key) : undefined}
                       onClick={n.implemented ? () => onAdd(n.key) : undefined}
                       disabled={!n.implemented}
-                      title={n.implemented ? n.label : `${n.label} (Sắp có)`}
+                      title={
+                        n.implemented
+                          ? n.label
+                          : t('workflow.soonTitle', { label: n.label })
+                      }
                     >
                       <n.icon size={20} />
                       <span className="wf-tile-label">{n.label}</span>
-                      {!n.implemented && <span className="wf-tile-soon">Sắp có</span>}
+                      {!n.implemented && <span className="wf-tile-soon">{t('workflow.soon')}</span>}
                     </button>
                   ))}
                 </div>
@@ -1816,8 +1775,8 @@ function Palette({
         })}
       </div>
 
-      <button type="button" className="wf-mini-app" disabled title="Sắp có">
-        <LayoutGrid size={15} /> Tạo Mini App
+      <button type="button" className="wf-mini-app" disabled title={t('workflow.soon')}>
+        <LayoutGrid size={15} /> {t('workflow.miniApp')}
       </button>
     </aside>
   );
@@ -1966,6 +1925,7 @@ interface BottomBarProps {
 }
 
 function BottomBar({ running, error, onRun, onStop, onAutoLayout }: BottomBarProps) {
+  const t = useWorkflowT();
   const { zoomIn, zoomOut, fitView, deleteElements, getNodes } = useReactFlow();
   const zoom = useStore((s) => s.transform[2]);
 
@@ -1976,11 +1936,11 @@ function BottomBar({ running, error, onRun, onStop, onAutoLayout }: BottomBarPro
 
   return (
     <Panel position="bottom-center" className="wf-bottombar">
-      <button type="button" className="wf-bb-btn" onClick={() => zoomOut()} title="Thu nhỏ">
+      <button type="button" className="wf-bb-btn" onClick={() => zoomOut()} title={t('workflow.toolbar.zoomOut')}>
         <ZoomOut size={16} />
       </button>
       <span className="wf-bb-zoom">{Math.round((zoom || 1) * 100)}%</span>
-      <button type="button" className="wf-bb-btn" onClick={() => zoomIn()} title="Phóng to">
+      <button type="button" className="wf-bb-btn" onClick={() => zoomIn()} title={t('workflow.toolbar.zoomIn')}>
         <ZoomIn size={16} />
       </button>
       <span className="wf-bb-sep" />
@@ -1988,7 +1948,7 @@ function BottomBar({ running, error, onRun, onStop, onAutoLayout }: BottomBarPro
         type="button"
         className="wf-bb-btn"
         onClick={() => fitView({ duration: 300 })}
-        title="Vừa màn hình"
+        title={t('workflow.toolbar.fitView')}
       >
         <Maximize size={16} />
       </button>
@@ -1996,7 +1956,7 @@ function BottomBar({ running, error, onRun, onStop, onAutoLayout }: BottomBarPro
         type="button"
         className="wf-bb-btn"
         onClick={onAutoLayout}
-        title="Sắp xếp tự động"
+        title={t('workflow.toolbar.autoLayout')}
       >
         <Workflow size={16} />
       </button>
@@ -2004,7 +1964,7 @@ function BottomBar({ running, error, onRun, onStop, onAutoLayout }: BottomBarPro
         type="button"
         className="wf-bb-btn wf-bb-danger"
         onClick={deleteSelected}
-        title="Xóa node đang chọn (hoặc nhấn Delete)"
+        title={t('workflow.toolbar.deleteSelected')}
       >
         <Trash2 size={16} />
       </button>
@@ -2012,11 +1972,11 @@ function BottomBar({ running, error, onRun, onStop, onAutoLayout }: BottomBarPro
       {error && <span className="wf-bb-error" title={error}>{error}</span>}
       {running ? (
         <button type="button" className="wf-bb-run wf-bb-stop" onClick={onStop}>
-          <Square size={15} /> Dừng
+          <Square size={15} /> {t('workflow.toolbar.stop')}
         </button>
       ) : (
         <button type="button" className="wf-bb-run" onClick={onRun}>
-          <Play size={15} /> Chạy quy trình
+          <Play size={15} /> {t('workflow.toolbar.run')}
         </button>
       )}
     </Panel>
@@ -2030,6 +1990,7 @@ interface NewWorkflowModalProps {
 }
 
 function NewWorkflowModal({ open, onCreate, onClose }: NewWorkflowModalProps) {
+  const t = useWorkflowT();
   const [name, setName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -2050,11 +2011,11 @@ function NewWorkflowModal({ open, onCreate, onClose }: NewWorkflowModalProps) {
   return (
     <div className="wf-new-overlay" onClick={onClose}>
       <div className="wf-new-modal" onClick={(e) => e.stopPropagation()}>
-        <h3 className="wf-new-title">Quy trình mới</h3>
+        <h3 className="wf-new-title">{t('workflow.new.title')}</h3>
         <input
           ref={inputRef}
           className="wf-new-input"
-          placeholder="Tên quy trình..."
+          placeholder={t('workflow.new.placeholder')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {
@@ -2064,10 +2025,10 @@ function NewWorkflowModal({ open, onCreate, onClose }: NewWorkflowModalProps) {
         />
         <div className="wf-new-actions">
           <button type="button" className="wf-new-cancel" onClick={onClose}>
-            Quay lại
+            {t('workflow.new.cancel')}
           </button>
           <button type="button" className="wf-new-create" onClick={submit} disabled={!canCreate}>
-            Tạo
+            {t('workflow.new.create')}
           </button>
         </div>
       </div>
@@ -2076,6 +2037,7 @@ function NewWorkflowModal({ open, onCreate, onClose }: NewWorkflowModalProps) {
 }
 
 function Flow() {
+  const { t } = useLocale();
   const initialState = useMemo(() => loadTabsState(defaultGraph()), []);
   const initialTab =
     initialState.tabs.find((t) => t.id === initialState.activeId) ?? initialState.tabs[0];
@@ -2424,7 +2386,7 @@ function Flow() {
   };
 
   const handleClear = () => {
-    if (!window.confirm('Xóa toàn bộ sơ đồ trong tab này?')) return;
+    if (!window.confirm(t('workflow.confirm.clearDiagram'))) return;
     clearWorkflow();
     const g = defaultGraph();
     setNodes(g.nodes);
@@ -2487,7 +2449,7 @@ function Flow() {
     if (!hasControl) {
       order = topoSort(nodes, edges);
       if (!order) {
-        setError('Sơ đồ có vòng lặp — thêm node Vòng lặp để lặp lại.');
+        setError(t('workflow.error.cycle'));
         return;
       }
     }
@@ -2556,11 +2518,14 @@ function Flow() {
           updateNode(node.id, { status: 'done' });
           return {};
         case 'end':
-          updateNode(node.id, { status: 'done', statusText: 'Hoàn tất' });
+          updateNode(node.id, { status: 'done', statusText: t('workflow.status.complete') });
           return {};
         case 'delay': {
           const secs = Math.max(0, Number(node.data.seconds ?? 1));
-          updateNode(node.id, { status: 'running', statusText: `Chờ ${secs}s…` });
+          updateNode(node.id, {
+            status: 'running',
+            statusText: t('workflow.status.waitSeconds', { secs }),
+          });
           await sleep(secs * 1000, signal);
           updateNode(node.id, { status: 'done', statusText: undefined });
           return { output: upUrl || upText || '' };
@@ -2569,14 +2534,22 @@ function Flow() {
           updateNode(node.id, { status: 'done' });
           return { output: upUrl || upText || '' };
         case 'notify': {
-          const msg = String(node.data.prompt || upText || upUrl || '(trống)');
-          updateNode(node.id, { status: 'done', statusText: `Đã gửi: ${msg.slice(0, 40)}` });
+          const msg = String(
+            node.data.prompt || upText || upUrl || t('workflow.status.empty'),
+          );
+          updateNode(node.id, {
+            status: 'done',
+            statusText: t('workflow.status.sent', { msg: msg.slice(0, 40) }),
+          });
           return { output: upUrl || upText || '' };
         }
         case 'condition': {
           const value = upText || upUrl || '';
           const ok = evalCondition(value, String(node.data.op || 'not_empty'), node.data.compare);
-          updateNode(node.id, { status: 'done', statusText: ok ? 'Đúng ✓' : 'Sai ✗' });
+          updateNode(node.id, {
+            status: 'done',
+            statusText: ok ? t('workflow.status.true') : t('workflow.status.false'),
+          });
           return { output: value, branch: ok ? 'true' : 'false' };
         }
         case 'loop':
@@ -2607,17 +2580,17 @@ function Flow() {
           let frameUrl = resolved.firstFrame;
 
           if (node.type === 'input-video' && primary) {
-            updateNode(node.id, { status: 'running', statusText: 'Trích frame…' });
+            updateNode(node.id, { status: 'running', statusText: t('workflow.status.extractFrame') });
             frameUrl = await extractVideoFirstFrame(primary);
           }
 
           if (!primary && draft.required) {
-            updateNode(node.id, { status: 'error', error: 'Chưa có ảnh/video (bắt buộc)' });
-            throw new Error('Chưa có ảnh/video');
+            updateNode(node.id, { status: 'error', error: t('workflow.error.noMediaRequired') });
+            throw new Error(t('workflow.error.noMediaRequired'));
           }
 
           if (!primary && !draft.required) {
-            updateNode(node.id, { status: 'done', statusText: 'Bỏ qua (không bắt buộc)' });
+            updateNode(node.id, { status: 'done', statusText: t('workflow.status.skipOptional') });
             outputByHandle[node.id] = { done: 'ok', 'media-out': '', all: '[]', 'first-frame': '' };
             return { output: '' };
           }
@@ -2647,8 +2620,8 @@ function Flow() {
         case 'api': {
           const url = String(node.data.url || '').trim();
           if (!url) {
-            updateNode(node.id, { status: 'error', error: 'Chưa nhập URL' });
-            throw new Error('Gọi API: chưa nhập URL');
+            updateNode(node.id, { status: 'error', error: t('workflow.error.noUrl') });
+            throw new Error(t('workflow.error.noUrl'));
           }
           const method = String(node.data.method || 'GET').toUpperCase();
           const body = String(node.data.prompt || upText || '').trim();
@@ -2700,7 +2673,7 @@ function Flow() {
             text: !mediaUrl && primary ? primary : undefined,
             prompt: !mediaUrl && primary ? primary : undefined,
             status: primary ? 'done' : 'error',
-            error: primary ? undefined : 'Không có đầu vào',
+            error: primary ? undefined : t('workflow.error.noInput'),
           });
           outputByHandle[node.id] = {
             done: primary || 'ok',
@@ -2712,13 +2685,13 @@ function Flow() {
         case 'render': {
           const videoUrl = inputOnHandle(node.id, 'video') || upUrl;
           if (!videoUrl) {
-            updateNode(node.id, { status: 'error', error: 'Không có video đầu vào' });
-            throw new Error('Render: không có video đầu vào');
+            updateNode(node.id, { status: 'error', error: t('workflow.error.noVideoInput') });
+            throw new Error(t('workflow.error.noVideoInput'));
           }
           updateNode(node.id, {
             status: 'done',
             resultUrl: videoUrl,
-            statusText: 'Đã ghép (pass-through)',
+            statusText: t('workflow.status.mergedPassThrough'),
           });
           outputByHandle[node.id] = { done: videoUrl, video: videoUrl };
           outputs[node.id] = videoUrl;
@@ -2727,13 +2700,13 @@ function Flow() {
         case 'upscale-image': {
           const imageUrl = inputOnHandle(node.id, 'image') || upUrl;
           if (!imageUrl) {
-            updateNode(node.id, { status: 'error', error: 'Chưa có ảnh đầu vào' });
-            throw new Error('Upscale: chưa có ảnh');
+            updateNode(node.id, { status: 'error', error: t('workflow.error.noImageInput') });
+            throw new Error(t('workflow.error.noImageInput'));
           }
           const mode = String(node.data.mode || 'standard');
           const resolution = String(node.data.resolution || '2k');
           const modelId = String(node.data.modelId || '');
-          updateNode(node.id, { status: 'running', statusText: 'Đang upscale…' });
+          updateNode(node.id, { status: 'running', statusText: t('workflow.status.upscaling') });
           try {
             const url = await runImageUpscale(
               imageUrl,
@@ -2762,17 +2735,17 @@ function Flow() {
             inputOnHandle(node.id, 'text') || node.data.prompt || upText || '',
           );
           if (!imageUrl) {
-            updateNode(node.id, { status: 'error', error: 'Chưa có ảnh khuôn mặt' });
-            throw new Error('Lipsync: chưa có ảnh');
+            updateNode(node.id, { status: 'error', error: t('workflow.error.noFaceImage') });
+            throw new Error(t('workflow.error.noFaceImage'));
           }
           if (!audioUrl) {
-            updateNode(node.id, { status: 'error', error: 'Chưa có âm thanh' });
-            throw new Error('Lipsync: chưa có âm thanh');
+            updateNode(node.id, { status: 'error', error: t('workflow.error.noAudio') });
+            throw new Error(t('workflow.error.noAudio'));
           }
           const modelId = String(node.data.modelId || '');
           if (!modelId) {
-            updateNode(node.id, { status: 'error', error: 'Chưa chọn model' });
-            throw new Error('Lipsync: chưa chọn model');
+            updateNode(node.id, { status: 'error', error: t('workflow.error.noModel') });
+            throw new Error(t('workflow.error.noModel'));
           }
           const selections: JobSelections = {
             prompt: promptText || undefined,
@@ -2781,7 +2754,7 @@ function Flow() {
             subjects: [imageUrl],
             extra: { audio_url: audioUrl, audio: audioUrl },
           };
-          updateNode(node.id, { status: 'running', statusText: 'Bắt đầu…' });
+          updateNode(node.id, { status: 'running', statusText: t('workflow.status.starting') });
           try {
             const url = await runNodeJob({
               type: 'avatar-lipsync',
@@ -2824,7 +2797,7 @@ function Flow() {
             prompt: !mediaUrl && primary ? primary : undefined,
             allJson,
             status: unique.length ? 'done' : 'error',
-            error: unique.length ? undefined : 'Không có dữ liệu để gộp',
+            error: unique.length ? undefined : t('workflow.error.noMergeData'),
           });
           outputByHandle[node.id] = {
             done: primary || 'ok',
@@ -2837,8 +2810,8 @@ function Flow() {
         case 'extract-media': {
           const mediaUrl = inputOnHandle(node.id, 'media-in') || upUrl || '';
           if (!mediaUrl) {
-            updateNode(node.id, { status: 'error', error: 'Chưa có media đầu vào' });
-            throw new Error('Trích xuất Media: chưa có URL');
+            updateNode(node.id, { status: 'error', error: t('workflow.error.noMediaInput') });
+            throw new Error(t('workflow.error.noMediaInput'));
           }
           const lower = mediaUrl.toLowerCase();
           const isVideo = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(lower);
@@ -2847,7 +2820,7 @@ function Flow() {
 
           let firstFrame = '';
           if (isVideo) {
-            updateNode(node.id, { status: 'running', statusText: 'Trích frame…' });
+            updateNode(node.id, { status: 'running', statusText: t('workflow.status.extractFrame') });
             try {
               firstFrame = await extractVideoFirstFrame(mediaUrl);
             } catch (err) {
@@ -2857,7 +2830,13 @@ function Flow() {
             }
           }
 
-          const kindLabel = isVideo ? 'video' : isAudio ? 'audio' : isImage ? 'ảnh' : 'media';
+          const kindLabel = isVideo
+            ? t('workflow.status.kindVideo')
+            : isAudio
+              ? t('workflow.status.kindAudio')
+              : isImage
+                ? t('workflow.status.kindImage')
+                : t('workflow.status.kindMedia');
           outputByHandle[node.id] = {
             done: mediaUrl,
             'media-out': mediaUrl,
@@ -2880,17 +2859,17 @@ function Flow() {
             inputOnHandle(node.id, 'text-in') || node.data.prompt || upText || '',
           ).trim();
           if (!promptText) {
-            updateNode(node.id, { status: 'error', error: 'Chưa có prompt' });
-            throw new Error('Agent: chưa có prompt');
+            updateNode(node.id, { status: 'error', error: t('workflow.error.noPrompt') });
+            throw new Error(t('workflow.error.noPrompt'));
           }
           if (!isGommoChatConfigured()) {
-            updateNode(node.id, { status: 'error', error: 'Chưa đăng nhập Gommo' });
-            throw new Error('Agent: chưa đăng nhập');
+            updateNode(node.id, { status: 'error', error: t('workflow.error.notLoggedIn') });
+            throw new Error(t('workflow.error.notLoggedIn'));
           }
           const chatModel = resolveAgentChatModel(String(node.data.modelId || ''));
           const tabName = tabs.find((t) => t.id === activeId)?.name || 'Workflow';
           const snapshot = buildWorkflowSnapshot(tabName, nodes, edges);
-          updateNode(node.id, { status: 'running', statusText: 'Đang hỏi agent…' });
+          updateNode(node.id, { status: 'running', statusText: t('workflow.status.askingAgent') });
           try {
             const raw = await askGommo(promptText, {
               history: [],
@@ -2903,7 +2882,7 @@ function Flow() {
                 model: chatModel.model,
                 server: chatModel.server,
               },
-              onDelta: () => updateNode(node.id, { statusText: 'Đang nhận phản hồi…' }),
+              onDelta: () => updateNode(node.id, { statusText: t('workflow.status.receivingAgent') }),
             });
             const reply = formatAgentDisplayContent(raw) || raw.trim();
             outputByHandle[node.id] = { done: reply || 'ok', 'text-out': reply };
@@ -2929,8 +2908,8 @@ function Flow() {
         case 'cut': {
           const modelId = String(node.data.modelId || '');
           if (!modelId) {
-            updateNode(node.id, { status: 'error', error: 'Chưa chọn model' });
-            throw new Error(`${node.type}: chưa chọn model`);
+            updateNode(node.id, { status: 'error', error: t('workflow.error.noModel') });
+            throw new Error(t('workflow.error.noModel'));
           }
           const imageUrl = inputOnHandle(node.id, 'image') || (node.type === 'remove-bg' ? upUrl : undefined);
           const videoUrl =
@@ -2941,14 +2920,14 @@ function Flow() {
             inputOnHandle(node.id, 'text') || node.data.prompt || upText || '',
           );
           if (node.type === 'remove-bg' && !imageUrl) {
-            updateNode(node.id, { status: 'error', error: 'Chưa có ảnh đầu vào' });
-            throw new Error('Xóa nền: chưa có ảnh');
+            updateNode(node.id, { status: 'error', error: t('workflow.error.noImageInput') });
+            throw new Error(t('workflow.error.noImageInput'));
           }
           if (node.type !== 'remove-bg' && !videoUrl) {
-            updateNode(node.id, { status: 'error', error: 'Chưa có video đầu vào' });
-            throw new Error(`${node.type}: chưa có video`);
+            updateNode(node.id, { status: 'error', error: t('workflow.error.noVideoInput') });
+            throw new Error(t('workflow.error.noVideoInput'));
           }
-          updateNode(node.id, { status: 'running', statusText: 'Bắt đầu…' });
+          updateNode(node.id, { status: 'running', statusText: t('workflow.status.starting') });
           try {
             const url = await runWorkflowProcessJob(
               node.type,
@@ -2988,8 +2967,8 @@ function Flow() {
           const imageUrl = String(node.data.customImageUrl || kol?.imageUrl || '');
           const name = kol?.name || '';
           if (!imageUrl) {
-            updateNode(node.id, { status: 'error', error: 'Chưa chọn KOL / URL ảnh' });
-            throw new Error('KOLs: chưa có ảnh');
+            updateNode(node.id, { status: 'error', error: t('workflow.error.noKolImage') });
+            throw new Error(t('workflow.error.noKolImage'));
           }
           updateNode(node.id, {
             status: 'done',
@@ -3011,8 +2990,8 @@ function Flow() {
           const raw = String(wired || node.data.tableRaw || node.data.prompt || '');
           const table = parseTableInput(raw);
           if (!table.rows.length) {
-            updateNode(node.id, { status: 'error', error: 'Không parse được bảng' });
-            throw new Error('Bảng dữ liệu: dữ liệu trống');
+            updateNode(node.id, { status: 'error', error: t('workflow.error.parseTable') });
+            throw new Error(t('workflow.error.parseTable'));
           }
           const json = tableToJson(table.rows);
           const first = Object.values(table.rows[0]).join(', ');
@@ -3072,14 +3051,14 @@ function Flow() {
 
           const modelId = String(node.data.modelId || '');
           if (!modelId) {
-            updateNode(node.id, { status: 'error', error: 'Chưa chọn model' });
-            throw new Error('Chưa chọn model');
+            updateNode(node.id, { status: 'error', error: t('workflow.error.noModel') });
+            throw new Error(t('workflow.error.noModel'));
           }
 
           const startedAt = Date.now();
           updateNode(node.id, {
             status: 'running',
-            statusText: 'Bắt đầu…',
+            statusText: t('workflow.status.starting'),
             runStartedAt: startedAt,
             runEndedAt: undefined,
           });
@@ -3159,7 +3138,7 @@ function Flow() {
 
         const activate = async (id: string): Promise<void> => {
           if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
-          if (++steps > 2000) throw new Error('Quá nhiều bước — kiểm tra vòng lặp.');
+          if (++steps > 2000) throw new Error(t('workflow.error.tooManySteps'));
           const node = byId.get(id);
           if (!node || done.has(id)) return;
 
@@ -3181,11 +3160,14 @@ function Flow() {
             const count = Math.max(1, Math.floor(Number(node.data.count ?? 3)));
             for (let i = 0; i < count; i++) {
               if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
-              updateNode(id, { status: 'running', statusText: `Vòng ${i + 1}/${count}` });
+              updateNode(id, {
+                status: 'running',
+                statusText: t('workflow.status.loopRound', { current: i + 1, total: count }),
+              });
               for (const b of body) done.delete(b);
-              for (const t of eachTargets) await activate(t);
+              for (const tgt of eachTargets) await activate(tgt);
             }
-            updateNode(id, { status: 'done', statusText: `Xong ${count} vòng` });
+            updateNode(id, { status: 'done', statusText: t('workflow.status.loopDone', { count }) });
             for (const t of targetsOf(id, 'done')) await activate(t);
             return;
           }
@@ -3194,7 +3176,7 @@ function Flow() {
         };
 
         const roots = nodes.filter((n) => incoming(n.id).length === 0);
-        if (roots.length === 0) throw new Error('Không tìm thấy node bắt đầu (không có đầu vào).');
+        if (roots.length === 0) throw new Error(t('workflow.error.noStartNode'));
         for (const r of roots) await activate(r.id);
       }
     } catch (err) {
@@ -3207,6 +3189,7 @@ function Flow() {
   }
 
   return (
+    <WorkflowI18nCtx.Provider value={t}>
     <WorkflowCtx.Provider value={ctx}>
       <AiGenControlsProvider cancelWorkflow={stop} workflowRunning={running}>
       <div className="wf-page">
@@ -3232,7 +3215,7 @@ function Flow() {
               type="button"
               className="wf-palette-reopen"
               onClick={() => setPaletteOpen(true)}
-              title="Mở sidebar node"
+              title={t('workflow.palette.reopenSidebar')}
             >
               <PanelLeftOpen size={16} />
             </button>
@@ -3335,6 +3318,7 @@ function Flow() {
       )}
       </AiGenControlsProvider>
     </WorkflowCtx.Provider>
+    </WorkflowI18nCtx.Provider>
   );
 }
 

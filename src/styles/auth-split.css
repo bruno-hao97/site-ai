@@ -114,6 +114,13 @@
   color: #fff;
 }
 
+.auth-split-lang {
+  position: absolute;
+  top: 20px;
+  right: 68px;
+  z-index: 2;
+}
+
 .auth-split-brand {
   display: flex;
   justify-content: center;

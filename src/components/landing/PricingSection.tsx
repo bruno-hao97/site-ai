@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useInView } from 'framer-motion';
 import { ArrowRight, Loader2 } from 'lucide-react';
+import { useLocale } from '../../i18n';
 import { fetchCreditPackages, type CreditPackage } from '../../services/topupApi';
 
 const PREVIEW_COUNT = 3;
@@ -11,6 +12,7 @@ function creditRate(pkg: CreditPackage): number {
 }
 
 export default function PricingSection() {
+  const { t } = useLocale();
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: '-80px' });
   const [packages, setPackages] = useState<CreditPackage[]>([]);
@@ -57,14 +59,14 @@ export default function PricingSection() {
           transition={{ duration: 0.5 }}
         >
           <div className="landing-section-head">
-            <h2>Nạp credit — trả theo lần dùng</h2>
-            <p>Không phí thuê bao. Chọn gói nạp, dùng cho ảnh, video, TTS, nhạc và mọi model trả phí.</p>
+            <h2>{t('landing.pricing.title')}</h2>
+            <p>{t('landing.pricing.subtitle')}</p>
           </div>
 
           {loading ? (
             <div className="landing-credit-grid landing-credit-grid-loading">
               <Loader2 size={20} className="spin" />
-              <span>Đang tải gói nạp credit…</span>
+              <span>{t('pricing.loading')}</span>
             </div>
           ) : null}
 
@@ -79,21 +81,25 @@ export default function PricingSection() {
                   key={pkg.id}
                   className={`landing-credit-card${pkg.featured ? ' featured' : ''}`}
                 >
-                  {pkg.featured ? <span className="landing-credit-badge">Phổ biến</span> : null}
+                  {pkg.featured ? <span className="landing-credit-badge">{t('pricing.popular')}</span> : null}
                   <div className="landing-credit-top">
                     <h3>{pkg.credits.toLocaleString('vi-VN')}</h3>
-                    <span className="landing-credit-unit">Credits</span>
+                    <span className="landing-credit-unit">{t('landing.pricing.creditsUnit')}</span>
                   </div>
                   <p className="landing-credit-name">{pkg.name}</p>
                   <div className="landing-credit-tags">
-                    <span>≈ {creditRate(pkg).toLocaleString('vi-VN')} credit / 1.000đ</span>
+                    <span>
+                      {t('pricing.addon.rate', { rate: creditRate(pkg).toLocaleString('vi-VN') })}
+                    </span>
                     {pkg.bonusPercent > 0 ? (
-                      <span className="landing-credit-bonus">+{pkg.bonusPercent}% thưởng</span>
+                      <span className="landing-credit-bonus">
+                        {t('pricing.addon.bonus', { percent: pkg.bonusPercent })}
+                      </span>
                     ) : null}
                   </div>
                   <ul className="landing-credit-notes">
-                    <li>Dùng cho mọi model trả phí trên studio</li>
-                    {pkg.prioritySupport ? <li>Hỗ trợ ưu tiên</li> : null}
+                    <li>{t('landing.pricing.noteAllModels')}</li>
+                    {pkg.prioritySupport ? <li>{t('pricing.addon.prioritySupport')}</li> : null}
                   </ul>
                   <div className="landing-credit-foot">
                     <div className="landing-credit-price">
@@ -103,7 +109,7 @@ export default function PricingSection() {
                       <strong>{pkg.amountVnd.toLocaleString('vi-VN')}đ</strong>
                     </div>
                     <Link to="/pricing" className="landing-credit-cta">
-                      Mua gói này
+                      {t('pricing.buyPlan')}
                     </Link>
                   </div>
                 </article>
@@ -113,12 +119,12 @@ export default function PricingSection() {
 
           <div className="landing-credit-expiry">
             <span>☆</span>
-            <strong>Credit nạp có hiệu lực 3 tháng kể từ ngày nạp.</strong>
+            <strong>{t('pricing.expiry')}</strong>
           </div>
 
           <div className="pricing-more-wrap">
             <Link to="/pricing" className="landing-link-btn">
-              Xem tất cả gói nạp credit
+              {t('landing.pricing.viewAll')}
               <ArrowRight size={14} />
             </Link>
           </div>

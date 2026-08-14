@@ -11,7 +11,7 @@ import HomeWhatsNewStrip from '../components/home/HomeWhatsNewStrip';
 import HomeCategoryIcon from '../components/home/HomeCategoryIcon';
 import { HOME_QUICK_MENU } from '../lib/homeQuickMenu';
 import { useLocale } from '../i18n';
-import type { TranslationKey } from '../i18n';
+import type { TranslationKey } from '../i18n/types';
 
 type ExploreFilter =
   | 'feed'

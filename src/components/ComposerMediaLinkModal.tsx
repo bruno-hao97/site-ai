@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link2, X } from 'lucide-react';
+import { useLocale } from '../i18n';
 import { validateMediaUrl } from '../services/mediaUrlValidation';
 
 export default function ComposerMediaLinkModal({
@@ -14,6 +15,7 @@ export default function ComposerMediaLinkModal({
   onClose: () => void;
   onConfirm: (url: string) => void;
 }) {
+  const { t } = useLocale();
   const [url, setUrl] = useState('');
   const [error, setError] = useState('');
 
@@ -35,6 +37,13 @@ export default function ComposerMediaLinkModal({
 
   if (!open) return null;
 
+  const hintKey =
+    kind === 'video'
+      ? 'composer.mediaLink.hintVideo'
+      : kind === 'image'
+        ? 'composer.mediaLink.hintImage'
+        : 'composer.mediaLink.hintAny';
+
   const submit = () => {
     const err = validateMediaUrl(url, kind);
     if (err) {
@@ -50,16 +59,13 @@ export default function ComposerMediaLinkModal({
       <div className="cms-modal cms-link-modal" onClick={(e) => e.stopPropagation()}>
         <div className="cms-modal-head">
           <h3>
-            <Link2 size={16} /> Dán link media
+            <Link2 size={16} /> {t('composer.mediaLink.title')}
           </h3>
-          <button type="button" className="cms-modal-close" aria-label="Đóng" onClick={onClose}>
+          <button type="button" className="cms-modal-close" aria-label={t('common.close')} onClick={onClose}>
             <X size={18} />
           </button>
         </div>
-        <p className="cms-link-hint">
-          Dán URL {kind === 'video' ? 'video' : kind === 'image' ? 'ảnh' : 'ảnh hoặc video'} công khai
-          (https://…).
-        </p>
+        <p className="cms-link-hint">{t(hintKey)}</p>
         <input
           className="cms-link-input"
           autoFocus
@@ -76,10 +82,10 @@ export default function ComposerMediaLinkModal({
         {error && <p className="cms-modal-error">{error}</p>}
         <div className="cms-link-actions">
           <button type="button" className="cms-link-cancel" onClick={onClose}>
-            Hủy
+            {t('common.cancel')}
           </button>
           <button type="button" className="cms-link-confirm" onClick={submit}>
-            Dùng link
+            {t('composer.mediaLink.useLink')}
           </button>
         </div>
       </div>

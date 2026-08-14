@@ -2,51 +2,43 @@ import { useEffect } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import LegalDocument from '../components/legal/LegalDocument';
 import { SITE_BRAND_LABEL, SITE_DISPLAY_NAME } from '../services/siteConfig';
+import { useLocale } from '../i18n';
 
 export default function PrivacyPage() {
+  const { t } = useLocale();
+  const legalParams = { siteName: SITE_DISPLAY_NAME, brand: SITE_BRAND_LABEL };
+
   useEffect(() => {
-    document.title = `Chính sách bảo mật · ${SITE_DISPLAY_NAME}`;
+    document.title = `${t('legal.privacy.pageTitle')} · ${SITE_DISPLAY_NAME}`;
     return () => {
       document.title = SITE_DISPLAY_NAME;
     };
-  }, []);
+  }, [t]);
 
   return (
-    <LegalDocument title="Chính sách bảo mật" icon={ShieldCheck}>
+    <LegalDocument title={t('legal.privacy.title')} icon={ShieldCheck}>
       <section className="legal-section">
-        <h2>1. Dữ liệu chúng tôi thu thập</h2>
-        <p>
-          {SITE_DISPLAY_NAME} ({SITE_BRAND_LABEL}) có thể thu thập thông tin tài khoản (email, tên
-          hiển thị), dữ liệu sử dụng dịch vụ (prompt, lịch sử tạo nội dung, credits) và thông tin kỹ
-          thuật (thiết bị, IP, log truy cập) nhằm vận hành nền tảng an toàn.
-        </p>
+        <h2>{t('legal.privacy.s1.title')}</h2>
+        <p>{t('legal.privacy.s1.body', legalParams)}</p>
       </section>
 
       <section className="legal-section">
-        <h2>2. Cách chúng tôi sử dụng dữ liệu</h2>
+        <h2>{t('legal.privacy.s2.title')}</h2>
         <ul>
-          <li>Cung cấp và duy trì dịch vụ AI (ảnh, video, giọng nói, chat, API).</li>
-          <li>Cải thiện trải nghiệm, hỗ trợ kỹ thuật và liên hệ khi cần thiết.</li>
-          <li>Phát hiện gian lận, lạm dụng hoặc vi phạm điều khoản sử dụng.</li>
+          <li>{t('legal.privacy.s2.item1')}</li>
+          <li>{t('legal.privacy.s2.item2')}</li>
+          <li>{t('legal.privacy.s2.item3')}</li>
         </ul>
       </section>
 
       <section className="legal-section">
-        <h2>3. Bảo mật dữ liệu</h2>
-        <p>
-          Chúng tôi áp dụng biện pháp bảo mật phù hợp (mã hóa truyền tải SSL/TLS, kiểm soát truy
-          cập) và cam kết không bán dữ liệu cá nhân của bạn cho bên thứ ba vì mục đích marketing.
-        </p>
+        <h2>{t('legal.privacy.s3.title')}</h2>
+        <p>{t('legal.privacy.s3.body')}</p>
       </section>
 
       <section className="legal-section">
-        <h2>4. Dịch vụ bên thứ ba</h2>
-        <p>
-          Để tạo nội dung AI, yêu cầu của bạn có thể được xử lý qua các nhà cung cấp upstream (ví dụ
-          Google Gemini, OpenAI, Anthropic và các model khác trên catalog). Chúng tôi chỉ truyền
-          dữ liệu cần thiết để thực hiện tác vụ bạn yêu cầu, tuân theo chính sách của từng nhà
-          cung cấp.
-        </p>
+        <h2>{t('legal.privacy.s4.title')}</h2>
+        <p>{t('legal.privacy.s4.body')}</p>
       </section>
     </LegalDocument>
   );

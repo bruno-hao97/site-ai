@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Plus, Search, Sparkles, X } from 'lucide-react';
+import { useLocale } from '../i18n';
+import type { TranslationKey } from '../i18n/types';
 import {
   CHAT_AI_MODELS,
   filterChatAiModels,
@@ -9,6 +11,19 @@ import {
 } from '../services/chatAiModels';
 
 type TabId = 'suggested' | 'community' | 'mine';
+
+const TABS: { id: TabId; labelKey: TranslationKey }[] = [
+  { id: 'suggested', labelKey: 'chat.modelPicker.tab.suggested' },
+  { id: 'community', labelKey: 'chat.modelPicker.tab.community' },
+  { id: 'mine', labelKey: 'chat.modelPicker.tab.mine' },
+];
+
+const INCOME_STATS: { key: TranslationKey; value: string }[] = [
+  { key: 'chat.modelPicker.stat.balance', value: '0' },
+  { key: 'chat.modelPicker.stat.pendingWithdraw', value: '0' },
+  { key: 'chat.modelPicker.stat.paidUsers', value: '0' },
+  { key: 'chat.modelPicker.stat.platformFee', value: '0' },
+];
 
 interface Props {
   open: boolean;
@@ -41,6 +56,7 @@ function ModelMeta({ model }: { model: ChatAiModel }) {
 }
 
 export default function ChatAiModelPickerModal({ open, selectedId, onSelect, onClose }: Props) {
+  const { t } = useLocale();
   const [tab, setTab] = useState<TabId>('suggested');
   const [providerId, setProviderId] = useState('all');
   const [query, setQuery] = useState('');
@@ -60,24 +76,18 @@ export default function ChatAiModelPickerModal({ open, selectedId, onSelect, onC
         className="chat-ai-model-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="Chọn model Chat AI"
+        aria-label={t('chat.modelPicker.ariaLabel')}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="chat-ai-model-head">
-          <h3>Chọn model Chat AI</h3>
-          <button type="button" className="chat-ai-model-x" onClick={onClose} aria-label="Đóng">
+          <h3>{t('chat.modelPicker.title')}</h3>
+          <button type="button" className="chat-ai-model-x" onClick={onClose} aria-label={t('chat.modelPicker.close')}>
             <X size={18} />
           </button>
         </header>
 
         <div className="chat-ai-model-tabs" role="tablist">
-          {(
-            [
-              ['suggested', 'Đề xuất'],
-              ['community', 'Cộng đồng'],
-              ['mine', 'Của tôi'],
-            ] as const
-          ).map(([id, label]) => (
+          {TABS.map(({ id, labelKey }) => (
             <button
               key={id}
               type="button"
@@ -86,7 +96,7 @@ export default function ChatAiModelPickerModal({ open, selectedId, onSelect, onC
               className={tab === id ? 'active' : ''}
               onClick={() => setTab(id)}
             >
-              {label}
+              {t(labelKey)}
             </button>
           ))}
         </div>
@@ -98,7 +108,7 @@ export default function ChatAiModelPickerModal({ open, selectedId, onSelect, onC
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Tìm model…"
+                placeholder={t('chat.modelPicker.searchPlaceholder')}
                 autoFocus
               />
             </div>
@@ -118,7 +128,7 @@ export default function ChatAiModelPickerModal({ open, selectedId, onSelect, onC
               </aside>
               <div className="chat-ai-model-list">
                 {grouped.length === 0 ? (
-                  <div className="chat-ai-model-empty">Không tìm thấy model phù hợp.</div>
+                  <div className="chat-ai-model-empty">{t('chat.modelPicker.empty')}</div>
                 ) : (
                   grouped.map(([provider, models]) => (
                     <section key={provider} className="chat-ai-model-group">
@@ -153,13 +163,11 @@ export default function ChatAiModelPickerModal({ open, selectedId, onSelect, onC
           <div className="chat-ai-model-body chat-ai-model-body--plain">
             <div className="chat-ai-model-search">
               <Search size={15} />
-              <input placeholder="Tìm model hoặc nguồn…" disabled />
+              <input placeholder={t('chat.modelPicker.communitySearchPlaceholder')} disabled />
             </div>
-            <p className="chat-ai-model-hint">
-              Model do cộng đồng chia sẻ công khai. Nhấp để xem - Nhấp đúp để chọn.
-            </p>
+            <p className="chat-ai-model-hint">{t('chat.modelPicker.communityHint')}</p>
             <div className="chat-ai-model-empty chat-ai-model-empty--fill">
-              Chưa có model công khai nào.
+              {t('chat.modelPicker.communityEmpty')}
             </div>
           </div>
         )}
@@ -167,50 +175,41 @@ export default function ChatAiModelPickerModal({ open, selectedId, onSelect, onC
         {tab === 'mine' && (
           <div className="chat-ai-model-body chat-ai-model-body--plain">
             <section className="chat-ai-model-income">
-              <h4>Thu nhập model</h4>
-              <p className="chat-ai-model-hint">
-                Người dùng trả đủ (gồm phí sàn). Bạn chỉ nhận phần còn lại sau khi trừ phí nền tảng
-                (~30%). Rút về ví cần được duyệt.
-              </p>
+              <h4>{t('chat.modelPicker.incomeTitle')}</h4>
+              <p className="chat-ai-model-hint">{t('chat.modelPicker.incomeHint')}</p>
               <div className="chat-ai-model-stats">
-                {[
-                  ['Số dư', '0'],
-                  ['Đang chờ rút', '0'],
-                  ['Người dùng đã trả', '0'],
-                  ['Phí sàn đã trừ', '0'],
-                ].map(([label, value]) => (
-                  <div key={label} className="chat-ai-model-stat">
-                    <span>{label}</span>
-                    <strong className={label === 'Phí sàn đã trừ' ? 'accent' : ''}>{value}</strong>
+                {INCOME_STATS.map(({ key, value }) => (
+                  <div key={key} className="chat-ai-model-stat">
+                    <span>{t(key)}</span>
+                    <strong className={key === 'chat.modelPicker.stat.platformFee' ? 'accent' : ''}>
+                      {value}
+                    </strong>
                   </div>
                 ))}
               </div>
               <div className="chat-ai-model-withdraw">
-                <input type="text" placeholder="Số credit muốn rút" disabled />
+                <input type="text" placeholder={t('chat.modelPicker.withdrawPlaceholder')} disabled />
                 <button type="button" disabled>
-                  Rút credit
+                  {t('chat.modelPicker.withdraw')}
                 </button>
               </div>
             </section>
 
             <div className="chat-ai-model-mine-actions">
-              <p className="chat-ai-model-hint">
-                Thêm nguồn model riêng của bạn. Giá nhập bằng USD, hệ thống quy đổi ra credit. Mặc định
-                chỉ bạn thấy; có thể mở công khai khi sẵn sàng.
-              </p>
+              <p className="chat-ai-model-hint">{t('chat.modelPicker.mineHint')}</p>
               <div className="chat-ai-model-mine-btns">
                 <button type="button" className="primary" disabled>
-                  <Plus size={14} /> Nguồn
+                  <Plus size={14} /> {t('chat.modelPicker.addSource')}
                 </button>
                 <button type="button" disabled>
-                  <Plus size={14} /> Model
+                  <Plus size={14} /> {t('chat.modelPicker.addModel')}
                 </button>
               </div>
             </div>
 
             <div className="chat-ai-model-empty chat-ai-model-empty--fill">
-              <strong>Chưa có nguồn nào</strong>
-              <span>Bấm + Nguồn để kết nối model riêng và bắt đầu chia sẻ.</span>
+              <strong>{t('chat.modelPicker.mineEmptyTitle')}</strong>
+              <span>{t('chat.modelPicker.mineEmptyDesc')}</span>
             </div>
           </div>
         )}

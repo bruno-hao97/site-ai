@@ -6,7 +6,7 @@ import CreditConfirmModal from '../components/CreditConfirmModal';
 import ModelCreditComparison from '../components/ModelCreditComparison';
 import FaqSection from '../components/landing/FaqSection';
 import { loginPathWithNext } from '../lib/landingConfig';
-import { ENTERPRISE_FEATURES } from '../lib/landingEnterpriseFeatures';
+import { getEnterpriseFeatures } from '../lib/landingEnterpriseFeatures';
 import { getDisplayUser, isLoggedIn, notifyCreditsUpdated, refreshSession } from '../services/authStore';
 import {
   createTopupRequest,
@@ -16,56 +16,66 @@ import {
 } from '../services/topupApi';
 import type { SubscriptionPaymentResult } from '../services/subscriptionPlans';
 import { HOME_NOTIF_CONTACT } from '../services/siteConfig';
+import { useLocale } from '../i18n';
+import type { AppLocale, TranslationKey } from '../i18n/types';
+import type { TranslateFn } from '../i18n/LanguageProvider';
 
 const PRIMARY_TIER_COUNT = 3;
-const BENEFIT_FEATURES = ENTERPRISE_FEATURES.slice(0, 3);
 
-const PLAN_DESCRIPTIONS: Record<string, string> = {
-  'basic-member': 'Bắt đầu khám phá studio — phù hợp dùng thử và nhu cầu nhẹ.',
-  'vip-member': 'Cân bằng giá và lượng credit — phù hợp creator thường xuyên.',
-  'ultra-member': 'Gói phổ biến nhất — bonus credit và hỗ trợ ưu tiên.',
-  'infinity-member': 'Credit lớn cho team và agency sản xuất liên tục.',
-  'agency-pro': 'Quy mô agency — bonus cao và hỗ trợ ưu tiên.',
-  'master-agency': 'Gói tối đa — dành cho agency và doanh nghiệp lớn.',
+const PLAN_DESC_KEYS: Record<string, TranslationKey> = {
+  'basic-member': 'pricing.planDesc.basic-member',
+  'vip-member': 'pricing.planDesc.vip-member',
+  'ultra-member': 'pricing.planDesc.ultra-member',
+  'infinity-member': 'pricing.planDesc.infinity-member',
+  'agency-pro': 'pricing.planDesc.agency-pro',
+  'master-agency': 'pricing.planDesc.master-agency',
 };
+
+function numberLocale(locale: AppLocale): string {
+  return locale === 'vi' ? 'vi-VN' : 'en-US';
+}
 
 function creditRate(pkg: CreditPackage): number {
   return Math.round((pkg.credits / pkg.amountVnd) * 1000);
 }
 
-function planDescription(pkg: CreditPackage): string {
-  return PLAN_DESCRIPTIONS[pkg.id] ?? 'Nạp một lần — dùng cho mọi model trả phí trên studio.';
+function planDescription(t: TranslateFn, pkg: CreditPackage): string {
+  const key = PLAN_DESC_KEYS[pkg.id];
+  return key ? t(key) : t('pricing.planDesc.fallback');
 }
 
 interface CreditCardProps {
   pkg: CreditPackage;
   disabled: boolean;
   blocked: boolean;
+  locale: AppLocale;
+  t: TranslateFn;
   onBuy: (pkg: CreditPackage) => void;
 }
 
-function MagnificCreditCard({ pkg, disabled, blocked, onBuy }: CreditCardProps) {
+function MagnificCreditCard({ pkg, disabled, blocked, locale, t, onBuy }: CreditCardProps) {
+  const fmt = numberLocale(locale);
   const rate = creditRate(pkg);
   const addons: string[] = [];
-  if (pkg.bonusPercent > 0) addons.push(`+${pkg.bonusPercent}% thưởng`);
-  if (pkg.prioritySupport) addons.push('Hỗ trợ ưu tiên');
-  addons.push(`≈ ${rate.toLocaleString('vi-VN')} credit / 1.000đ`);
+  if (pkg.bonusPercent > 0) addons.push(t('pricing.addon.bonus', { percent: pkg.bonusPercent }));
+  if (pkg.prioritySupport) addons.push(t('pricing.addon.prioritySupport'));
+  addons.push(t('pricing.addon.rate', { rate: rate.toLocaleString(fmt) }));
 
   return (
     <article className={`pricing-magnific-card${pkg.featured ? ' featured' : ''}`}>
-      {pkg.featured ? <span className="pricing-magnific-badge">Phổ biến</span> : null}
+      {pkg.featured ? <span className="pricing-magnific-badge">{t('pricing.popular')}</span> : null}
       <h3 className="pricing-magnific-plan-name">{pkg.name}</h3>
-      <p className="pricing-magnific-plan-desc">{planDescription(pkg)}</p>
+      <p className="pricing-magnific-plan-desc">{planDescription(t, pkg)}</p>
 
       <div className="pricing-magnific-price-block">
         <div className="pricing-magnific-price">
           {pkg.credits > pkg.amountVnd ? (
-            <span className="pricing-magnific-price-old">{pkg.credits.toLocaleString('vi-VN')}đ</span>
+            <span className="pricing-magnific-price-old">{pkg.credits.toLocaleString(fmt)}đ</span>
           ) : null}
-          <span>{pkg.amountVnd.toLocaleString('vi-VN')}đ</span>
+          <span>{pkg.amountVnd.toLocaleString(fmt)}đ</span>
         </div>
         <span className="pricing-magnific-price-note">
-          {pkg.credits.toLocaleString('vi-VN')} credits · thanh toán một lần
+          {t('pricing.priceNote', { credits: pkg.credits.toLocaleString(fmt) })}
         </span>
       </div>
 
@@ -75,19 +85,19 @@ function MagnificCreditCard({ pkg, disabled, blocked, onBuy }: CreditCardProps) 
         onClick={() => onBuy(pkg)}
         disabled={disabled}
       >
-        {blocked ? 'Thử lại' : 'Mua gói này'}
+        {blocked ? t('pricing.retry') : t('pricing.buyPlan')}
       </button>
 
       <ul className="pricing-magnific-features">
-        <li>Dùng cho ảnh, video, TTS, nhạc và mọi model trả phí</li>
+        <li>{t('pricing.feature.allModels')}</li>
         {pkg.bonusPercent > 0 ? (
-          <li>+{pkg.bonusPercent}% credits thưởng so với mệnh giá cơ bản</li>
+          <li>{t('pricing.feature.bonus', { percent: pkg.bonusPercent })}</li>
         ) : null}
-        {pkg.prioritySupport ? <li>Hỗ trợ ưu tiên qua Zalo / hotline</li> : null}
+        {pkg.prioritySupport ? <li>{t('pricing.feature.prioritySupport')}</li> : null}
       </ul>
 
       <div className="pricing-magnific-addon">
-        <p className="pricing-magnific-addon-title">Thông tin gói</p>
+        <p className="pricing-magnific-addon-title">{t('pricing.addonTitle')}</p>
         <div className="pricing-magnific-addon-tags">
           {addons.map((tag) => (
             <span key={tag}>{tag}</span>
@@ -99,7 +109,10 @@ function MagnificCreditCard({ pkg, disabled, blocked, onBuy }: CreditCardProps) 
 }
 
 export default function PricingPage() {
+  const { t, locale } = useLocale();
+  const fmt = numberLocale(locale);
   const navigate = useNavigate();
+  const benefitFeatures = useMemo(() => getEnterpriseFeatures(t).slice(0, 3), [t]);
   const [creditPackages, setCreditPackages] = useState<CreditPackage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -160,7 +173,7 @@ export default function PricingPage() {
           return;
         }
         if (order.status === 'failed') {
-          setPayError(order.error || 'Nạp credit thất bại');
+          setPayError(order.error || t('pricing.payFailed'));
           return;
         }
       } catch {
@@ -173,7 +186,7 @@ export default function PricingPage() {
     return () => {
       stopped = true;
     };
-  }, [creditOrderCode]);
+  }, [creditOrderCode, t]);
 
   const sortedPackages = useMemo(
     () => [...creditPackages].sort((a, b) => a.amountVnd - b.amountVnd),
@@ -213,7 +226,7 @@ export default function PricingPage() {
   async function handleConfirmCredit(): Promise<void> {
     if (!confirmCreditPackage) return;
     if (!username) {
-      setPayError('Tài khoản chưa có username — không thể nạp credit.');
+      setPayError(t('pricing.noUsername'));
       return;
     }
 
@@ -223,7 +236,7 @@ export default function PricingPage() {
     try {
       const topup = await createTopupRequest(username, packageId);
       setBlockedCreditPackageIds((ids) => ids.filter((id) => id !== packageId));
-      setPaymentPlanName(`${confirmCreditPackage.name} · ${topup.credits.toLocaleString('vi-VN')} Credits`);
+      setPaymentPlanName(`${confirmCreditPackage.name} · ${topup.credits.toLocaleString(fmt)} Credits`);
       setPaymentPlanPrice(String(confirmCreditPackage.amountVnd));
       setPaymentResult({
         status: topup.status,
@@ -257,20 +270,17 @@ export default function PricingPage() {
     <div className="pricing-page-magnific">
       <section className="pricing-magnific-hero" id="pricing">
         <div className="pricing-magnific-container">
-          <h1>Bảng giá & nạp credit</h1>
-          <p>
-            Không phí thuê bao — trả theo lần dùng. Chọn gói nạp credit, thanh toán qua PayOS và dùng ngay trên
-            studio.
-          </p>
+          <h1>{t('pricing.hero.title')}</h1>
+          <p>{t('pricing.hero.subtitle')}</p>
         </div>
       </section>
 
-      <section className="pricing-magnific-plans" aria-label="Gói nạp credit">
+      <section className="pricing-magnific-plans" aria-label={t('pricing.plansAria')}>
         <div className="pricing-magnific-container">
           {loading ? (
             <div className="pricing-magnific-loading">
               <Loader2 size={20} className="spin" />
-              <span>Đang tải gói nạp credit…</span>
+              <span>{t('pricing.loading')}</span>
             </div>
           ) : null}
 
@@ -286,7 +296,7 @@ export default function PricingPage() {
 
               <div className="pricing-magnific-expiry">
                 <span>☆</span>
-                <strong>Credit nạp có hiệu lực 3 tháng kể từ ngày nạp.</strong>
+                <strong>{t('pricing.expiry')}</strong>
               </div>
 
               {primaryTiers.length ? (
@@ -297,6 +307,8 @@ export default function PricingPage() {
                       pkg={pkg}
                       disabled={purchaseDisabled}
                       blocked={blockedCreditPackageIds.includes(pkg.id)}
+                      locale={locale}
+                      t={t}
                       onBuy={openCreditModal}
                     />
                   ))}
@@ -306,7 +318,7 @@ export default function PricingPage() {
               {enterpriseTiers.length ? (
                 <>
                   <h2 className="pricing-magnific-subhead" style={{ marginTop: '3rem' }}>
-                    Gói doanh nghiệp & agency
+                    {t('pricing.enterpriseTitle')}
                   </h2>
                   <div className={`pricing-magnific-grid${enterpriseTiers.length === 2 ? ' cols-2' : ''}`}>
                     {enterpriseTiers.map((pkg) => (
@@ -315,6 +327,8 @@ export default function PricingPage() {
                         pkg={pkg}
                         disabled={purchaseDisabled}
                         blocked={blockedCreditPackageIds.includes(pkg.id)}
+                        locale={locale}
+                        t={t}
                         onBuy={openCreditModal}
                       />
                     ))}
@@ -332,10 +346,10 @@ export default function PricingPage() {
         </div>
       ) : null}
 
-      <section className="pricing-magnific-benefits" aria-label="Lợi ích">
+      <section className="pricing-magnific-benefits" aria-label={t('pricing.benefitsAria')}>
         <div className="pricing-magnific-container">
           <div className="pricing-magnific-benefits-grid">
-            {BENEFIT_FEATURES.map((item) => {
+            {benefitFeatures.map((item) => {
               const Icon = item.icon;
               return (
                 <article key={item.title} className="pricing-magnific-benefit">
@@ -353,18 +367,18 @@ export default function PricingPage() {
 
       <FaqSection />
 
-      <section className="pricing-magnific-help" aria-label="Hỗ trợ">
+      <section className="pricing-magnific-help" aria-label={t('pricing.helpAria')}>
         <div className="pricing-magnific-container">
           <div className="pricing-magnific-help-card">
-            <h2>Chúng tôi sẵn sàng hỗ trợ</h2>
-            <p>Cần tư vấn gói nạp credit hoặc gặp vấn đề thanh toán? Liên hệ qua Zalo — phản hồi nhanh.</p>
+            <h2>{t('pricing.help.title')}</h2>
+            <p>{t('pricing.help.desc')}</p>
             <a
               href={HOME_NOTIF_CONTACT.zaloSupport}
               target="_blank"
               rel="noreferrer"
               className="pricing-magnific-help-btn"
             >
-              Liên hệ hỗ trợ
+              {t('pricing.help.cta')}
             </a>
           </div>
         </div>
@@ -386,9 +400,9 @@ export default function PricingPage() {
         payment={paymentResult}
         statusMessage={
           creditOrderStatus === 'credited'
-            ? 'Thanh toán thành công — credit đã được cộng vào tài khoản.'
+            ? t('pricing.paymentSuccess')
             : creditOrderCode
-              ? 'Đang chờ xác nhận thanh toán…'
+              ? t('pricing.paymentPending')
               : undefined
         }
         onClose={closePaymentModal}

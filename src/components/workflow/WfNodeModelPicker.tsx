@@ -1,5 +1,6 @@
 import { ChevronDown } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { useLocale } from '../../i18n';
 
 export type WfNodeModelOption = {
   value: string;
@@ -13,8 +14,8 @@ export function WfNodeModelPicker({
   onChange,
   loading,
   variant = 'default',
-  emptyLabel = 'Không có model',
-  loadingLabel = 'Đang tải model…',
+  emptyLabel,
+  loadingLabel,
 }: {
   value: string;
   options: WfNodeModelOption[];
@@ -24,6 +25,9 @@ export function WfNodeModelPicker({
   emptyLabel?: string;
   loadingLabel?: string;
 }) {
+  const { t } = useLocale();
+  const resolvedEmptyLabel = emptyLabel ?? t('common.selectModel');
+  const resolvedLoadingLabel = loadingLabel ?? t('common.loadingModels');
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -40,10 +44,10 @@ export function WfNodeModelPicker({
 
   const current = options.find((option) => option.value === value);
   const display = loading
-    ? loadingLabel
+    ? resolvedLoadingLabel
     : !options.length
-      ? emptyLabel
-      : current?.label || value || emptyLabel;
+      ? resolvedEmptyLabel
+      : current?.label || value || resolvedEmptyLabel;
 
   const isGen = variant === 'gen';
 

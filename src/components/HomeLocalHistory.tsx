@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Music, Volume2, Wand2 } from 'lucide-react';
+import { useLocale } from '../i18n';
+import type { TranslationKey } from '../i18n/types';
 import {
   isMediaUrl,
   listHistory,
@@ -14,33 +16,37 @@ import type { JobType } from '../services/api';
 
 export type LocalHistoryFilter = 'music' | 'tts' | 'favorites';
 
-function emptyCopy(filter: LocalHistoryFilter): { title: string; hint: string; ctaTo: string; cta: string } {
+function emptyCopy(
+  filter: LocalHistoryFilter,
+  t: (key: TranslationKey) => string,
+): { title: string; hint: string; ctaTo: string; cta: string } {
   switch (filter) {
     case 'music':
       return {
-        title: 'Chưa có nhạc trong lịch sử',
-        hint: 'Tạo nhạc AI trong Studio — kết quả sẽ hiện tại đây.',
+        title: t('home.feed.local.music.title'),
+        hint: t('home.feed.local.music.hint'),
         ctaTo: '/music',
-        cta: 'Tạo nhạc',
+        cta: t('home.feed.local.music.cta'),
       };
     case 'tts':
       return {
-        title: 'Chưa có âm thanh trong lịch sử',
-        hint: 'Tạo giọng đọc AI trong Studio — kết quả sẽ hiện tại đây.',
+        title: t('home.feed.local.tts.title'),
+        hint: t('home.feed.local.tts.hint'),
         ctaTo: '/audio',
-        cta: 'Tạo giọng đọc',
+        cta: t('home.feed.local.tts.cta'),
       };
     default:
       return {
-        title: 'Chưa có mục yêu thích',
-        hint: 'Đánh dấu yêu thích trong lịch sử Studio để xem lại nhanh tại đây.',
+        title: t('home.feed.local.favorites.title'),
+        hint: t('home.feed.local.favorites.hint'),
         ctaTo: '/studio-history',
-        cta: 'Xem lịch sử',
+        cta: t('home.feed.local.favorites.cta'),
       };
   }
 }
 
 export default function HomeLocalHistory({ filter }: { filter: LocalHistoryFilter }) {
+  const { t } = useLocale();
   const navigate = useNavigate();
   const [tick, setTick] = useState(0);
 
@@ -59,7 +65,7 @@ export default function HomeLocalHistory({ filter }: { filter: LocalHistoryFilte
     return listHistory(filter as HistoryType);
   }, [filter, tick]);
 
-  const copy = emptyCopy(filter);
+  const copy = useMemo(() => emptyCopy(filter, t), [filter, t]);
 
   if (!entries.length) {
     return (

@@ -1,4 +1,5 @@
 import { X } from 'lucide-react';
+import { useLocale } from '../../i18n';
 import { AGENT_CHAT_MODELS, type AgentChatModelId } from '../../services/workflowAgentStore';
 
 interface Props {
@@ -14,6 +15,7 @@ export default function WorkflowAgentChatSettingsModal({
   onSave,
   onClose,
 }: Props) {
+  const { t } = useLocale();
   if (!open) return null;
 
   return (
@@ -27,7 +29,7 @@ export default function WorkflowAgentChatSettingsModal({
               <code>/api/v2/chat</code> hiện tại.
             </p>
           </div>
-          <button type="button" className="wf-agent-set-x" onClick={onClose} aria-label="Đóng">
+          <button type="button" className="wf-agent-set-x" onClick={onClose} aria-label={t('common.close')}>
             <X size={18} />
           </button>
         </div>

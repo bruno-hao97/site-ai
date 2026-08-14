@@ -1,8 +1,12 @@
+import { useLocale } from '../i18n';
+
 export default function ComingSoonPage({ title }: { title: string }) {
+  const { t } = useLocale();
+
   return (
     <div className="coming-soon">
       <h1>{title}</h1>
-      <p>Tính năng đang được phát triển. Sắp ra mắt!</p>
+      <p>{t('comingSoon.message')}</p>
     </div>
   );
 }

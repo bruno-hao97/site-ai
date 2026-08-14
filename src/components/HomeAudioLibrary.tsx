@@ -17,6 +17,7 @@ import {
   formatFileSize,
 } from '../services/feedLibraryMeta';
 import { downloadMediaUrl } from '../utils/downloadMedia';
+import { useLocale } from '../i18n';
 import HomeLibLayoutSwitcher, { type HomeLibLayout } from './HomeLibLayoutSwitcher';
 
 const STORAGE_KEY = 'home_audio_lib_layout';
@@ -80,9 +81,10 @@ function AudioRow({
   onCloseMenu: () => void;
   onDelete?: () => void;
 }) {
+  const { t } = useLocale();
   const menuRef = useRef<HTMLDivElement>(null);
   const media = feedMediaUrl(item);
-  const title = (item.prompt || item.title || 'Âm thanh AI').trim();
+  const title = (item.prompt || item.title || t('audio.defaultTrackTitle')).trim();
   const model = feedModelDisplay(item);
   const size = formatFileSize(item.file_size);
   const duration = formatDuration(item.duration);

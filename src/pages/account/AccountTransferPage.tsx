@@ -1,13 +1,13 @@
 import { FormEvent, useMemo, useState } from 'react';
 import { AlertTriangle, ArrowLeftRight, Coins, MessageSquare, User } from 'lucide-react';
+import { useLocale } from '../../i18n';
+import type { TranslationKey } from '../../i18n/types';
 import { notifyCreditsUpdated, refreshSession } from '../../services/authStore';
 import {
   MAX_TRANSFER_CREDIT,
   MIN_TRANSFER_CREDIT,
   sendBalances,
 } from '../../services/transferBalances';
-import { useLocale } from '../../i18n';
-import type { TranslationKey } from '../../i18n';
 
 export default function AccountTransferPage() {
   const { t, locale } = useLocale();

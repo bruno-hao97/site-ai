@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useHistoryUpdated } from '../hooks/useHistoryUpdated';
+import { useLocale } from '../i18n';
 import type { JobType } from '../services/api';
 import {
   isMediaUrl,
@@ -8,7 +9,7 @@ import {
   type HistoryEntry,
   type HistoryType,
 } from '../services/historyStore';
-import { jobTypeLabel, jobTypeToHistoryType } from '../constants/studioTypes';
+import { jobTypeToHistoryType } from '../constants/studioTypes';
 
 export interface SessionItem {
   id: string;
@@ -71,6 +72,7 @@ export default function StudioGallery({
   sessionItems: SessionItem[];
   onReuse: (entry: HistoryEntry) => void;
 }) {
+  const { t } = useLocale();
   const [tab, setTab] = useState<GalleryTab>('current');
   const [historyTick, setHistoryTick] = useState(0);
   useHistoryUpdated(() => setHistoryTick((n) => n + 1));
@@ -85,12 +87,14 @@ export default function StudioGallery({
   const currentFiltered = sessionItems.filter((s) => s.type === jobType);
   const items = tab === 'current' ? currentFiltered.map(toEntry) : historyItems;
 
+  const typeLabel = t(`jobType.${jobType}` as 'jobType.image');
+
   return (
     <section className="panel studio-gallery">
       <div className="panel-head">
-        <h2>Gallery</h2>
+        <h2>{t('studio.gallery.title')}</h2>
         <Link to={`/studio-history/${historyType}`} className="btn ghost sm">
-          Xem tất cả
+          {t('studio.gallery.viewAll')}
         </Link>
       </div>
 
@@ -100,22 +104,22 @@ export default function StudioGallery({
           className={`tab ${tab === 'current' ? 'active' : ''}`}
           onClick={() => setTab('current')}
         >
-          Phiên ({currentFiltered.length})
+          {t('studio.gallery.tabCurrent', { count: currentFiltered.length })}
         </button>
         <button
           type="button"
           className={`tab ${tab === 'history' ? 'active' : ''}`}
           onClick={() => setTab('history')}
         >
-          Lịch sử ({historyItems.length})
+          {t('studio.gallery.tabHistory', { count: historyItems.length })}
         </button>
       </div>
 
       {items.length === 0 ? (
         <p className="muted sg-empty">
           {tab === 'current'
-            ? `Chưa có kết quả trong phiên ${jobTypeLabel(jobType)}.`
-            : `Chưa có lịch sử ${jobTypeLabel(jobType)} đã lưu.`}
+            ? t('studio.gallery.emptyCurrent', { type: typeLabel })
+            : t('studio.gallery.emptyHistory', { type: typeLabel })}
         </p>
       ) : (
         <div className="sg-grid">
@@ -133,10 +137,10 @@ export default function StudioGallery({
                 </p>
                 <div className="sg-actions">
                   <button type="button" className="hist-btn" onClick={() => onReuse(entry)}>
-                    Dùng lại
+                    {t('studio.gallery.reuse')}
                   </button>
                   <a className="hist-btn" href={entry.resultUrl} target="_blank" rel="noreferrer">
-                    Mở
+                    {t('common.open')}
                   </a>
                 </div>
               </div>

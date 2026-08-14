@@ -1,5 +1,6 @@
 import { useEffect, useState, type MouseEvent } from 'react';
 import { Heart, MessageCircle, Play, UserPlus } from 'lucide-react';
+import { useLocale } from '../i18n';
 import {
   feedMediaUrl,
   feedThumb,
@@ -24,11 +25,12 @@ export default function FeedMasonryCard({
   onOpen?: () => void;
   onFavoriteChange?: () => void;
 }) {
+  const { t } = useLocale();
   const [fav, setFav] = useState(() => isFavorite(item.id_base));
   const thumb = feedThumb(item);
   const media = feedMediaUrl(item);
   const video = isVideoItem(item);
-  const author = item.author?.name || 'Ẩn danh';
+  const author = item.author?.name || t('home.feed.anonymous');
   const likes = item.likes_count ?? item.like_count ?? 0;
   const comments = item.comments_count ?? 0;
   const openable = Boolean(onOpen && (media || thumb));
@@ -66,7 +68,7 @@ export default function FeedMasonryCard({
         {thumb ? (
           <img src={thumb} alt="" loading="lazy" />
         ) : (
-          <span className="feed-masonry-empty">Đang xử lý…</span>
+          <span className="feed-masonry-empty">{t('home.feed.processing')}</span>
         )}
 
         {video && (

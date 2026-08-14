@@ -1,5 +1,7 @@
 import { GitBranch, Headphones, Layers, Plug, Shield, Zap } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import type { TranslateFn } from '../i18n/LanguageProvider';
+import type { TranslationKey } from '../i18n/types';
 
 export interface EnterpriseFeature {
   icon: LucideIcon;
@@ -7,35 +9,43 @@ export interface EnterpriseFeature {
   desc: string;
 }
 
-export const ENTERPRISE_FEATURES: EnterpriseFeature[] = [
+const FEATURE_DEFS: Array<{ icon: LucideIcon; title: TranslationKey; desc: TranslationKey }> = [
   {
     icon: Zap,
-    title: 'Credits minh bạch',
-    desc: 'Trả theo lần gen — không phí thuê bao, không phí ẩn.',
+    title: 'pricing.benefit.credits.title',
+    desc: 'pricing.benefit.credits.desc',
   },
   {
     icon: Layers,
-    title: 'Studio đa model',
-    desc: 'Ảnh, video, TTS, nhạc và chat trong một giao diện.',
+    title: 'pricing.benefit.studio.title',
+    desc: 'pricing.benefit.studio.desc',
   },
   {
     icon: GitBranch,
-    title: 'Workflow',
-    desc: 'Nối nhiều bước AI trên canvas — chạy lại với prompt mới.',
+    title: 'pricing.benefit.workflow.title',
+    desc: 'pricing.benefit.workflow.desc',
   },
   {
     icon: Plug,
-    title: 'API thống nhất',
-    desc: 'Một cổng cho text, ảnh và video — tích hợp vào app của bạn.',
+    title: 'pricing.benefit.api.title',
+    desc: 'pricing.benefit.api.desc',
   },
   {
     icon: Shield,
-    title: 'Thanh toán PayOS',
-    desc: 'Nạp credit an toàn — webhook xác nhận và cộng credit tự động.',
+    title: 'pricing.benefit.payos.title',
+    desc: 'pricing.benefit.payos.desc',
   },
   {
     icon: Headphones,
-    title: 'Hỗ trợ 24/7',
-    desc: 'Hotline, Zalo và email — phản hồi nhanh khi cần trợ giúp.',
+    title: 'pricing.benefit.support.title',
+    desc: 'pricing.benefit.support.desc',
   },
 ];
+
+export function getEnterpriseFeatures(t: TranslateFn): EnterpriseFeature[] {
+  return FEATURE_DEFS.map(({ icon, title, desc }) => ({
+    icon,
+    title: t(title),
+    desc: t(desc),
+  }));
+}

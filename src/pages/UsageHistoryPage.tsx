@@ -18,11 +18,13 @@ import {
   type UsageHistoryItem,
 } from '../services/upstreamUsageHistory';
 import { listHistory } from '../services/historyStore';
-import { useLocale } from '../i18n';
+import { useLocale, type TranslateFn } from '../i18n';
 import type { AppLocale, TranslationKey } from '../i18n/types';
 
 type PillId = 'image' | 'video' | 'audio' | 'music';
 type Category = PillId | 'other';
+
+const PILL_IDS: PillId[] = ['image', 'video', 'audio', 'music'];
 
 const PILLS: { id: PillId; labelKey: TranslationKey }[] = [
   { id: 'image', labelKey: 'usageHistory.pillImage' },
@@ -31,14 +33,18 @@ const PILLS: { id: PillId; labelKey: TranslationKey }[] = [
   { id: 'music', labelKey: 'usageHistory.pillMusic' },
 ];
 
+const CHART_TAB_KEYS = [
+  { days: 7, labelKey: 'usageHistory.chart7' as TranslationKey },
+  { days: 14, labelKey: 'usageHistory.chart14' as TranslationKey },
+  { days: 30, labelKey: 'usageHistory.chart30' as TranslationKey },
+];
+
 const TIME_TABS: { id: string; labelKey: TranslationKey; days: number | null }[] = [
   { id: 'all', labelKey: 'usageHistory.timeAll', days: null },
   { id: '7', labelKey: 'usageHistory.time7', days: 7 },
   { id: '30', labelKey: 'usageHistory.time30', days: 30 },
   { id: '90', labelKey: 'usageHistory.time90', days: 90 },
 ];
-
-const CHART_TABS = [7, 14, 30];
 
 const CATEGORY_STYLE: Record<Category, { color: string; bg: string; icon: LucideIcon }> = {
   image: { color: '#a78bfa', bg: 'rgba(167,139,250,0.12)', icon: ImageIcon },
@@ -73,22 +79,22 @@ function dayKey(iso: string): string {
   return iso.slice(0, 10);
 }
 
-function localFallbackRows(): UsageHistoryItem[] {
+function localFallbackRows(t: TranslateFn): UsageHistoryItem[] {
   return listHistory(null).map((e) => ({
     id: e.id,
     type: e.type,
     typeLabel:
       e.type === 'image'
-        ? 'Tạo ảnh'
+        ? t('usageHistory.type.createImage')
         : e.type === 'video'
-          ? 'Tạo video'
+          ? t('usageHistory.type.createVideo')
           : /tts|music|avatar/.test(e.type)
-            ? 'Tạo audio'
+            ? t('usageHistory.type.createAudio')
             : e.type,
     model: e.modelName || e.modelSlug,
     prompt: e.prompt,
     status: 'success' as const,
-    statusLabel: 'Hoàn tất',
+    statusLabel: t('usageHistory.status.completed'),
     cost: null,
     balanceAfter: null,
     createdAt: e.createdAt,
@@ -153,9 +159,9 @@ export default function UsageHistoryPage() {
 
   const [activeTime, setActiveTime] = useState('all');
   const [activeTypes, setActiveTypes] = useState<PillId[]>(
-    typeParam && PILLS.some((p) => p.id === typeParam)
+    typeParam && PILL_IDS.includes(typeParam as PillId)
       ? [typeParam as PillId]
-      : PILLS.map((p) => p.id),
+      : [...PILL_IDS],
   );
   const [searchQuery, setSearchQuery] = useState('');
   const [chartDays, setChartDays] = useState(14);
@@ -207,17 +213,17 @@ export default function UsageHistoryPage() {
           return;
         }
       }
-      const local = localFallbackRows();
+      const local = localFallbackRows(t);
       setItems(local);
       setSource(local.length > 0 ? 'local' : 'empty');
     } catch {
-      const local = localFallbackRows();
+      const local = localFallbackRows(t);
       setItems(local);
       setSource(local.length > 0 ? 'local' : 'empty');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -225,12 +231,12 @@ export default function UsageHistoryPage() {
 
   function toggleType(id: PillId) {
     setActiveTypes((prev) =>
-      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id],
+      prev.includes(id) ? prev.filter((pillId) => pillId !== id) : [...prev, id],
     );
     setPage(1);
   }
 
-  const allTypesActive = activeTypes.length === PILLS.length;
+  const allTypesActive = activeTypes.length === PILL_IDS.length;
 
   const filtered = useMemo(() => {
     const timeDays = TIME_TABS.find((tab) => tab.id === activeTime)?.days ?? null;
@@ -252,7 +258,6 @@ export default function UsageHistoryPage() {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [items, activeTime, activeTypes, allTypesActive, searchQuery]);
 
-  // Summary tổng quan (toàn bộ tài khoản, không theo filter)
   const summary = useMemo(() => {
     const total = items.length;
     const creditsUsed = items.reduce((sum, it) => sum + (it.cost != null ? Math.abs(it.cost) : 0), 0);
@@ -285,7 +290,14 @@ export default function UsageHistoryPage() {
   }, [pageItems, formatDayLabel]);
 
   function exportCsv() {
-    const header = ['Loại', 'Model', 'Prompt', 'Thời gian', 'Credits', 'Trạng thái'];
+    const header = [
+      t('usageHistory.csv.type'),
+      t('usageHistory.csv.model'),
+      t('usageHistory.csv.prompt'),
+      t('usageHistory.csv.time'),
+      t('usageHistory.csv.credits'),
+      t('usageHistory.csv.status'),
+    ];
     const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
     const lines = filtered.map((it) =>
       [
@@ -408,14 +420,14 @@ export default function UsageHistoryPage() {
             <TrendingUp size={15} /> {t('usageHistory.chartTitle')}
           </span>
           <div className="uh-chart-tabs">
-            {CHART_TABS.map((d) => (
+            {CHART_TAB_KEYS.map((tab) => (
               <button
-                key={d}
+                key={tab.days}
                 type="button"
-                className={`uh-chart-tab ${chartDays === d ? 'active' : ''}`}
-                onClick={() => setChartDays(d)}
+                className={`uh-chart-tab ${chartDays === tab.days ? 'active' : ''}`}
+                onClick={() => setChartDays(tab.days)}
               >
-                {t('profile.chartDays', { days: d })}
+                {t('profile.chartDays', { days: tab.days })}
               </button>
             ))}
           </div>

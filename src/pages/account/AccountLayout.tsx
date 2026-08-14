@@ -10,7 +10,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { getDisplayUser } from '../../services/authStore';
 import { useLocale } from '../../i18n';
-import type { TranslationKey } from '../../i18n';
+import type { TranslationKey } from '../../i18n/types';
 
 interface NavItem {
   to: string;

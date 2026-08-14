@@ -7,6 +7,7 @@ import {
   formatTransferAmountNote,
   type SubscriptionPaymentResult,
 } from '../services/subscriptionPlans';
+import { useLocale } from '../i18n';
 
 type PaymentTab = 'qr' | 'transfer';
 
@@ -61,6 +62,7 @@ async function copyText(text: string): Promise<void> {
 }
 
 function CopyField({ label, value }: { label: string; value: string }) {
+  const { t } = useLocale();
   const [copied, setCopied] = useState(false);
 
   return (
@@ -80,7 +82,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
             }}
           >
             <Copy size={13} />
-            {copied ? 'Đã chép' : 'Sao chép'}
+            {copied ? t('payment.copied') : t('payment.copy')}
           </button>
         ) : null}
       </div>
@@ -96,6 +98,7 @@ export default function SubscriptionPaymentModal({
   statusMessage,
   onClose,
 }: Props) {
+  const { t } = useLocale();
   const [tab, setTab] = useState<PaymentTab>('qr');
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [qrLoading, setQrLoading] = useState(false);
@@ -207,15 +210,15 @@ export default function SubscriptionPaymentModal({
       >
         <div className="pricing-payment-head">
           <div>
-            <h2 id="pricing-payment-title">Thanh toán</h2>
+            <h2 id="pricing-payment-title">{t('payment.title')}</h2>
             <p>{planName}</p>
           </div>
-          <button type="button" className="pricing-payment-close" aria-label="Đóng" onClick={onClose}>
+          <button type="button" className="pricing-payment-close" aria-label={t('payment.close')} onClick={onClose}>
             <X size={18} />
           </button>
         </div>
 
-        <div className="pricing-payment-tabs" role="tablist" aria-label="Phương thức thanh toán">
+        <div className="pricing-payment-tabs" role="tablist" aria-label={t('payment.tabsAria')}>
           <button
             type="button"
             role="tab"
@@ -225,7 +228,7 @@ export default function SubscriptionPaymentModal({
             disabled={!hasQrTab}
           >
             <QrCode size={15} />
-            Quét mã QR
+            {t('payment.tab.qr')}
           </button>
           <button
             type="button"
@@ -236,7 +239,7 @@ export default function SubscriptionPaymentModal({
             disabled={!hasTransferTab}
           >
             <CreditCard size={15} />
-            Chuyển khoản
+            {t('payment.tab.transfer')}
           </button>
         </div>
 
@@ -246,19 +249,23 @@ export default function SubscriptionPaymentModal({
               {qrLoading ? (
                 <div className="pricing-payment-qr-loading">
                   <Loader2 size={20} className="spin" />
-                  <span>Đang tạo mã QR...</span>
+                  <span>{t('payment.qrLoading')}</span>
                 </div>
               ) : qrDataUrl ? (
-                <img className="pricing-payment-qr-image" src={qrDataUrl} alt={`Mã QR thanh toán ${planName}`} />
+                <img
+                  className="pricing-payment-qr-image"
+                  src={qrDataUrl}
+                  alt={t('payment.qrAlt', { planName })}
+                />
               ) : embeddedUrl ? (
                 <iframe
                   className="pricing-payment-qr-frame"
                   src={embeddedUrl}
-                  title={`Thanh toán QR ${planName}`}
+                  title={t('payment.qrFrameTitle', { planName })}
                   loading="lazy"
                 />
               ) : (
-                <p className="muted">Không có mã QR cho giao dịch này.</p>
+                <p className="muted">{t('payment.noQr')}</p>
               )}
             </div>
           ) : (
@@ -268,17 +275,18 @@ export default function SubscriptionPaymentModal({
               ) : null}
               {transferInfo?.bankName ? <p className="pricing-payment-bank">{transferInfo.bankName}</p> : null}
 
-              <CopyField label="Số tài khoản" value={transferInfo?.accountNumber || ''} />
-              <CopyField label="Số tiền" value={transferInfo?.amountFormatted || ''} />
-              <CopyField label="Nội dung" value={transferInfo?.content || ''} />
+              <CopyField label={t('payment.accountNumber')} value={transferInfo?.accountNumber || ''} />
+              <CopyField label={t('payment.amount')} value={transferInfo?.amountFormatted || ''} />
+              <CopyField label={t('payment.content')} value={transferInfo?.content || ''} />
 
               {amountNote ? (
                 <p className="pricing-payment-transfer-note">
-                  Lưu ý: Nhập chính xác số tiền <strong>{amountNote}</strong> khi chuyển khoản
+                  {t('payment.transferNote')} <strong>{amountNote}</strong>{' '}
+                  {t('payment.transferNoteSuffix')}
                 </p>
               ) : null}
 
-              {!hasTransferTab ? <p className="muted">Không có thông tin chuyển khoản cho giao dịch này.</p> : null}
+              {!hasTransferTab ? <p className="muted">{t('payment.noTransfer')}</p> : null}
             </div>
           )}
         </div>
@@ -286,14 +294,14 @@ export default function SubscriptionPaymentModal({
         <div className="pricing-payment-foot">
           {statusMessage ? <p className="pricing-payment-status">{statusMessage}</p> : null}
           <p>
-            Sau khi thanh toán thành công bạn có thể truy cập{' '}
+            {t('payment.footPrefix')}{' '}
             <Link to="/account" onClick={onClose}>
-              trang quản lý tài khoản
+              {t('payment.accountLink')}
             </Link>
             .
           </p>
           <button type="button" className="pricing-payment-close-btn" onClick={onClose}>
-            Đóng
+            {t('payment.close')}
           </button>
         </div>
       </div>

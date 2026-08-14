@@ -13,6 +13,7 @@ import {
   Play,
   Share2,
 } from 'lucide-react';
+import { useLocale } from '../i18n';
 import ComposerLibraryPreviewModal, {
   type ComposerPreviewHandlers,
 } from './ComposerLibraryPreviewModal';
@@ -95,6 +96,7 @@ function MineCard({
   onOpen: () => void;
   onToggleFavorite: () => void;
 }) {
+  const { t } = useLocale();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -219,7 +221,7 @@ function MineCard({
             />
           )
         ) : (
-          <span className="mine-tile-empty">Đang xử lý…</span>
+          <span className="mine-tile-empty">{t('home.feed.processing')}</span>
         )}
 
         {(isVideo || isAudio) && !failed && (thumb || media) && (
@@ -374,6 +376,7 @@ async function fetchSource(source: SourceKey, afterId: string, limit: number): P
 }
 
 export default function HomeMyContent({ filter }: { filter: MineFilter }) {
+  const { t } = useLocale();
   const navigate = useNavigate();
   const [items, setItems] = useState<FeedItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -403,7 +406,7 @@ export default function HomeMyContent({ filter }: { filter: MineFilter }) {
   const loadMore = useCallback(async () => {
     if (loading || done) return;
     if (!isLoggedIn()) {
-      setError('Chưa đăng nhập.');
+      setError(t('home.feed.loginRequired'));
       setDone(true);
       return;
     }
@@ -565,12 +568,12 @@ export default function HomeMyContent({ filter }: { filter: MineFilter }) {
 
   const emptyLabel =
     filter === 'favorite'
-      ? 'Chưa có mục yêu thích nào. Bấm ♥ trên sản phẩm để lưu.'
+      ? t('home.feed.emptyFavoritesMine')
       : filter === 'music'
-        ? 'Bạn chưa có bài nhạc nào.'
+        ? t('home.feed.emptyMusic')
         : filter === 'tts'
-          ? 'Bạn chưa có âm thanh nào.'
-          : 'Bạn chưa có nội dung nào.';
+          ? t('home.feed.emptyTts')
+          : t('home.feed.emptyMine');
 
   const playAudioItem = useCallback((item: FeedItem) => {
     const url = feedMediaUrl(item);
@@ -655,7 +658,7 @@ export default function HomeMyContent({ filter }: { filter: MineFilter }) {
       )}
 
       {error && <p className="error feed-status">{error}</p>}
-      {loading && <p className="muted feed-status">Đang tải…</p>}
+      {loading && <p className="muted feed-status">{t('home.feed.loading')}</p>}
       {!loading && !items.length && !error && (
         <p className="muted feed-status">{emptyLabel}</p>
       )}

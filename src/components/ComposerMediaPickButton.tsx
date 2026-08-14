@@ -48,7 +48,7 @@ export default function ComposerMediaPickButton({
         }}
       >
         {uploading ? (
-          <ComposerUploadOverlay minimal hint="Đang tải lên" />
+          <ComposerUploadOverlay minimal />
         ) : (
           children
         )}

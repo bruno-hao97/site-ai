@@ -8,6 +8,7 @@ import {
   Share2,
   Wand2,
 } from 'lucide-react';
+import { useLocale } from '../i18n';
 import {
   feedMediaUrl,
   feedThumb,
@@ -31,11 +32,12 @@ export default function FeedPostCard({
   onOpen?: () => void;
   onFavoriteChange?: () => void;
 }) {
+  const { t } = useLocale();
   const [fav, setFav] = useState(() => isFavorite(item.id_base));
   const thumb = feedThumb(item);
   const media = feedMediaUrl(item);
   const video = isVideoItem(item);
-  const author = item.author?.name || 'Ẩn danh';
+  const author = item.author?.name || t('home.feed.anonymous');
   const likes = item.likes_count ?? item.like_count ?? 0;
   const comments = item.comments_count ?? 0;
   const prompt = (item.prompt || item.title || '').trim();
@@ -107,7 +109,7 @@ export default function FeedPostCard({
         {thumb ? (
           <img src={thumb} alt="" loading="lazy" />
         ) : (
-          <span className="feed-post-media-empty">Đang xử lý…</span>
+          <span className="feed-post-media-empty">{t('home.feed.processing')}</span>
         )}
         {video && (
           <span className="feed-post-play">

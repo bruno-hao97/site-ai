@@ -26,16 +26,21 @@ import { formatAcceptedPendingMessage, isJobAcceptedPendingError } from '../serv
 import { isLoggedIn, getGommoClient } from '../services/authStore';
 import { hasToken, loadSettings } from '../services/settingsStore';
 import UrlField from '../components/UrlField';
+import { useLocale } from '../i18n';
+import type { TranslationKey } from '../i18n/types';
 
-const JOB_TYPES: { value: JobType; label: string }[] = [
-  { value: 'image', label: 'Image' },
-  { value: 'video', label: 'Video' },
-  { value: 'tts', label: 'TTS' },
-  { value: 'music', label: 'Music' },
-  { value: 'avatar-lipsync', label: 'Avatar Lipsync' },
-];
+const JOB_TYPE_KEYS: Partial<Record<JobType, TranslationKey>> = {
+  image: 'jobType.image',
+  video: 'jobType.video',
+  tts: 'jobType.tts',
+  music: 'jobType.music',
+  'avatar-lipsync': 'playground.jobType.avatarLipsync',
+};
+
+const JOB_TYPES: JobType[] = ['image', 'video', 'tts', 'music', 'avatar-lipsync'];
 
 export default function ApiPlaygroundPage() {
+  const { t } = useLocale();
   const [jobType, setJobType] = useState<JobType>('image');
   const [models, setModels] = useState<GommoModel[]>([]);
   const [selectedSlug, setSelectedSlug] = useState('');
@@ -64,7 +69,7 @@ export default function ApiPlaygroundPage() {
 
   const loadModels = useCallback(async (type: JobType, force = false) => {
     if (!isLoggedIn() && !hasToken()) {
-      setError('Chưa đăng nhập — dùng Access Token tại /login.');
+      setError(t('playground.notLoggedIn'));
       setModels([]);
       return;
     }
@@ -84,7 +89,7 @@ export default function ApiPlaygroundPage() {
       const list = parseModelsList(envelope);
       setCachedModels(type, list);
       setModels(list);
-      if (!list.length) setError('Không có model cho loại này.');
+      if (!list.length) setError(t('playground.noModels'));
     } catch (err) {
       clearModelsCache();
       setError(err instanceof GommoApiError ? err.message : String(err));
@@ -92,7 +97,7 @@ export default function ApiPlaygroundPage() {
     } finally {
       setLoadingModels(false);
     }
-  }, [client]);
+  }, [client, t]);
 
   useEffect(() => {
     loadModels(jobType);
@@ -148,11 +153,11 @@ export default function ApiPlaygroundPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!hasToken()) {
-      setError('Chưa có token.');
+      setError(t('playground.noToken'));
       return;
     }
     if (!currentModel || !schema) {
-      setError('Chọn model trước.');
+      setError(t('playground.pickModel'));
       return;
     }
 
@@ -161,7 +166,7 @@ export default function ApiPlaygroundPage() {
 
     setSubmitting(true);
     setError('');
-    setProgress('Đang tạo job…');
+    setProgress(t('playground.progress.creating'));
     setCreateResponse(null);
     setPollResponse(null);
     setResultUrl(null);
@@ -177,11 +182,17 @@ export default function ApiPlaygroundPage() {
         payload,
         (p) => {
           if ('phase' in p && p.phase === 'creating') {
-            setProgress('Đang tạo job…');
+            setProgress(t('playground.progress.creating'));
             return;
           }
           const prog = p as PollProgress;
-          setProgress(`Poll #${prog.attempt}: ${prog.phase} — ${prog.status || '…'}`);
+          setProgress(
+            t('playground.progress.poll', {
+              attempt: prog.attempt,
+              phase: prog.phase,
+              status: prog.status || '…',
+            }),
+          );
           setPollResponse(prog.envelope);
         },
         abortRef.current.signal,
@@ -193,15 +204,15 @@ export default function ApiPlaygroundPage() {
       const url = result.resultUrl ?? snap.resultUrl;
       if (url) {
         setResultUrl(url);
-        setProgress('Hoàn tất — có result_url');
+        setProgress(t('playground.progress.done'));
       } else if (result.pollResult?.acceptedPending || isJobAcceptedPendingError(result.pollResult?.error)) {
         setProgress(result.pollResult?.error || formatAcceptedPendingMessage());
       } else if (result.pollResult?.timeout) {
-        setError('Hết thời gian poll (~5 phút)');
+        setError(t('playground.progress.timeout'));
       } else if (result.pollResult && !result.pollResult.success) {
-        setError(result.pollResult.error || 'Job thất bại');
+        setError(result.pollResult.error || t('playground.progress.jobFailed'));
       } else {
-        setProgress('Xong (TTS có thể trả URL ngay khi tạo)');
+        setProgress(t('playground.progress.ttsDone'));
       }
     } catch (err) {
       if (err instanceof GommoApiError && err.status === 400) {
@@ -236,48 +247,49 @@ export default function ApiPlaygroundPage() {
   return (
     <div className="playground">
       <div className="page-head">
-        <p className="kicker">Gommo Jobs Gateway</p>
-        <h1>API Playground</h1>
+        <p className="kicker">{t('playground.kicker')}</p>
+        <h1>{t('playground.title')}</h1>
         <p className="lead">
-          Luồng: load <code>/ai/models</code> → chọn model → <code>POST /ai/jobs/…</code> → poll{' '}
-          <code>/ai/jobs/&#123;id&#125;?media=…</code>. Domain cố định <code>{DEFAULT_DOMAIN}</code>.
+          {t('playground.lead')} <code>{DEFAULT_DOMAIN}</code>.
         </p>
       </div>
 
       {!hasToken() && (
         <div className="banner warn">
-          Chưa có token. <Link to="/settings">Vào Settings</Link> để nhập access_token.
+          {t('playground.noTokenBanner')}{' '}
+          <Link to="/settings">{t('playground.settingsLink')}</Link>{' '}
+          {t('playground.settingsHint')}
         </div>
       )}
 
       <div className="pg-grid">
         <section className="panel pg-models">
           <div className="panel-head">
-            <h2>Models</h2>
+            <h2>{t('playground.modelsTitle')}</h2>
             <button
               type="button"
               className="btn ghost sm"
               onClick={() => loadModels(jobType, true)}
               disabled={loadingModels}
             >
-              Refresh
+              {t('playground.refresh')}
             </button>
           </div>
 
           <div className="type-tabs">
-            {JOB_TYPES.map((t) => (
+            {JOB_TYPES.map((type) => (
               <button
-                key={t.value}
+                key={type}
                 type="button"
-                className={`tab ${jobType === t.value ? 'active' : ''}`}
-                onClick={() => setJobType(t.value)}
+                className={`tab ${jobType === type ? 'active' : ''}`}
+                onClick={() => setJobType(type)}
               >
-                {t.label}
+                {t(JOB_TYPE_KEYS[type] ?? 'jobType.image')}
               </button>
             ))}
           </div>
 
-          {loadingModels && <p className="muted">Đang tải models…</p>}
+          {loadingModels && <p className="muted">{t('playground.loadingModels')}</p>}
           <ul className="model-list">
             {models.map((m) => {
               const slug = modelSlug(m);
@@ -298,14 +310,16 @@ export default function ApiPlaygroundPage() {
         </section>
 
         <section className="panel pg-form">
-          <h2>Job payload</h2>
+          <h2>{t('playground.jobPayloadTitle')}</h2>
           {!schema ? (
-            <p className="muted">Chọn model từ danh sách bên trái.</p>
+            <p className="muted">{t('playground.pickModelHint')}</p>
           ) : (
             <form onSubmit={handleSubmit} className="form">
               {schema.fields.prompt && !(schema.fields.musicName && selections.instrumental) && (
                 <label className="field">
-                  <span className="label">{schema.fields.musicName ? 'Lyrics' : 'Prompt'}</span>
+                  <span className="label">
+                    {schema.fields.musicName ? t('playground.label.lyrics') : t('playground.label.prompt')}
+                  </span>
                   <textarea
                     rows={3}
                     value={selections.prompt || ''}
@@ -315,7 +329,7 @@ export default function ApiPlaygroundPage() {
               )}
               {schema.fields.text && (
                 <label className="field">
-                  <span className="label">Text (TTS)</span>
+                  <span className="label">{t('playground.label.textTts')}</span>
                   <textarea
                     rows={3}
                     value={selections.text || ''}
@@ -325,7 +339,7 @@ export default function ApiPlaygroundPage() {
               )}
               {schema.fields.musicName && (
                 <label className="field">
-                  <span className="label">Name (music)</span>
+                  <span className="label">{t('playground.label.musicName')}</span>
                   <input
                     value={selections.name || ''}
                     onChange={(e) => updateSelection('name', e.target.value)}
@@ -334,7 +348,7 @@ export default function ApiPlaygroundPage() {
               )}
               {schema.fields.musicStyle && (
                 <label className="field">
-                  <span className="label">Style (styles)</span>
+                  <span className="label">{t('playground.label.musicStyle')}</span>
                   <textarea
                     rows={2}
                     value={selections.style || ''}
@@ -349,13 +363,13 @@ export default function ApiPlaygroundPage() {
                     checked={Boolean(selections.instrumental)}
                     onChange={(e) => updateSelection('instrumental', e.target.checked)}
                   />
-                  <span>Không lời (instrumental)</span>
+                  <span>{t('playground.instrumental')}</span>
                 </label>
               )}
 
               {schema.fields.ratio && (
                 <label className="field">
-                  <span className="label">Ratio</span>
+                  <span className="label">{t('playground.label.ratio')}</span>
                   <select
                     value={selections.ratio || ''}
                     onChange={(e) => updateSelection('ratio', e.target.value)}
@@ -368,7 +382,7 @@ export default function ApiPlaygroundPage() {
               )}
               {schema.fields.mode && (
                 <label className="field">
-                  <span className="label">Mode</span>
+                  <span className="label">{t('playground.label.mode')}</span>
                   <select
                     value={selections.mode || ''}
                     onChange={(e) => updateSelection('mode', e.target.value)}
@@ -381,7 +395,7 @@ export default function ApiPlaygroundPage() {
               )}
               {schema.fields.resolution && (
                 <label className="field">
-                  <span className="label">Resolution</span>
+                  <span className="label">{t('playground.label.resolution')}</span>
                   <select
                     value={selections.resolution || ''}
                     onChange={(e) => updateSelection('resolution', e.target.value)}
@@ -394,7 +408,7 @@ export default function ApiPlaygroundPage() {
               )}
               {schema.fields.duration && (
                 <label className="field">
-                  <span className="label">Duration</span>
+                  <span className="label">{t('playground.label.duration')}</span>
                   <select
                     value={selections.duration || ''}
                     onChange={(e) => updateSelection('duration', e.target.value)}
@@ -408,7 +422,11 @@ export default function ApiPlaygroundPage() {
 
               {schema.fields.startFrame && (
                 <UrlField
-                  label={schema.fields.endFrame ? 'Start frame URL' : 'First frame URL'}
+                  label={
+                    schema.fields.endFrame
+                      ? t('playground.label.startFrame')
+                      : t('playground.label.firstFrame')
+                  }
                   value={selections.images?.[0] || ''}
                   onChange={(v) => updateUrlList('images', 0, v)}
                   onUpload={async (f) => {
@@ -419,7 +437,7 @@ export default function ApiPlaygroundPage() {
               )}
               {schema.fields.endFrame && (
                 <UrlField
-                  label="End frame URL"
+                  label={t('playground.label.endFrame')}
                   value={selections.images?.[1] || ''}
                   onChange={(v) => updateUrlList('images', 1, v)}
                   onUpload={async (f) => {
@@ -431,7 +449,7 @@ export default function ApiPlaygroundPage() {
 
               {schema.fields.references && (
                 <UrlField
-                  label={`Reference URL (max ${schema.limits.maxReference})`}
+                  label={t('playground.label.reference', { max: schema.limits.maxReference })}
                   value={selections.references?.[0] || ''}
                   onChange={(v) => updateUrlList('references', 0, v)}
                   onUpload={async (f) => {
@@ -443,7 +461,7 @@ export default function ApiPlaygroundPage() {
 
               <div className="actions">
                 <button type="submit" className="btn primary btn-job" disabled={submitting || !hasToken()}>
-                  {submitting ? 'Đang chạy…' : 'Tạo job & poll'}
+                  {submitting ? t('playground.submitting') : t('playground.submit')}
                 </button>
                 {submitting && (
                   <button
@@ -451,7 +469,7 @@ export default function ApiPlaygroundPage() {
                     className="btn secondary"
                     onClick={() => abortRef.current?.abort()}
                   >
-                    Hủy
+                    {t('playground.cancel')}
                   </button>
                 )}
               </div>
@@ -463,10 +481,10 @@ export default function ApiPlaygroundPage() {
 
           {resultUrl && (
             <div className="result-preview">
-              <h3>Kết quả</h3>
+              <h3>{t('playground.resultTitle')}</h3>
               <a href={resultUrl} target="_blank" rel="noreferrer">{resultUrl}</a>
               {/\.(png|jpe?g|webp|gif)/i.test(resultUrl) && (
-                <img src={resultUrl} alt="result" />
+                <img src={resultUrl} alt={t('playground.resultAlt')} />
               )}
               {/\.(mp4|webm|mov)/i.test(resultUrl) && (
                 <video src={resultUrl} controls />
@@ -479,13 +497,13 @@ export default function ApiPlaygroundPage() {
         </section>
 
         <section className="panel pg-debug">
-          <h2>Request / Response</h2>
+          <h2>{t('playground.debugTitle')}</h2>
           <div className="debug-block">
             <span className="debug-label">POST {requestUrl}</span>
             <pre>{JSON.stringify(requestPreview, null, 2)}</pre>
           </div>
           <div className="debug-block">
-            <span className="debug-label">Auth (masked)</span>
+            <span className="debug-label">{t('playground.debug.authMasked')}</span>
             <pre>
               {JSON.stringify(
                 {
@@ -500,13 +518,13 @@ export default function ApiPlaygroundPage() {
           </div>
           {createResponse != null && (
             <div className="debug-block">
-              <span className="debug-label">Create response</span>
+              <span className="debug-label">{t('playground.debug.createResponse')}</span>
               <pre>{JSON.stringify(createResponse, null, 2)}</pre>
             </div>
           )}
           {pollResponse != null && (
             <div className="debug-block">
-              <span className="debug-label">Poll response (latest)</span>
+              <span className="debug-label">{t('playground.debug.pollResponse')}</span>
               <pre>{JSON.stringify(pollResponse, null, 2)}</pre>
             </div>
           )}

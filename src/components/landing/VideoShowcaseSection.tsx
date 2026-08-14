@@ -2,6 +2,7 @@ import { motion, useInView } from 'framer-motion';
 import { ArrowRight, Play } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import { useLandingFeedPreview } from '../../hooks/useLandingFeedPreview';
+import { useLocale } from '../../i18n';
 import { feedMediaUrl, feedThumb, type FeedItem } from '../../services/feedApi';
 
 function isVideoMediaUrl(url: string): boolean {
@@ -68,14 +69,15 @@ function ShowcaseCell({ item, wide }: { item: FeedItem; wide?: boolean }) {
 }
 
 export default function VideoShowcaseSection() {
+  const { t } = useLocale();
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: '-80px' });
   const { items, loading } = useLandingFeedPreview(20);
 
   const videos = useMemo(() => {
     const candidates = items.filter((it) => {
-      const t = (it.type || '').toLowerCase();
-      return t !== 'image' && t !== 'image-upscale' && t !== 'remove-bg';
+      const type = (it.type || '').toLowerCase();
+      return type !== 'image' && type !== 'image-upscale' && type !== 'remove-bg';
     });
     const withVideo = candidates.filter((it) => feedPreviewVideoUrl(it));
     const withThumb = candidates.filter((it) => !feedPreviewVideoUrl(it) && feedThumb(it));
@@ -92,11 +94,11 @@ export default function VideoShowcaseSection() {
         >
           <div className="landing-section-head landing-section-head-row">
             <div>
-              <h2>Bắt đầu từ ý tưởng — xuất video trong vài phút</h2>
-              <p>Text-to-video, image-to-video và avatar lipsync trong một studio.</p>
+              <h2>{t('landing.videoShowcase.title')}</h2>
+              <p>{t('landing.videoShowcase.subtitle')}</p>
             </div>
             <a href="#community" className="landing-link-btn">
-              Khám phá video
+              {t('landing.videoShowcase.explore')}
               <ArrowRight size={14} />
             </a>
           </div>
@@ -118,7 +120,7 @@ export default function VideoShowcaseSection() {
                     className={`video-showcase-cell${i === 3 ? ' wide' : ''} placeholder`}
                   >
                     <Play size={28} />
-                    <span>Video mẫu sắp có</span>
+                    <span>{t('landing.videoShowcase.placeholder')}</span>
                   </div>
                 ))
               : null}

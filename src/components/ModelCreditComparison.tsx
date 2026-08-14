@@ -3,6 +3,9 @@ import { ChevronDown, Loader2 } from 'lucide-react';
 import type { GommoModel, JobType } from '../services/api';
 import type { CreditPackage } from '../services/topupApi';
 import { fetchModelCatalog } from '../services/modelCatalog';
+import { useLocale } from '../i18n';
+import type { AppLocale, TranslationKey } from '../i18n/types';
+import type { TranslateFn } from '../i18n/LanguageProvider';
 
 interface Props {
   creditPackages: CreditPackage[];
@@ -23,22 +26,39 @@ interface PriceRow {
   originalCredits?: number;
 }
 
-const CATEGORIES: Array<{ type: JobType; label: string }> = [
-  { type: 'image', label: 'Tạo hình ảnh' },
-  { type: 'video', label: 'Tạo video' },
-  { type: 'tts', label: 'Giọng nói (TTS)' },
-  { type: 'music', label: 'Tạo nhạc' },
-  { type: 'avatar-lipsync', label: 'Avatar & Lip sync' },
-  { type: 'image-upscale', label: 'Nâng cấp hình ảnh' },
-  { type: 'video-upscale', label: 'Nâng cấp video' },
-  { type: 'video-vfx', label: 'Hiệu ứng video' },
-];
+const CATEGORY_TYPES = [
+  'image',
+  'video',
+  'tts',
+  'music',
+  'avatar-lipsync',
+  'image-upscale',
+  'video-upscale',
+  'video-vfx',
+] as const satisfies readonly JobType[];
+
+type CompareJobType = (typeof CATEGORY_TYPES)[number];
+
+const CATEGORY_LABEL_KEYS: Record<CompareJobType, TranslationKey> = {
+  image: 'pricing.compare.category.image',
+  video: 'pricing.compare.category.video',
+  tts: 'pricing.compare.category.tts',
+  music: 'pricing.compare.category.music',
+  'avatar-lipsync': 'pricing.compare.category.avatar-lipsync',
+  'image-upscale': 'pricing.compare.category.image-upscale',
+  'video-upscale': 'pricing.compare.category.video-upscale',
+  'video-vfx': 'pricing.compare.category.video-vfx',
+};
+
+function numberLocale(locale: AppLocale): string {
+  return locale === 'vi' ? 'vi-VN' : 'en-US';
+}
 
 function modelLabel(model: GommoModel): string {
   return model.name || model.model || model.slug || model.model_id || model.id || 'Model';
 }
 
-function priceRows(models: GommoModel[]): PriceRow[] {
+function priceRows(models: GommoModel[], t: TranslateFn): PriceRow[] {
   return models.flatMap((model, modelIndex) => {
     const name = modelLabel(model);
     const prices = Array.isArray(model.prices) ? model.prices : [];
@@ -48,7 +68,7 @@ function priceRows(models: GommoModel[]): PriceRow[] {
       return [{
         key: `${name}-${modelIndex}`,
         modelName: name,
-        variant: model.rate_type === 'per_second' ? 'Mỗi giây' : 'Mặc định',
+        variant: model.rate_type === 'per_second' ? t('pricing.compare.perSecond') : t('pricing.compare.default'),
         credits,
       }];
     }
@@ -59,7 +79,7 @@ function priceRows(models: GommoModel[]): PriceRow[] {
       const original = Number(
         price.price_default || price.original_price || price.price_original || price.list_price || 0,
       );
-      const variant = [price.mode, price.resolution].filter(Boolean).join(' · ') || 'Mặc định';
+      const variant = [price.mode, price.resolution].filter(Boolean).join(' · ') || t('pricing.compare.default');
       return [{
         key: `${name}-${modelIndex}-${priceIndex}`,
         modelName: name,
@@ -71,19 +91,21 @@ function priceRows(models: GommoModel[]): PriceRow[] {
   });
 }
 
-function formatCredits(value: number): string {
-  return `${value.toLocaleString('vi-VN', { maximumFractionDigits: 2 })} c`;
+function formatCredits(value: number, locale: AppLocale): string {
+  return `${value.toLocaleString(numberLocale(locale), { maximumFractionDigits: 2 })} c`;
 }
 
-function formatEquivalentVnd(credits: number, creditPackage: CreditPackage): string {
+function formatEquivalentVnd(credits: number, creditPackage: CreditPackage, locale: AppLocale): string {
+  const fmt = numberLocale(locale);
   const value = credits * (creditPackage.amountVnd / creditPackage.credits);
   if (value < 1) {
-    return `${value.toLocaleString('vi-VN', { maximumFractionDigits: 2 })}đ`;
+    return `${value.toLocaleString(fmt, { maximumFractionDigits: 2 })}đ`;
   }
-  return `${Math.round(value).toLocaleString('vi-VN')}đ`;
+  return `${Math.round(value).toLocaleString(fmt)}đ`;
 }
 
 export default function ModelCreditComparison({ creditPackages, variant = 'app' }: Props) {
+  const { t, locale } = useLocale();
   const [categories, setCategories] = useState<ModelCategory[]>([]);
   const [openTypes, setOpenTypes] = useState<Set<JobType>>(new Set(['image']));
   const [loading, setLoading] = useState(true);
@@ -94,7 +116,7 @@ export default function ModelCreditComparison({ creditPackages, variant = 'app' 
     setLoading(true);
     setError('');
 
-    void fetchModelCatalog(CATEGORIES.map((c) => c.type))
+    void fetchModelCatalog([...CATEGORY_TYPES])
       .then((catalog) => {
         if (!active) return;
         const byType = new Map<JobType, GommoModel[]>();
@@ -103,12 +125,13 @@ export default function ModelCreditComparison({ creditPackages, variant = 'app' 
           list.push(entry.model);
           byType.set(entry.jobType, list);
         }
-        const loaded = CATEGORIES.flatMap((category) => {
-          const models = byType.get(category.type) ?? [];
-          return models.length ? [{ ...category, models }] : [];
+        const loaded = CATEGORY_TYPES.flatMap((type) => {
+          const models = byType.get(type) ?? [];
+          if (!models.length) return [];
+          return [{ type, label: t(CATEGORY_LABEL_KEYS[type]), models }];
         });
         setCategories(loaded);
-        if (!loaded.length) setError('Chưa có dữ liệu giá model.');
+        if (!loaded.length) setError(t('pricing.compare.noData'));
       })
       .catch((err) => {
         if (!active) return;
@@ -122,7 +145,7 @@ export default function ModelCreditComparison({ creditPackages, variant = 'app' 
     return () => {
       active = false;
     };
-  }, []);
+  }, [t]);
 
   const packageColumns = useMemo(
     () => [...creditPackages].sort((a, b) => a.amountVnd - b.amountVnd),
@@ -139,25 +162,22 @@ export default function ModelCreditComparison({ creditPackages, variant = 'app' 
   }
 
   const isMagnific = variant === 'magnific';
+  const fmt = numberLocale(locale);
 
   return (
     <section className={`pricing-model-compare${isMagnific ? ' pricing-model-compare--magnific' : ''}`}>
       <div className="pricing-model-compare-head">
         <div>
           {!isMagnific ? <p className="kicker">Model Pricing</p> : null}
-          <h2>
-            {isMagnific
-              ? 'So sánh chi phí theo gói credit'
-              : 'So sánh giá Model theo gói Credit'}
-          </h2>
+          <h2>{t('pricing.compare.title')}</h2>
         </div>
-        <p>Chi phí quy đổi dựa trên số credit nhận được của từng gói.</p>
+        <p>{t('pricing.compare.subtitle')}</p>
       </div>
 
       {loading ? (
         <div className="pricing-loading">
           <Loader2 size={16} className="spin" />
-          <span>Đang tải bảng giá model...</span>
+          <span>{t('pricing.compare.loading')}</span>
         </div>
       ) : null}
       {!loading && error ? <p className="muted">{error}</p> : null}
@@ -165,7 +185,7 @@ export default function ModelCreditComparison({ creditPackages, variant = 'app' 
       {!loading && !error ? (
         <div className="pricing-model-groups">
           {categories.map((category) => {
-            const rows = priceRows(category.models);
+            const rows = priceRows(category.models, t);
             const open = openTypes.has(category.type);
             if (!rows.length) return null;
             return (
@@ -178,7 +198,7 @@ export default function ModelCreditComparison({ creditPackages, variant = 'app' 
                 >
                   <span>
                     <strong>{category.label}</strong>
-                    <small>{rows.length} mức giá</small>
+                    <small>{t('pricing.compare.priceLevels', { count: rows.length })}</small>
                   </span>
                   <ChevronDown size={18} />
                 </button>
@@ -188,16 +208,16 @@ export default function ModelCreditComparison({ creditPackages, variant = 'app' 
                     <table className="pricing-model-table">
                       <thead>
                         <tr>
-                          <th>Model</th>
-                          <th>Chế độ</th>
-                          <th>Giá Credit</th>
+                          <th>{t('pricing.compare.modelCol')}</th>
+                          <th>{t('pricing.compare.modeCol')}</th>
+                          <th>{t('pricing.compare.creditCol')}</th>
                           {packageColumns.map((creditPackage) => (
                             <th
                               key={creditPackage.id}
                               className={creditPackage.featured ? 'featured-col' : undefined}
                             >
                               <span>{creditPackage.name}</span>
-                              <small>{creditPackage.credits.toLocaleString('vi-VN')} c</small>
+                              <small>{creditPackage.credits.toLocaleString(fmt)} c</small>
                             </th>
                           ))}
                         </tr>
@@ -208,15 +228,15 @@ export default function ModelCreditComparison({ creditPackages, variant = 'app' 
                             <td><strong>{row.modelName}</strong></td>
                             <td>{row.variant}</td>
                             <td>
-                              {row.originalCredits ? <del>{formatCredits(row.originalCredits)}</del> : null}
-                              <strong>{formatCredits(row.credits)}</strong>
+                              {row.originalCredits ? <del>{formatCredits(row.originalCredits, locale)}</del> : null}
+                              <strong>{formatCredits(row.credits, locale)}</strong>
                             </td>
                             {packageColumns.map((creditPackage) => (
                               <td
                                 key={`${row.key}-${creditPackage.id}`}
                                 className={creditPackage.featured ? 'featured' : ''}
                               >
-                                {formatEquivalentVnd(row.credits, creditPackage)}
+                                {formatEquivalentVnd(row.credits, creditPackage, locale)}
                               </td>
                             ))}
                           </tr>

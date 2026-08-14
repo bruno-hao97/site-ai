@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocale } from '../i18n';
 
 export default function UrlField({
   label,
@@ -13,6 +14,7 @@ export default function UrlField({
   onUpload: (f: File) => Promise<void>;
   accept?: string;
 }) {
+  const { t } = useLocale();
   const [uploading, setUploading] = useState(false);
 
   return (
@@ -24,10 +26,10 @@ export default function UrlField({
           {uploading ? (
             <>
               <span className="composer-upload-spinner" aria-hidden />
-              Đang tải…
+              {t('urlField.loading')}
             </>
           ) : (
-            'Upload'
+            t('urlField.upload')
           )}
           <input
             type="file"

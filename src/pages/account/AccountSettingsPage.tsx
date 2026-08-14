@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react';
+import { useLocale } from '../../i18n';
 import { getDisplayUser, getUpstreamMe, loadAuth } from '../../services/authStore';
 import { gommoChangePassword } from '../../services/gommoAuth';
-import { useLocale } from '../../i18n';
 
 export default function AccountSettingsPage() {
   const { t } = useLocale();

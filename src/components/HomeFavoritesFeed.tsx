@@ -4,6 +4,7 @@ import ComposerLibraryPreviewModal, {
   type ComposerPreviewHandlers,
 } from './ComposerLibraryPreviewModal';
 import FeedPostCard from './FeedPostCard';
+import { useLocale } from '../i18n';
 import type { FeedItem } from '../services/feedApi';
 import { feedIsAudioItem } from '../services/feedApi';
 import { loadFavoriteItems } from '../services/feedFavoritesStore';
@@ -14,6 +15,7 @@ import {
 } from '../utils/feedItemReuse';
 
 export default function HomeFavoritesFeed() {
+  const { t } = useLocale();
   const navigate = useNavigate();
   const [items, setItems] = useState<FeedItem[]>([]);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
@@ -80,9 +82,7 @@ export default function HomeFavoritesFeed() {
       )}
 
       {!items.length && (
-        <p className="muted feed-status">
-          Chưa có mục yêu thích. Bấm ♥ trên Bảng tin hoặc thư viện để lưu vào đây.
-        </p>
+        <p className="muted feed-status">{t('home.feed.emptyFavorites')}</p>
       )}
     </div>
   );

@@ -4,6 +4,7 @@ import { ArrowRight, Loader2 } from 'lucide-react';
 import { useMemo, useRef } from 'react';
 import { studioRouteForType } from '../../constants/studioTypes';
 import { useModelCatalog } from '../../hooks/useModelCatalog';
+import { useLocale } from '../../i18n';
 import {
   buildNewModelChecker,
   modelLabel,
@@ -14,6 +15,7 @@ import { modelSlug } from '../../services/modelSchema';
 import { useLandingCta } from './LandingLayout';
 
 export default function ModelsSection() {
+  const { t } = useLocale();
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: '-80px' });
   const { available, loading, error } = useModelCatalog();
@@ -34,18 +36,18 @@ export default function ModelsSection() {
       <div className="container">
         <div className="models-header">
           <div>
-            <h2>Các Model Phổ Biến</h2>
-            <p className="models-header-sub">Khám phá các model AI được sử dụng nhiều nhất</p>
+            <h2>{t('landing.models.title')}</h2>
+            <p className="models-header-sub">{t('landing.models.subtitle')}</p>
           </div>
           <Link to="/models" className="view-all-link">
-            Xem tất cả Model <ArrowRight size={14} />
+            {t('landing.models.viewAll')} <ArrowRight size={14} />
           </Link>
         </div>
 
         {loading ? (
           <div className="model-dir-loading">
             <Loader2 size={18} className="spin" />
-            <span>Đang tải model…</span>
+            <span>{t('landing.models.loading')}</span>
           </div>
         ) : null}
 
@@ -68,22 +70,28 @@ export default function ModelsSection() {
               return (
                 <article key={`${entry.jobType}-${slug}`} className="model-card">
                   {isNew ? (
-                    <span className="model-badge badge-new">MỚI NHẤT</span>
+                    <span className="model-badge badge-new">{t('landing.models.badge.new')}</span>
                   ) : modelOnSale(entry.model) ? (
-                    <span className="model-badge badge-trending">SALE</span>
+                    <span className="model-badge badge-trending">{t('landing.models.badge.sale')}</span>
                   ) : null}
                   <span className="model-icon">✦</span>
                   <h3 className="model-name">{name}</h3>
                   <p className="model-desc">
-                    {entry.model.description?.trim() || `Model ${entry.jobType}`}
+                    {entry.model.description?.trim() ||
+                      t('landing.models.fallbackDesc', { jobType: entry.jobType })}
                   </p>
-                  {price ? <p className="model-price-preview">{price} credits</p> : null}
+                  {price ? (
+                    <p className="model-price-preview">
+                      {price}
+                      {t('landing.models.creditsSuffix')}
+                    </p>
+                  ) : null}
                   <button
                     type="button"
                     className="model-btn"
                     onClick={() => cta(`${route}?model=${encodeURIComponent(slug)}`)}
                   >
-                    Thử ngay
+                    {t('landing.models.tryNow')}
                   </button>
                 </article>
               );

@@ -1608,8 +1608,14 @@ a.user-pill:hover { color: var(--text); }
 .user-menu-avatar-fallback,
 .profile-hero-avatar-fallback,
 .account-sidebar-avatar-fallback {
-  background: #e8ecf4;
+  background: color-mix(in srgb, var(--surface) 85%, #ffffff);
   display: inline-block;
+}
+
+[data-theme='light'] .user-menu-avatar-fallback,
+[data-theme='light'] .profile-hero-avatar-fallback,
+[data-theme='light'] .account-sidebar-avatar-fallback {
+  background: #e8ecf4;
 }
 
 .user-menu-panel {

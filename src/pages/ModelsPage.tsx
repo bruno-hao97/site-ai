@@ -8,10 +8,13 @@ import ModelCreditComparison from '../components/ModelCreditComparison';
 import FaqSection from '../components/landing/FaqSection';
 import LandingLayout, { useLandingCta } from '../components/landing/LandingLayout';
 import ModelCatalogCard from '../components/landing/ModelCatalogCard';
-import { ENTERPRISE_FEATURES } from '../lib/landingEnterpriseFeatures';
+import { getEnterpriseFeatures } from '../lib/landingEnterpriseFeatures';
 import { useModelCatalog } from '../hooks/useModelCatalog';
 import { isLoggedIn } from '../services/authStore';
 import { landingPageClassName } from '../lib/landingShell';
+import { useLocale } from '../i18n';
+import { MODEL_FILTER_I18N_KEYS } from '../i18n/locales/partials/modelsPage.en';
+import type { TranslationKey } from '../i18n/types';
 import {
   catalogByJobTypes,
   MODEL_FILTER_GROUPS,
@@ -21,9 +24,7 @@ import { buildNewModelChecker, modelLabel, modelProvider } from '../services/mod
 import { modelSlug } from '../services/modelSchema';
 import { studioRouteForType } from '../constants/studioTypes';
 import { fetchCreditPackages, type CreditPackage } from '../services/topupApi';
-import { HOME_NOTIF_CONTACT } from '../services/siteConfig';
-
-const BENEFIT_FEATURES = ENTERPRISE_FEATURES.slice(0, 3);
+import { HOME_NOTIF_CONTACT, SITE_DISPLAY_NAME } from '../services/siteConfig';
 
 function ModelCatalogBody({
   loading,
@@ -50,18 +51,19 @@ function ModelCatalogBody({
   searchRef: RefObject<HTMLInputElement | null>;
   onCreate: (entry: CatalogModel) => void;
 }) {
+  const { t } = useLocale();
+
   return (
     <>
       <header className="model-dir-header">
-        <p className="model-dir-kicker">KIẾN TẠO TOÀN DIỆN</p>
-        <h1>Danh sách Model AI</h1>
+        <p className="model-dir-kicker">{t('modelsPage.kicker')}</p>
+        <h1>{t('modelsPage.title')}</h1>
         <p className="model-dir-lead">
-          Khám phá bộ sưu tập model cho video, hình ảnh, âm thanh và hơn thế — chọn công cụ phù hợp dự
-          án của bạn.
+          {t('modelsPage.lead')}
           {!loading && count > 0 ? (
             <>
               {' '}
-              — <strong>{count} model</strong>
+              — <strong>{t('modelsPage.modelCount', { count })}</strong>
             </>
           ) : null}
         </p>
@@ -72,32 +74,35 @@ function ModelCatalogBody({
             ref={searchRef}
             type="search"
             className="model-dir-search"
-            placeholder="Tìm kiếm model (Ctrl + K)…"
+            placeholder={t('modelsPage.searchPlaceholder')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
 
-        <div className="model-dir-filters" role="tablist" aria-label="Lọc loại model">
-          {MODEL_FILTER_GROUPS.map((group) => (
-            <button
-              key={group.id}
-              type="button"
-              role="tab"
-              aria-selected={filterId === group.id}
-              className={`model-dir-filter ${filterId === group.id ? 'active' : ''}`}
-              onClick={() => setFilterId(group.id)}
-            >
-              {group.label}
-            </button>
-          ))}
+        <div className="model-dir-filters" role="tablist" aria-label={t('modelsPage.filterAria')}>
+          {MODEL_FILTER_GROUPS.map((group) => {
+            const key = MODEL_FILTER_I18N_KEYS[group.id];
+            return (
+              <button
+                key={group.id}
+                type="button"
+                role="tab"
+                aria-selected={filterId === group.id}
+                className={`model-dir-filter ${filterId === group.id ? 'active' : ''}`}
+                onClick={() => setFilterId(group.id)}
+              >
+                {key ? t(key as TranslationKey) : group.label}
+              </button>
+            );
+          })}
         </div>
       </header>
 
       {loading ? (
         <div className="model-dir-loading">
           <Loader2 size={20} className="spin" />
-          <span>Đang tải catalog model…</span>
+          <span>{t('modelsPage.loading')}</span>
         </div>
       ) : null}
 
@@ -117,7 +122,7 @@ function ModelCatalogBody({
       ) : null}
 
       {!loading && !error && filtered.length === 0 ? (
-        <p className="model-dir-empty">Không tìm thấy model phù hợp.</p>
+        <p className="model-dir-empty">{t('modelsPage.empty')}</p>
       ) : null}
     </>
   );
@@ -130,21 +135,24 @@ function ModelsGuestExtras({
   creditPackages: CreditPackage[];
   packagesLoading: boolean;
 }) {
+  const { t } = useLocale();
+  const benefitFeatures = getEnterpriseFeatures(t).slice(0, 3);
+
   return (
     <>
       <Link to="/pricing" className="models-magnific-pricing-link">
-        Giá model tính theo <strong>credit</strong> — xem gói nạp và bảng quy đổi bên dưới hoặc{' '}
-        <strong>mở trang bảng giá</strong>
+        {t('modelsPage.pricingLink')}{' '}
+        <strong>{t('modelsPage.pricingLinkStrong')}</strong>
       </Link>
 
       {!packagesLoading && creditPackages.length ? (
         <ModelCreditComparison creditPackages={creditPackages} variant="magnific" />
       ) : null}
 
-      <section className="pricing-magnific-benefits" aria-label="Lợi ích">
+      <section className="pricing-magnific-benefits" aria-label={t('modelsPage.benefitsAria')}>
         <div className="pricing-magnific-container">
           <div className="pricing-magnific-benefits-grid">
-            {BENEFIT_FEATURES.map((item) => {
+            {benefitFeatures.map((item) => {
               const Icon = item.icon;
               return (
                 <article key={item.title} className="pricing-magnific-benefit">
@@ -162,21 +170,18 @@ function ModelsGuestExtras({
 
       <FaqSection />
 
-      <section className="pricing-magnific-help" aria-label="Hỗ trợ">
+      <section className="pricing-magnific-help" aria-label={t('modelsPage.helpAria')}>
         <div className="pricing-magnific-container">
           <div className="pricing-magnific-help-card">
-            <h2>Cần gợi ý model?</h2>
-            <p>
-              Chưa chắc model nào phù hợp dự án hoặc cần ước tính chi phí credit? Liên hệ qua Zalo — đội
-              ngũ sẽ tư vấn nhanh.
-            </p>
+            <h2>{t('modelsPage.helpTitle')}</h2>
+            <p>{t('modelsPage.helpDesc')}</p>
             <a
               href={HOME_NOTIF_CONTACT.zaloSupport}
               target="_blank"
               rel="noreferrer"
               className="pricing-magnific-help-btn"
             >
-              Liên hệ hỗ trợ
+              {t('modelsPage.helpCta')}
             </a>
           </div>
         </div>
@@ -187,6 +192,7 @@ function ModelsGuestExtras({
 
 export default function ModelsPage() {
   const guest = !isLoggedIn();
+  const { t } = useLocale();
   const { available, loading, error, count } = useModelCatalog();
   const cta = useLandingCta();
   const [query, setQuery] = useState('');
@@ -196,11 +202,11 @@ export default function ModelsPage() {
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    document.title = 'Danh sách Model AI · trungtamai.vn';
+    document.title = `${t('modelsPage.pageTitle')} · ${SITE_DISPLAY_NAME}`;
     return () => {
-      document.title = 'Trung tâm AI';
+      document.title = SITE_DISPLAY_NAME;
     };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!guest) return;

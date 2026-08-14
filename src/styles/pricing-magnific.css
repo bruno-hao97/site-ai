@@ -544,3 +544,59 @@
   text-decoration: none;
   color: #ffffff;
 }
+
+/* Auth / embedded — dark studio overrides for hardcoded Magnific light surfaces */
+.landing-page.landing-page--auth .pricing-page-magnific,
+.landing-page.landing-page--auth .models-page-magnific {
+  --pricing-charcoal: #e2e8f0;
+  --pricing-maroon: #fca5a5;
+}
+
+.landing-page.landing-page--auth .pricing-page-magnific .pricing-magnific-addon {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.landing-page.landing-page--auth .pricing-page-magnific .pricing-magnific-addon-tags span,
+.landing-page.landing-page--auth .models-page-magnific .pricing-magnific-addon-tags span {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.landing-page.landing-page--auth .pricing-page-magnific .pricing-magnific-benefits,
+.landing-page.landing-page--auth .models-page-magnific .pricing-magnific-benefits {
+  background: var(--bg-elevated, #0b1220);
+}
+
+.landing-page.landing-page--auth .pricing-page-magnific .pricing-magnific-expiry,
+.landing-page.landing-page--auth .pricing-page-magnific .pricing-magnific-alert,
+.landing-page.landing-page--auth .models-page-magnific .pricing-magnific-expiry,
+.landing-page.landing-page--auth .models-page-magnific .pricing-magnific-alert {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+}
+
+.landing-page.landing-page--auth .pricing-page-magnific .pricing-magnific-card.featured .pricing-magnific-plan-name {
+  color: #4ade80;
+}
+
+.landing-page.landing-page--auth .pricing-page-magnific .pricing-magnific-cta {
+  border-color: rgba(255, 255, 255, 0.25);
+  color: var(--section-text);
+}
+
+.landing-page.landing-page--auth .pricing-page-magnific .pricing-magnific-cta:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.landing-page.landing-page--auth .pricing-page-magnific .pricing-magnific-card.featured .pricing-magnific-cta {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: #ffffff;
+}
+
+.landing-page.landing-page--auth .pricing-page-magnific .pricing-magnific-help-btn,
+.landing-page.landing-page--auth .models-page-magnific .pricing-magnific-help-btn {
+  background: #ffffff;
+  color: #0f172a;
+}

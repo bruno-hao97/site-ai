@@ -36,6 +36,7 @@ import {
 } from '../services/imageUpscale';
 import { isModelAvailable, normalizeOptions } from '../services/modelSchema';
 import { downloadMediaUrl } from '../utils/downloadMedia';
+import { useLocale } from '../i18n';
 
 export type ComposerPreviewHandlers = {
   onRegenerate?: () => void;
@@ -66,6 +67,7 @@ export default function ComposerLibraryPreviewModal({
   deleting?: boolean;
   layout?: 'composer' | 'home';
 }) {
+  const { t } = useLocale();
   const item = items[index];
   const mediaUrl = item ? feedMediaUrl(item) || feedThumb(item) : null;
   const canPrev = index > 0;
@@ -117,7 +119,7 @@ export default function ComposerLibraryPreviewModal({
     try {
       const models = await fetchUpscaleModels();
       const model = pickUpscaleModel(models);
-      if (!model) throw new Error('Không tìm thấy model upscale');
+      if (!model) throw new Error(t('studio.error.upscaleModelNotFound'));
       setUpscaleModel(model);
       const modes = normalizeOptions(model.mode || model.modes);
       const resolutions = normalizeOptions(model.resolutions);
@@ -131,7 +133,7 @@ export default function ComposerLibraryPreviewModal({
     } finally {
       setUpscaleLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (upscaleOpen && !upscaleModel && !upscaleLoading) {
@@ -177,7 +179,7 @@ export default function ComposerLibraryPreviewModal({
     if (!mediaUrl || !upscaleMode || !upscaleRes || upscaleBusy) return;
     setUpscaleBusy(true);
     setUpscaleError('');
-    setUpscaleStatus('Đang bắt đầu…');
+    setUpscaleStatus(t('composer.library.preview.upscaleStarting'));
     try {
       const resultUrl = await runImageUpscale(mediaUrl, {
         mode: upscaleMode,
@@ -199,14 +201,14 @@ export default function ComposerLibraryPreviewModal({
     <div className="clib-preview-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="clib-preview" onClick={(e) => e.stopPropagation()}>
         <div className="clib-preview-main">
-          <button type="button" className="clib-preview-close" aria-label="Đóng" onClick={onClose}>
+          <button type="button" className="clib-preview-close" aria-label={t('common.close')} onClick={onClose}>
             <X size={20} />
           </button>
           {canPrev && (
             <button
               type="button"
               className="clib-preview-nav prev"
-              aria-label="Trước"
+              aria-label={t('common.prev')}
               onClick={() => onNavigate(index - 1)}
             >
               <ChevronLeft size={28} />
@@ -225,7 +227,7 @@ export default function ComposerLibraryPreviewModal({
             <button
               type="button"
               className="clib-preview-nav next"
-              aria-label="Sau"
+              aria-label={t('common.next')}
               onClick={() => onNavigate(index + 1)}
             >
               <ChevronRight size={28} />
@@ -235,7 +237,7 @@ export default function ComposerLibraryPreviewModal({
 
         <aside className="clib-preview-side">
           <header className="clib-preview-side-head">
-            <span className="clib-preview-user">Bạn</span>
+            <span className="clib-preview-user">{t('common.you')}</span>
             <span className="clib-preview-time">{feedTimeAgo(item.created_time)}</span>
           </header>
 
@@ -249,7 +251,7 @@ export default function ComposerLibraryPreviewModal({
           )}
 
           <section className="clib-preview-info">
-            <h4>Thông tin</h4>
+            <h4>{t('composer.library.preview.info')}</h4>
             <dl>
               {model && (
                 <>
@@ -259,31 +261,31 @@ export default function ComposerLibraryPreviewModal({
               )}
               {quality && (
                 <>
-                  <dt>Chất lượng</dt>
+                  <dt>{t('common.quality')}</dt>
                   <dd className="accent-cyan">{quality}</dd>
                 </>
               )}
               {dimensions && (
                 <>
-                  <dt>Kích thước</dt>
+                  <dt>{t('common.dimensions')}</dt>
                   <dd className="accent-cyan">{dimensions}</dd>
                 </>
               )}
               {size && (
                 <>
-                  <dt>Dung lượng</dt>
+                  <dt>{t('common.fileSize')}</dt>
                   <dd className="accent-green">{size}</dd>
                 </>
               )}
               {ratio && (
                 <>
-                  <dt>Tỷ lệ</dt>
+                  <dt>{t('common.ratio')}</dt>
                   <dd className="accent-cyan">{ratio}</dd>
                 </>
               )}
               {createdDate && (
                 <>
-                  <dt>Ngày tạo</dt>
+                  <dt>{t('common.createdDate')}</dt>
                   <dd className="accent-cyan">{createdDate}</dd>
                 </>
               )}
@@ -293,15 +295,15 @@ export default function ComposerLibraryPreviewModal({
           {upscaleOpen && isImage ? (
             <div className="clib-upscale-panel">
               <div className="clib-upscale-head">
-                <h4>Upscale ảnh</h4>
+                <h4>{t('composer.library.preview.upscaleTitle')}</h4>
                 <button type="button" className="clib-upscale-back" onClick={() => setUpscaleOpen(false)}>
                   <ChevronLeft size={16} />
-                  Quay lại
+                  {t('common.back')}
                 </button>
               </div>
               {upscaleLoading ? (
                 <p className="clib-upscale-status">
-                  <Loader2 size={16} className="clib-spin" /> Đang tải model…
+                  <Loader2 size={16} className="clib-spin" /> {t('common.loadingModels')}
                 </p>
               ) : (
                 <>
@@ -309,7 +311,7 @@ export default function ComposerLibraryPreviewModal({
                     <p className="clib-upscale-model">{upscaleModel.name}</p>
                   )}
                   <label className="clib-upscale-field">
-                    <span>Chế độ</span>
+                    <span>{t('common.mode')}</span>
                     <select
                       value={upscaleMode}
                       onChange={(e) => setUpscaleMode(e.target.value)}
@@ -323,7 +325,7 @@ export default function ComposerLibraryPreviewModal({
                     </select>
                   </label>
                   <label className="clib-upscale-field">
-                    <span>Độ phân giải</span>
+                    <span>{t('common.resolution')}</span>
                     <select
                       value={upscaleRes}
                       onChange={(e) => setUpscaleRes(e.target.value)}
@@ -337,7 +339,7 @@ export default function ComposerLibraryPreviewModal({
                     </select>
                   </label>
                   {upscalePrice != null && (
-                    <p className="clib-upscale-price">Chi phí: {upscalePrice} credit</p>
+                    <p className="clib-upscale-price">{t('common.costCredits', { price: upscalePrice })}</p>
                   )}
                   {upscaleStatus && (
                     <p className="clib-upscale-status">{upscaleStatus}</p>
@@ -352,12 +354,12 @@ export default function ComposerLibraryPreviewModal({
                     {upscaleBusy ? (
                       <>
                         <Loader2 size={16} className="clib-spin" />
-                        Đang upscale…
+                        {t('composer.library.preview.upscaleBusy')}
                       </>
                     ) : (
                       <>
                         <Maximize2 size={16} />
-                        Bắt đầu upscale
+                        {t('composer.library.preview.upscaleStart')}
                       </>
                     )}
                   </button>
@@ -373,17 +375,17 @@ export default function ComposerLibraryPreviewModal({
                 onClick={onRegenerate}
               >
                 <RotateCcw size={16} />
-                Tạo lại
+                {t('common.regenerate')}
               </button>
               <div className="clib-preview-actions-grid">
                 <button
                   type="button"
                   className="clib-preview-action-tile"
                   disabled
-                  title="Chưa hỗ trợ"
+                  title={t('common.notSupported')}
                 >
                   <Upload size={18} />
-                  <span>Đăng tải</span>
+                  <span>{t('composer.library.preview.upload')}</span>
                 </button>
                 <button
                   type="button"
@@ -392,7 +394,7 @@ export default function ComposerLibraryPreviewModal({
                   onClick={onCreateVideo}
                 >
                   <Video size={18} />
-                  <span>Video</span>
+                  <span>{t('common.video')}</span>
                 </button>
                 <button
                   type="button"
@@ -400,7 +402,7 @@ export default function ComposerLibraryPreviewModal({
                   onClick={() => void downloadMediaUrl(mediaUrl)}
                 >
                   <Download size={18} />
-                  <span>Tải xuống</span>
+                  <span>{t('common.download')}</span>
                 </button>
                 <button
                   type="button"
@@ -412,7 +414,7 @@ export default function ComposerLibraryPreviewModal({
                   }}
                 >
                   <Maximize2 size={18} />
-                  <span>Upscale ảnh</span>
+                  <span>{t('composer.library.preview.upscale')}</span>
                 </button>
                 <button
                   type="button"
@@ -421,7 +423,7 @@ export default function ComposerLibraryPreviewModal({
                   onClick={onEdit}
                 >
                   <Pencil size={18} />
-                  <span>Chỉnh sửa</span>
+                  <span>{t('common.edit')}</span>
                 </button>
                 <button
                   type="button"
@@ -430,7 +432,7 @@ export default function ComposerLibraryPreviewModal({
                   onClick={onDelete}
                 >
                   <Trash2 size={18} />
-                  <span>{deleting ? 'Đang xóa…' : 'Xóa'}</span>
+                  <span>{deleting ? t('common.deleting') : t('common.delete')}</span>
                 </button>
               </div>
             </div>
