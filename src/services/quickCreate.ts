@@ -1,15 +1,11 @@
 import { getGommoClient, loadAuth } from './authStore';
 import {
   analyzeModel,
-  buildJobPayload,
-  modelSlug,
   parseModelsList,
-  type JobSelections,
   type ModelSchema,
 } from './modelSchema';
-import { createJobAndPoll, type PollProgress } from './polling';
 import type { GommoModel, JobType } from './api';
-import { requireJobResultUrl } from './jobInfraErrors';
+import { runQuickJobBackground as runQuickJobBackgroundImpl } from './pendingJobRunner';
 
 /** Có thể tạo job khi đã đăng nhập Gommo. */
 export function canQuickCreate(): boolean {
@@ -47,52 +43,4 @@ export async function uploadQuickMedia(file: File): Promise<string | null> {
   return url;
 }
 
-export interface QuickGenerateArgs {
-  type: JobType;
-  model: GommoModel;
-  selections: JobSelections;
-  onProgress?: (msg: string) => void;
-  signal?: AbortSignal;
-}
-
-export async function quickGenerate({
-  type,
-  model,
-  selections,
-  onProgress,
-  signal,
-}: QuickGenerateArgs): Promise<string> {
-  const auth = loadAuth();
-  if (!auth) throw new Error('Chưa đăng nhập — không thể tạo job.');
-
-  const client = getGommoClient();
-  const slug = modelSlug(model);
-  const { payload } = buildJobPayload(model, type, selections, {
-    domain: auth.domain,
-    projectId: auth.projectId,
-  });
-
-  const { pollResult, resultUrl, acceptedOnProvider, providerJobId } = await createJobAndPoll(
-    client,
-    type,
-    slug,
-    payload,
-    (p) => {
-      if ('phase' in p && p.phase === 'creating') {
-        onProgress?.('Đang tạo job…');
-        return;
-      }
-      const prog = p as PollProgress;
-      onProgress?.(`Đang xử lý… ${prog.status || prog.phase || ''}`.trim());
-    },
-    signal,
-  );
-
-  return requireJobResultUrl({
-    resultUrl,
-    acceptedOnProvider,
-    providerJobId,
-    pollResult,
-    failMessage: 'Job thất bại',
-  });
-}
+export { runQuickJobBackgroundImpl as runQuickJobBackground };

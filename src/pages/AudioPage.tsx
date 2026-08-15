@@ -49,6 +49,7 @@ import {
   addHistoryEntry,
   listHistory,
 } from '../services/historyStore';
+import { buildProjectSnapshot, tryAutoAssign } from '../services/projectStore';
 import { defaultSelectionsForType } from '../constants/studioTypes';
 import AudioTtsSettingsPanel, {
   STABILITY_MODE_VALUES,
@@ -624,6 +625,16 @@ export default function AudioPage() {
         modelSlug: model,
         meta: { voice_id: item.voice_id, provider: server },
       });
+      if (result.audioInfo.id_base) {
+        tryAutoAssign(
+          buildProjectSnapshot({
+            itemId: result.audioInfo.id_base,
+            type: 'tts',
+            prompt: text,
+            resultUrl: url,
+          }),
+        );
+      }
       void loadAudioLists();
       notifyCreditsUpdated();
       setProgress('');
@@ -703,6 +714,16 @@ export default function AudioPage() {
           language: selectedLanguage,
         },
       });
+      if (result.audioInfo.id_base) {
+        tryAutoAssign(
+          buildProjectSnapshot({
+            itemId: result.audioInfo.id_base,
+            type: 'tts',
+            prompt: text,
+            resultUrl: url,
+          }),
+        );
+      }
       void loadAudioLists();
 
       if (auth) {

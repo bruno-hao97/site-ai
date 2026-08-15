@@ -2,7 +2,7 @@
  * App rail IA (Magnific-style)
  *
  * ON RAIL — primary app destinations (9):
- *   Home, Projects, Models, Image, Video, Audio, Music, Chat, Workflow
+ *   Home, Projects, Library, Models, Image, Video, Audio, Music, Chat, Workflow
  *
  * NOT ON RAIL — secondary (user menu / home categories):
  *   Settings, Profile, Dashboard, Wallet, Account, Usage history
@@ -16,6 +16,7 @@ import {
   Home,
   Image as ImageIcon,
   LayoutGrid,
+  Library,
   MessageSquare,
   Mic,
   Music,
@@ -33,6 +34,7 @@ export interface AppSidebarNavItem {
 export const APP_SIDEBAR_PRIMARY: AppSidebarNavItem[] = [
   { to: '/home', labelKey: 'nav.home', icon: Home, end: true },
   { to: '/projects', labelKey: 'nav.projects', icon: FolderOpen },
+  { to: '/library', labelKey: 'nav.library', icon: Library },
   { to: '/models', labelKey: 'nav.models', icon: LayoutGrid },
   { to: '/image', labelKey: 'nav.image', icon: ImageIcon },
   { to: '/video', labelKey: 'nav.video', icon: Clapperboard },

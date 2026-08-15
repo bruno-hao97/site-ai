@@ -84,6 +84,7 @@ import WorkflowStudioOnboarding, {
 import WorkflowAgentPanel from '../components/workflow/WorkflowAgentPanel';
 import WorkflowMediaInputModal from '../components/workflow/WorkflowMediaInputModal';
 import {
+  getTemplate,
   loadTemplates,
   onLibraryUpdated,
   saveTemplate,
@@ -107,7 +108,7 @@ import type { FeedItem } from '../services/feedApi';
 import { feedMediaUrl, feedThumb } from '../services/feedApi';
 import { collectWorkflowPreviewItems } from '../services/workflowResultPreview';
 import { downloadMediaUrl } from '../utils/downloadMedia';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   defaultMediaInputDraft,
   draftFromNodeData,
@@ -2072,6 +2073,8 @@ function Flow() {
     kind: 'image' | 'video';
   } | null>(null);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openedWftRef = useRef<string | null>(null);
   const togglePortsExpanded = useCallback((nodeId: string) => {
     setPortsExpandedNodeId((prev) => (prev === nodeId ? null : nodeId));
   }, []);
@@ -2373,18 +2376,38 @@ function Flow() {
     setTimeout(() => setSaved(false), 1500);
   };
 
-  const openTemplate = (t: SavedTemplate) => {
-    const updated = commitActive();
-    const patched = ensureImageSlots(t.nodes as WFNode[]) as WFNode[];
-    const tab = makeTab(t.name, { nodes: patched, edges: t.edges }, t.id);
-    const next = [...updated, tab];
-    setTabs(next);
-    setActiveId(tab.id);
-    setNodes(patched);
-    setEdges(t.edges);
-    saveWorkflow(patched, t.edges);
-    saveTabsState({ tabs: next, activeId: tab.id });
-  };
+  const openTemplate = useCallback(
+    (t: SavedTemplate) => {
+      const updated = commitActive();
+      const patched = ensureImageSlots(t.nodes as WFNode[]) as WFNode[];
+      const tab = makeTab(t.name, { nodes: patched, edges: t.edges }, t.id);
+      const next = [...updated, tab];
+      setTabs(next);
+      setActiveId(tab.id);
+      setNodes(patched);
+      setEdges(t.edges);
+      saveWorkflow(patched, t.edges);
+      saveTabsState({ tabs: next, activeId: tab.id });
+    },
+    [commitActive, setTabs, setActiveId, setNodes, setEdges],
+  );
+
+  useEffect(() => {
+    const wftId = searchParams.get('wft')?.trim();
+    if (!wftId || openedWftRef.current === wftId) return;
+    const tpl = getTemplate(wftId);
+    if (!tpl) return;
+    openedWftRef.current = wftId;
+    openTemplate(tpl);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('wft');
+        return next;
+      },
+      { replace: true },
+    );
+  }, [searchParams, setSearchParams, openTemplate]);
 
   const handleClear = () => {
     if (!window.confirm(t('workflow.confirm.clearDiagram'))) return;

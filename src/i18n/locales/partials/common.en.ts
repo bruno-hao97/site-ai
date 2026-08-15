@@ -166,6 +166,7 @@ export const commonEn = {
   'home.feed.loading': 'Loading…',
   'home.feed.emptyPublic': 'No suggested content yet.',
   'home.feed.empty': 'No content yet.',
+  'home.feed.emptyCommunityType': 'No community works in this category yet.',
   'home.feed.loginRequired': 'Sign in required.',
   'home.feed.processing': 'Processing…',
   'home.feed.previewAria': 'Preview',

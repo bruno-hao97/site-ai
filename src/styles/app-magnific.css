@@ -392,6 +392,7 @@
 
 .app-magnific .app-main-home,
 .app-magnific .app-main-projects,
+.app-magnific .app-main-library,
 .app-magnific .app-main-account,
 .app-magnific .app-main-chat,
 .app-magnific .app-main-workflow,
@@ -408,7 +409,7 @@
   -webkit-backdrop-filter: blur(10px);
 }
 
-.app-magnific .app-main:not(.app-main-home):not(.app-main-projects):not(.app-main-full):not(.app-main-chat):not(.app-main-workflow):not(.app-main-account) {
+.app-magnific .app-main:not(.app-main-home):not(.app-main-projects):not(.app-main-library):not(.app-main-full):not(.app-main-chat):not(.app-main-workflow):not(.app-main-account) {
   max-width: none;
   margin: 0;
   padding: 1.25rem 1.5rem 2.5rem;
@@ -428,6 +429,186 @@
   min-height: 0;
   overflow: hidden;
   padding: 0;
+}
+
+.app-magnific .app-main-library {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0;
+}
+
+.app-magnific .library-dashboard {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 14px 14px;
+  box-sizing: border-box;
+}
+
+.app-magnific .library-head {
+  flex-shrink: 0;
+  margin-bottom: 1rem;
+}
+
+.app-magnific .library-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.app-magnific .library-lead {
+  margin: 0.35rem 0 0.85rem;
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.45);
+  max-width: 52ch;
+}
+
+.app-magnific .library-type-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.55rem;
+}
+
+.app-magnific .library-type-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.app-magnific .library-type-tab:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(81, 191, 143, 0.076);
+}
+
+.app-magnific .library-type-tab.active {
+  color: #fff;
+  background: rgba(79, 223, 98, 0.133);
+  border-color: rgba(79, 223, 98, 0.266);
+  font-weight: 600;
+}
+
+.app-magnific .library-type-tab.is-creating:not(.active) {
+  border-color: color-mix(in srgb, var(--pending-accent, #4fdf62) 28%, transparent);
+}
+
+.app-magnific .library-type-tab-creating {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: 0.1rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pending-accent, #4fdf62) 14%, transparent);
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--pending-accent-soft, #75ef85);
+  white-space: nowrap;
+}
+
+.app-magnific .library-type-tab.active .library-type-tab-creating {
+  background: color-mix(in srgb, #04140a 22%, transparent);
+  color: #b8ffc4;
+}
+
+.app-magnific .library-type-tab-creating-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--pending-accent, #4fdf62);
+  flex-shrink: 0;
+  animation: library-tab-creating-pulse 1.15s ease-in-out infinite;
+}
+
+@keyframes library-tab-creating-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
+}
+
+.app-magnific .library-status-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.app-magnific .library-status-tab {
+  padding: 0.3rem 0.65rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.app-magnific .library-status-tab:hover {
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.app-magnific .library-status-tab.active {
+  color: #75ef85;
+  background: rgba(79, 223, 98, 0.1);
+  font-weight: 600;
+}
+
+.app-magnific .library-pending-section {
+  margin-bottom: 1rem;
+}
+
+.app-magnific .library-pending-head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.65rem;
+}
+
+.app-magnific .library-pending-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.app-magnific .library-pending-section .pending-vmedia-label {
+  color: var(--pending-accent-soft, #75ef85);
+}
+
+.app-magnific .library-pending-section .pending-spinner-lg {
+  border-top-color: var(--pending-accent, #4fdf62);
+}
+
+.app-magnific .library-pending-section .pending-vmedia-bar-fill {
+  background: linear-gradient(
+    90deg,
+    var(--pending-accent, #4fdf62),
+    var(--pending-accent-soft, #75ef85)
+  );
+}
+
+.app-magnific .library-dashboard .home-feed {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .app-magnific .projects-dashboard {
@@ -535,6 +716,21 @@
 .app-magnific .projects-nav-count {
   color: rgba(255, 255, 255, 0.38);
   font-size: 0.72rem;
+}
+
+.app-magnific .projects-nav-counts {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.app-magnific .projects-nav-wf {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.68rem;
+  color: #75ef85;
 }
 
 .app-magnific .projects-nav-item.active .projects-nav-count {
@@ -780,24 +976,128 @@
 .app-magnific .projects-cats button {
   padding: 0.35rem 0.75rem;
   border-radius: 999px;
-  border: none;
+  border: 1px solid transparent;
   background: transparent;
   color: rgba(255, 255, 255, 0.45);
   font-size: 0.8125rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
-.app-magnific .projects-cats button:hover {
-  color: rgba(255, 255, 255, 0.8);
-  background: rgba(255, 255, 255, 0.05);
+.app-magnific .projects-cats button:hover:not(.active) {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(81, 191, 143, 0.076);
 }
 
 .app-magnific .projects-cats button.active {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(79, 223, 98, 0.133);
   color: #fff;
+  border-color: rgba(79, 223, 98, 0.266);
   font-weight: 600;
+}
+
+.app-magnific .projects-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0.75rem 0 0.5rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--mf-border);
+  background: rgba(0, 0, 0, 0.18);
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.app-magnific .projects-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.app-magnific .projects-search input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.app-magnific .projects-prefs {
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--mf-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.app-magnific .projects-prefs-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.app-magnific .projects-prefs-select {
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid var(--mf-border);
+  background: rgba(0, 0, 0, 0.22);
+  color: #fff;
+  font-size: 0.8125rem;
+}
+
+.app-magnific .projects-prefs-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+}
+
+.app-magnific .projects-prefs-toggle input {
+  margin-top: 0.15rem;
+  accent-color: #4fdf62;
+}
+
+.app-magnific .projects-empty-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.app-magnific .projects-empty-links a {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #75ef85;
+  text-decoration: none;
+}
+
+.app-magnific .projects-empty-links a:hover {
+  text-decoration: underline;
+}
+
+.app-magnific .project-pick-btn.assigned {
+  width: auto;
+  max-width: 140px;
+  padding: 0 0.45rem;
+  gap: 0.35rem;
+}
+
+.app-magnific .project-pick-label {
+  max-width: 88px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .app-magnific .projects-empty {
@@ -839,6 +1139,283 @@
   background: rgba(0, 0, 0, 0.55);
   border: 1px solid var(--mf-border);
   color: rgba(255, 255, 255, 0.85);
+}
+
+.app-magnific .projects-wf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.app-magnific .project-wf-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--mf-border);
+  background: rgba(0, 0, 0, 0.22);
+  transition: border-color 0.15s ease;
+}
+
+.app-magnific .project-wf-item:hover {
+  border-color: rgba(79, 223, 98, 0.28);
+}
+
+.app-magnific .project-wf-thumb {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 88px;
+  border-radius: 10px;
+  border: 1px solid var(--mf-border);
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.app-magnific .project-wf-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.app-magnific .project-wf-body {
+  min-width: 0;
+}
+
+.app-magnific .project-wf-name {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-magnific .project-wf-meta {
+  margin: 0.25rem 0 0;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.app-magnific .project-wf-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.app-magnific .project-wf-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.app-magnific .project-wf-open {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(79, 223, 98, 0.35);
+  background: rgba(79, 223, 98, 0.12);
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.app-magnific .project-wf-open:hover {
+  background: rgba(79, 223, 98, 0.2);
+}
+
+.app-magnific .project-wf-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--mf-border);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+}
+
+.app-magnific .project-wf-del:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.app-magnific .projects-chat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.app-magnific .project-chat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--mf-border);
+  background: rgba(0, 0, 0, 0.22);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.app-magnific .project-chat-item:hover {
+  border-color: rgba(79, 223, 98, 0.32);
+  box-shadow: 0 0 0 1px rgba(79, 223, 98, 0.08);
+}
+
+.app-magnific .project-chat-thumb {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 88px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(79, 223, 98, 0.22);
+  background:
+    radial-gradient(circle at 12% 18%, rgba(79, 223, 98, 0.14), transparent 52%),
+    linear-gradient(160deg, rgba(79, 223, 98, 0.06), rgba(0, 0, 0, 0.34));
+}
+
+.app-magnific .project-chat-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  border: 1px solid rgba(79, 223, 98, 0.38);
+  background: rgba(79, 223, 98, 0.14);
+  color: #75ef85;
+  box-shadow: 0 0 18px rgba(79, 223, 98, 0.12);
+}
+
+.app-magnific .project-chat-preview {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.52);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.app-magnific .project-chat-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.app-magnific .project-chat-body {
+  min-width: 0;
+}
+
+.app-magnific .project-chat-name {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-magnific .project-chat-meta {
+  margin: 0.25rem 0 0;
+  font-size: 0.72rem;
+  color: rgba(117, 239, 133, 0.72);
+}
+
+.app-magnific .project-chat-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.app-magnific .project-chat-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.app-magnific .project-chat-open {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(79, 223, 98, 0.35);
+  background: rgba(79, 223, 98, 0.12);
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.app-magnific .project-chat-open:hover {
+  background: rgba(79, 223, 98, 0.2);
+}
+
+.app-magnific .project-chat-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--mf-border);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+}
+
+.app-magnific .project-chat-del:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.app-magnific .projects-all-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.app-magnific .projects-section-title {
+  margin: 0 0 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .app-magnific .app-main-full {
@@ -1184,6 +1761,64 @@ body:has(.app-magnific) {
   --mf-dropdown-border: rgba(30, 43, 36, 0.72);
   --mf-dropdown-hover: rgba(79, 223, 98, 0.095);
   --mf-dropdown-active: rgba(79, 223, 98, 0.152);
+  --mf-select-bg: rgba(0, 0, 0, 0.28);
+  --mf-select-option-bg: #0c1612;
+  --mf-select-option-text: #f5f5f5;
+}
+
+/* Native <select> — dark popup + readable options (Windows/Chrome) */
+.app-magnific select,
+body:has(.app-magnific) select {
+  color-scheme: dark;
+  background-color: var(--mf-select-bg);
+  border-color: var(--mf-dropdown-border);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.app-magnific select:focus,
+body:has(.app-magnific) select:focus {
+  outline: none;
+  border-color: rgba(79, 223, 98, 0.332);
+  box-shadow: 0 0 0 2px rgba(79, 223, 98, 0.12);
+}
+
+.app-magnific select option,
+body:has(.app-magnific) select option {
+  background-color: var(--mf-select-option-bg);
+  color: var(--mf-select-option-text);
+}
+
+.app-magnific select option:checked,
+body:has(.app-magnific) select option:checked {
+  background-color: var(--mf-dropdown-active);
+  color: #fff;
+}
+
+.app-magnific select option:hover,
+body:has(.app-magnific) select option:hover {
+  background-color: var(--mf-dropdown-hover);
+  color: #fff;
+}
+
+.app-magnific .clib-filter,
+.app-magnific .clib-upscale-field select,
+.app-magnific .projects-prefs-select,
+.app-magnific .wf-node-select,
+.app-magnific .wf-lib-picker-filter,
+.app-magnific .wf-gen-pill--select,
+.app-magnific .wf-gen-model-select,
+.app-magnific .user-menu-select {
+  color-scheme: dark;
+  border-color: var(--mf-dropdown-border);
+  background-color: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.app-magnific .projects-prefs-select option,
+.app-magnific .clib-filter option,
+.app-magnific .clib-upscale-field select option {
+  background-color: var(--mf-select-option-bg);
+  color: var(--mf-select-option-text);
 }
 
 /* Portaled panels (render outside .app-magnific) */
@@ -1507,7 +2142,23 @@ body:has(.app-magnific) .chat-ai-model-group h4 {
 }
 
 .app-magnific .app-main-full .clib-toolbar {
-  background: linear-gradient(180deg, var(--mf-inset) 70%, transparent);
+  background: linear-gradient(180deg, rgba(10, 15, 13, 0.96) 70%, transparent);
+}
+
+.app-magnific .app-main-full .clib-search {
+  border-color: var(--mf-dropdown-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.app-magnific .app-main-full .clib-search input {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.app-magnific .app-main-full .clib-sort {
+  border-color: var(--mf-dropdown-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .app-magnific .app-main-full .clib-item.selected,
@@ -2623,7 +3274,24 @@ body:has(.app-magnific) .chat-ai-model-group h4 {
 .app-magnific .audio-studio-settings select,
 .app-magnific .audio-model-picker,
 .app-magnific .audio-lang-select {
-  background-color: transparent;
+  color-scheme: dark;
+  background-color: rgba(255, 255, 255, 0.04);
+  border-color: var(--mf-dropdown-border);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.app-magnific .audio-studio-settings select option,
+.app-magnific .audio-model-picker option,
+.app-magnific .audio-lang-select option {
+  background-color: var(--mf-select-option-bg, #0c1612);
+  color: var(--mf-select-option-text, #f5f5f5);
+}
+
+.app-magnific .audio-studio-settings select option:checked,
+.app-magnific .audio-model-picker option:checked,
+.app-magnific .audio-lang-select option:checked {
+  background-color: var(--mf-dropdown-active, rgba(79, 223, 98, 0.152));
+  color: #fff;
 }
 
 .app-magnific .audio-provider-pill.active {

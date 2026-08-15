@@ -5,7 +5,14 @@ import ComposerLibraryPreviewModal, {
 } from './ComposerLibraryPreviewModal';
 import FeedMasonryCard from './FeedMasonryCard';
 import { useLocale } from '../i18n';
-import { feedMediaUrl, feedThumb, fetchPublicVideos, type FeedItem } from '../services/feedApi';
+import {
+  feedMatchesCommunityType,
+  feedMediaUrl,
+  feedThumb,
+  fetchPublicVideos,
+  type CommunityTypeFilter,
+  type FeedItem,
+} from '../services/feedApi';
 import { UpstreamMeError } from '../services/upstreamMe';
 import {
   canOpenFeedPreview,
@@ -18,7 +25,11 @@ function hasVisual(item: FeedItem): boolean {
 }
 
 /** Feed gợi ý / public — tab "Hướng cho bạn". */
-export default function HomePublicFeed() {
+export default function HomePublicFeed({
+  typeFilter = 'all',
+}: {
+  typeFilter?: CommunityTypeFilter;
+}) {
   const { t } = useLocale();
   const navigate = useNavigate();
   const [items, setItems] = useState<FeedItem[]>([]);
@@ -45,6 +56,7 @@ export default function HomePublicFeed() {
       const fresh = page.items.filter((it) => {
         if (!it.id_base || seenRef.current.has(it.id_base)) return false;
         if (!hasVisual(it)) return false;
+        if (!feedMatchesCommunityType(it, typeFilter)) return false;
         seenRef.current.add(it.id_base);
         return true;
       });
@@ -54,14 +66,14 @@ export default function HomePublicFeed() {
       const noProgress = !page.nextAfterId || page.nextAfterId === afterIdRef.current;
       afterIdRef.current = page.nextAfterId;
 
-      if (!page.items.length || noProgress || !fresh.length) setDone(true);
+      if (!page.items.length || noProgress) setDone(true);
     } catch (err) {
       setError(err instanceof UpstreamMeError ? err.message : String(err));
       setDone(true);
     } finally {
       setLoading(false);
     }
-  }, [loading, done]);
+  }, [loading, done, typeFilter]);
 
   useEffect(() => {
     void loadMore();

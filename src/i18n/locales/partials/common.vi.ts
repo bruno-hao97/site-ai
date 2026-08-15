@@ -166,6 +166,7 @@ export const commonVi = {
   'home.feed.loading': 'Đang tải…',
   'home.feed.emptyPublic': 'Chưa có nội dung gợi ý.',
   'home.feed.empty': 'Chưa có nội dung.',
+  'home.feed.emptyCommunityType': 'Chưa có tác phẩm loại này từ cộng đồng.',
   'home.feed.loginRequired': 'Chưa đăng nhập.',
   'home.feed.processing': 'Đang xử lý…',
   'home.feed.previewAria': 'Xem trước',

@@ -19,9 +19,12 @@ import ComposerLibraryPreviewModal, {
 } from './ComposerLibraryPreviewModal';
 import HomeAudioLibrary from './HomeAudioLibrary';
 import HomeMusicLibrary from './HomeMusicLibrary';
+import LibraryPendingSection from './LibraryPendingSection';
+import { usePendingJobs } from '../hooks/usePendingJobs';
 import { isLoggedIn } from '../services/authStore';
 import { studioRouteForType } from '../constants/studioTypes';
 import type { JobType } from '../services/api';
+import { resumeAllPendingJobs } from '../services/pendingJobRunner';
 import {
   deleteFeedPost,
   feedDisplayQty,
@@ -35,7 +38,9 @@ import {
   fetchMyImages,
   fetchMyMusic,
   fetchMyVideos,
+  feedMatchesLibraryStatus,
   type FeedItem,
+  type LibraryStatusFilter,
   type MinePage,
 } from '../services/feedApi';
 import {
@@ -375,7 +380,13 @@ async function fetchSource(source: SourceKey, afterId: string, limit: number): P
   }
 }
 
-export default function HomeMyContent({ filter }: { filter: MineFilter }) {
+export default function HomeMyContent({
+  filter,
+  statusFilter = 'success',
+}: {
+  filter: MineFilter;
+  statusFilter?: LibraryStatusFilter;
+}) {
   const { t } = useLocale();
   const navigate = useNavigate();
   const [items, setItems] = useState<FeedItem[]>([]);
@@ -386,6 +397,13 @@ export default function HomeMyContent({ filter }: { filter: MineFilter }) {
   const [deletingId, setDeletingId] = useState('');
   const [favTick, setFavTick] = useState(0);
   const [audioPlayerUrl, setAudioPlayerUrl] = useState<string | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
+  const pendingJobs = usePendingJobs(filter);
+  const activePendingJobs = useMemo(
+    () => pendingJobs.filter((j) => j.status === 'processing'),
+    [pendingJobs],
+  );
+  const showPending = activePendingJobs.length > 0;
 
   const afterRefs = useRef<Record<SourceKey, string>>({
     video: '',
@@ -402,6 +420,16 @@ export default function HomeMyContent({ filter }: { filter: MineFilter }) {
   const seen = useRef<Set<string>>(new Set());
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const resetFeed = useCallback(() => {
+    setItems([]);
+    setDone(false);
+    setLoading(false);
+    setError('');
+    afterRefs.current = { video: '', image: '', music: '', tts: '' };
+    doneRefs.current = { video: false, image: false, music: false, tts: false };
+    seen.current.clear();
+  }, []);
 
   const loadMore = useCallback(async () => {
     if (loading || done) return;
@@ -460,12 +488,31 @@ export default function HomeMyContent({ filter }: { filter: MineFilter }) {
     } finally {
       setLoading(false);
     }
-  }, [loading, done, filter]);
+  }, [loading, done, filter, t]);
+
+  useEffect(() => {
+    resetFeed();
+  }, [filter, reloadTick, resetFeed]);
 
   useEffect(() => {
     void loadMore();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, reloadTick]);
+
+  useEffect(() => {
+    const onHistory = () => setReloadTick((n) => n + 1);
+    document.addEventListener('history:updated', onHistory);
+    return () => document.removeEventListener('history:updated', onHistory);
   }, []);
+
+  useEffect(() => {
+    if (!showPending) return;
+    const timer = window.setInterval(() => {
+      resumeAllPendingJobs();
+      setReloadTick((n) => n + 1);
+    }, 12_000);
+    return () => window.clearInterval(timer);
+  }, [showPending]);
 
   useEffect(() => {
     const onFav = () => setFavTick((n) => n + 1);
@@ -499,9 +546,14 @@ export default function HomeMyContent({ filter }: { filter: MineFilter }) {
     });
   }, [audioPlayerUrl]);
 
+  const visibleItems = useMemo(
+    () => items.filter((it) => feedMatchesLibraryStatus(it, statusFilter)),
+    [items, statusFilter],
+  );
+
   const visualItems = useMemo(
-    () => items.filter((it) => !feedIsAudioItem(it)),
-    [items],
+    () => visibleItems.filter((it) => !feedIsAudioItem(it)),
+    [visibleItems],
   );
 
   const previewItem = previewIndex != null ? visualItems[previewIndex] : null;
@@ -595,10 +647,10 @@ export default function HomeMyContent({ filter }: { filter: MineFilter }) {
   const libraryBody =
     filter === 'tts' ? (
       <HomeAudioLibrary
-        items={items}
+        items={visibleItems}
         playingId={
           audioPlayerUrl
-            ? items.find((it) => feedMediaUrl(it) === audioPlayerUrl)?.id_base ?? null
+            ? visibleItems.find((it) => feedMediaUrl(it) === audioPlayerUrl)?.id_base ?? null
             : null
         }
         onPlay={playAudioItem}
@@ -606,13 +658,13 @@ export default function HomeMyContent({ filter }: { filter: MineFilter }) {
       />
     ) : filter === 'music' ? (
       <HomeMusicLibrary
-        items={items}
+        items={visibleItems}
         onPlay={playAudioItem}
         onDelete={deleteLibraryItem}
       />
     ) : (
       <div className="home-masonry">
-        {items.map((item) => (
+        {visibleItems.map((item) => (
           <MineCard
             key={item.id_base}
             item={item}
@@ -629,6 +681,7 @@ export default function HomeMyContent({ filter }: { filter: MineFilter }) {
 
   return (
     <div className="home-feed">
+      {showPending && <LibraryPendingSection jobs={activePendingJobs} />}
       {libraryBody}
 
       {previewIndex != null && visualItems.length > 0 && (
@@ -659,7 +712,7 @@ export default function HomeMyContent({ filter }: { filter: MineFilter }) {
 
       {error && <p className="error feed-status">{error}</p>}
       {loading && <p className="muted feed-status">{t('home.feed.loading')}</p>}
-      {!loading && !items.length && !error && (
+      {!loading && !visibleItems.length && !error && !showPending && (
         <p className="muted feed-status">{emptyLabel}</p>
       )}
 

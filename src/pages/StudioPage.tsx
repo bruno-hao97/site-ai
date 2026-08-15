@@ -83,6 +83,15 @@ import {
 } from '../services/modelSchema';
 import { createJobAndPoll, type PollProgress } from '../services/polling';
 import {
+  addPendingJob,
+  bumpPendingProgress as bumpStoredPendingProgress,
+  markPendingFailed,
+  patchPendingJob,
+  removePendingJob,
+  studioJobTypeToFilter,
+} from '../services/pendingJobsStore';
+import { usePendingJobs } from '../hooks/usePendingJobs';
+import {
   formatAcceptedPendingMessage,
   isAcceptedPendingProgressMessage,
   isJobAcceptedPendingError,
@@ -96,6 +105,7 @@ import {
   type HistoryEntry,
 } from '../services/historyStore';
 import { deleteFeedPost, feedMediaUrl, feedThumb } from '../services/feedApi';
+import { buildProjectSnapshot, tryAutoAssign } from '../services/projectStore';
 import type { FeedItem } from '../services/feedApi';
 import {
   historyComposerMediaKind,
@@ -828,7 +838,19 @@ export default function StudioPage({
   const [refSelectMode, setRefSelectMode] = useState<'fixed' | 'sequential' | 'random'>('sequential');
   const [concurrencyLimit, setConcurrencyLimit] = useState(2);
   const [multiRefs, setMultiRefs] = useState<string[]>([]);
-  const [pendingJobs, setPendingJobs] = useState<PendingJob[]>([]);
+  const storedPendingJobs = usePendingJobs(studioJobTypeToFilter(jobType));
+  const pendingJobs: PendingJob[] = useMemo(
+    () =>
+      storedPendingJobs
+        .filter((j) => j.status === 'processing')
+        .map((j) => ({
+          id: j.id,
+          prompt: j.prompt,
+          status: j.status,
+          progress: j.progress,
+        })),
+    [storedPendingJobs],
+  );
   const [zoom, setZoom] = useState(200);
   const [mainTab, setMainTab] = useState<'current' | 'history' | 'folder'>('current');
   const [libraryCount, setLibraryCount] = useState(0);
@@ -1330,13 +1352,7 @@ export default function StudioPage({
   }
 
   function bumpPendingProgress(pendingId: string, progress: number) {
-    setPendingJobs((prev) =>
-      prev.map((p) =>
-        p.id === pendingId
-          ? { ...p, progress: Math.min(99, Math.max(p.progress ?? 5, progress)) }
-          : p,
-      ),
-    );
+    bumpStoredPendingProgress(pendingId, progress);
   }
 
   function recordSuccess(
@@ -1345,6 +1361,7 @@ export default function StudioPage({
     promptOverride?: string,
     modelOverride?: GommoModel,
     coverUrl?: string | null,
+    idBase?: string,
   ) {
     const prompt = promptOverride ?? historyPromptFromSelections(jobType, selections);
     const model = modelOverride ?? currentModel;
@@ -1364,6 +1381,19 @@ export default function StudioPage({
       modelSlug: slug,
       meta,
     });
+
+    const itemId = idBase?.trim() || url.trim();
+    if (itemId) {
+      tryAutoAssign(
+        buildProjectSnapshot({
+          itemId,
+          type: jobTypeToHistoryType(jobType),
+          prompt,
+          resultUrl: url,
+          coverUrl,
+        }),
+      );
+    }
   }
 
   // Chạy 1 job với prompt riêng (dùng cho cả tạo đơn và batch multi-prompt).
@@ -1408,8 +1438,8 @@ export default function StudioPage({
       if (finalUrl) {
         setResultUrl(finalUrl);
         updateLocalJob(localId, { status: 'success', result_url: finalUrl });
-        recordSuccess(finalUrl, slug, prompt, model, coverUrl);
-        setPendingJobs((prev) => prev.filter((p) => p.id !== pendingId));
+        recordSuccess(finalUrl, slug, prompt, model, coverUrl, providerJobId);
+        removePendingJob(pendingId);
         return true;
       }
 
@@ -1418,13 +1448,9 @@ export default function StudioPage({
         setError('');
         setProgress(info);
         updateLocalJob(localId, { status: 'processing' });
-        setPendingJobs((prev) =>
-          prev.map((p) =>
-            p.id === pendingId ? { ...p, status: 'processing', progress: 40 } : p,
-          ),
-        );
+        bumpPendingProgress(pendingId, 40);
         window.setTimeout(() => {
-          setPendingJobs((prev) => prev.filter((p) => p.id !== pendingId));
+          removePendingJob(pendingId);
           setProgress((cur) =>
             isAcceptedPendingProgressMessage(cur) ? JOB_PENDING_PROGRESS_HINT : cur,
           );
@@ -1435,9 +1461,7 @@ export default function StudioPage({
       const errMsg = t('studio.error.jobFailed');
       setError(errMsg);
       updateLocalJob(localId, { status: 'failed', error: errMsg });
-      setPendingJobs((prev) =>
-        prev.map((p) => (p.id === pendingId ? { ...p, status: 'failed' } : p)),
-      );
+      markPendingFailed(pendingId);
       return false;
     } catch (err) {
       if (isJobAcceptedPendingError(err)) {
@@ -1445,22 +1469,16 @@ export default function StudioPage({
         setError('');
         setProgress(info);
         updateLocalJob(localId, { status: 'processing' });
-        setPendingJobs((prev) =>
-          prev.map((p) =>
-            p.id === pendingId ? { ...p, status: 'processing', progress: 40 } : p,
-          ),
-        );
+        bumpPendingProgress(pendingId, 40);
         window.setTimeout(() => {
-          setPendingJobs((prev) => prev.filter((p) => p.id !== pendingId));
+          removePendingJob(pendingId);
         }, 45_000);
         return true;
       }
       const msg = err instanceof GommoApiError || err instanceof Error ? err.message : String(err);
       setError(msg);
       updateLocalJob(localId, { status: 'failed', error: msg });
-      setPendingJobs((prev) =>
-        prev.map((p) => (p.id === pendingId ? { ...p, status: 'failed' } : p)),
-      );
+      markPendingFailed(pendingId);
       return false;
     }
   }
@@ -1552,15 +1570,9 @@ export default function StudioPage({
           prompt,
           pendingId: crypto.randomUUID(),
         }));
-        setPendingJobs((prev) => [
-          ...motionTasks.map((t) => ({
-            id: t.pendingId,
-            prompt: t.prompt,
-            status: 'processing' as const,
-            progress: 5,
-          })),
-          ...prev.filter((p) => p.status === 'processing'),
-        ]);
+        for (const t of motionTasks) {
+          addPendingJob({ id: t.pendingId, type: jobType, prompt: t.prompt });
+        }
 
         const limit = Math.max(1, Math.min(concurrencyLimit, motionTasks.length));
         let cursor = 0;
@@ -1608,10 +1620,7 @@ export default function StudioPage({
       setResultUrl(null);
       const slug = modelSlug(currentModel);
       const pendingId = crypto.randomUUID();
-      setPendingJobs((prev) => [
-        { id: pendingId, prompt: editPrompt, status: 'processing', progress: 5 },
-        ...prev.filter((p) => p.status === 'processing'),
-      ]);
+      addPendingJob({ id: pendingId, type: jobType, prompt: editPrompt });
 
       try {
         let prompt = editPrompt;
@@ -1748,7 +1757,9 @@ export default function StudioPage({
       status: 'processing' as const,
       progress: 5,
     }));
-    setPendingJobs((prev) => [...newPending, ...prev.filter((p) => p.status === 'processing')]);
+    for (const t of newPending) {
+      addPendingJob({ id: t.id, type: jobType, prompt: t.prompt });
+    }
 
     try {
       const limit = Math.max(1, Math.min(concurrencyLimit, tasks.length));
@@ -1819,6 +1830,7 @@ export default function StudioPage({
         if (prog.resultUrl) setResultUrl(prog.resultUrl);
       },
       abortRef.current!.signal,
+      pendingId ? (id) => patchPendingJob(pendingId, { providerJobId: id }) : undefined,
     );
 
     const snap = extractPollSnapshot(createEnvelope as Parameters<typeof extractPollSnapshot>[0]);
@@ -1854,7 +1866,6 @@ export default function StudioPage({
     setSelectedSlug('');
     setSchema(null);
     setResultUrl(null);
-    setPendingJobs([]);
     setMultiRefs([]);
     setMotionVideoUrl('');
     setEditVideoUrl('');
@@ -3450,8 +3461,11 @@ export default function StudioPage({
           </div>
         </aside>
 
-        <section className={`composer-main${showStudioOnboarding ? ' composer-main--onboarding' : ''}`}>
-          {!showStudioOnboarding && (
+        <section
+          className={`composer-main${
+            showStudioOnboarding && mainTab === 'current' ? ' composer-main--onboarding' : ''
+          }`}
+        >
           <div className="composer-toolbar">
             <div className="composer-toolbar-tabs">
               {([
@@ -3538,7 +3552,6 @@ export default function StudioPage({
               )}
             </div>
           </div>
-          )}
 
           {isMusicComposer ? (
             showMusicOnboarding ? (

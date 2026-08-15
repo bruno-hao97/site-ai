@@ -7,10 +7,12 @@ import FeedMasonryCard from './FeedMasonryCard';
 import { useLocale } from '../i18n';
 import { isLoggedIn } from '../services/authStore';
 import {
+  feedMatchesCommunityType,
   feedMediaUrl,
   feedThumb,
   fetchNewsfeed,
   fetchPublicVideos,
+  type CommunityTypeFilter,
   type FeedItem,
 } from '../services/feedApi';
 import { UpstreamMeError } from '../services/upstreamMe';
@@ -24,7 +26,11 @@ function hasVisual(item: FeedItem): boolean {
   return Boolean(feedThumb(item) || feedMediaUrl(item));
 }
 
-export default function HomeFeed() {
+export default function HomeFeed({
+  typeFilter = 'all',
+}: {
+  typeFilter?: CommunityTypeFilter;
+}) {
   const { t } = useLocale();
   const navigate = useNavigate();
   const [items, setItems] = useState<FeedItem[]>([]);
@@ -51,7 +57,6 @@ export default function HomeFeed() {
     setLoading(true);
     setError('');
     try {
-      // Newsfeed (ảnh + video) + bổ sung public library nếu newsfeed thiếu ảnh.
       const [page, pub] = await Promise.all([
         fetchNewsfeed({
           limit: 30,
@@ -72,6 +77,7 @@ export default function HomeFeed() {
         for (const it of list) {
           if (!it.id_base || seenRef.current.has(it.id_base)) continue;
           if (!hasVisual(it)) continue;
+          if (!feedMatchesCommunityType(it, typeFilter)) continue;
           seenRef.current.add(it.id_base);
           fresh.push(it);
         }
@@ -105,7 +111,7 @@ export default function HomeFeed() {
     } finally {
       setLoading(false);
     }
-  }, [loading, done]);
+  }, [loading, done, typeFilter, t]);
 
   useEffect(() => {
     void loadMore();
@@ -148,15 +154,14 @@ export default function HomeFeed() {
     };
   }, [previewItem, navigate]);
 
+  const emptyLabel =
+    typeFilter === 'all' ? t('home.feed.empty') : t('home.feed.emptyCommunityType');
+
   return (
     <div className="home-feed">
       <div className="home-masonry home-masonry--feed">
         {items.map((item) => (
-          <FeedMasonryCard
-            key={item.id_base}
-            item={item}
-            onOpen={() => openItem(item)}
-          />
+          <FeedMasonryCard key={item.id_base} item={item} onOpen={() => openItem(item)} />
         ))}
       </div>
 
@@ -175,7 +180,7 @@ export default function HomeFeed() {
       {error && <p className="error feed-status">{error}</p>}
       {loading && <p className="muted feed-status">{t('home.feed.loading')}</p>}
       {!loading && !items.length && !error && (
-        <p className="muted feed-status">{t('home.feed.empty')}</p>
+        <p className="muted feed-status">{emptyLabel}</p>
       )}
 
       <div ref={sentinelRef} className="feed-sentinel" />

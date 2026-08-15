@@ -8,7 +8,7 @@ export interface Project {
   updatedAt: string;
 }
 
-export type ProjectItemType = 'image' | 'video' | 'tts' | 'music' | string;
+export type ProjectItemType = 'image' | 'video' | 'tts' | 'music' | 'chat' | string;
 
 export interface ProjectItem {
   itemId: string;
@@ -35,6 +35,11 @@ export const PROJECT_COLORS = [
   '#38bdf8',
 ];
 
+interface ProjectPrefs {
+  defaultProjectId?: string | null;
+  autoAssign?: boolean;
+}
+
 const EVENT = 'projects:updated';
 
 function userKey(): string {
@@ -47,6 +52,10 @@ function projectsKey(): string {
 
 function itemsKey(): string {
   return `ai_project_items:${userKey()}`;
+}
+
+function prefsKey(): string {
+  return `ai_project_prefs:${userKey()}`;
 }
 
 function readJson<T>(key: string, fallback: T): T {
@@ -68,6 +77,15 @@ function newId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function loadPrefs(): ProjectPrefs {
+  return readJson<ProjectPrefs>(prefsKey(), {});
+}
+
+function savePrefs(prefs: ProjectPrefs): void {
+  localStorage.setItem(prefsKey(), JSON.stringify(prefs));
+  dispatch();
+}
+
 export function loadProjects(): Project[] {
   const arr = readJson<Project[]>(projectsKey(), []);
   return Array.isArray(arr) ? arr : [];
@@ -84,6 +102,112 @@ export function loadProjectItems(): ProjectItem[] {
 
 function saveProjectItems(list: ProjectItem[]): void {
   localStorage.setItem(itemsKey(), JSON.stringify(list));
+}
+
+export function getDefaultProjectId(): string | null {
+  const id = loadPrefs().defaultProjectId;
+  if (!id) return null;
+  return loadProjects().some((p) => p.id === id) ? id : null;
+}
+
+export function setDefaultProjectId(id: string | null): void {
+  const prefs = loadPrefs();
+  prefs.defaultProjectId = id;
+  savePrefs(prefs);
+}
+
+export function isAutoAssignEnabled(): boolean {
+  return loadPrefs().autoAssign === true;
+}
+
+export function setAutoAssignEnabled(enabled: boolean): void {
+  const prefs = loadPrefs();
+  prefs.autoAssign = enabled;
+  savePrefs(prefs);
+}
+
+export function buildProjectSnapshot(params: {
+  itemId: string;
+  type: ProjectItemType;
+  prompt?: string;
+  resultUrl: string;
+  coverUrl?: string | null;
+  createdTime?: string | number;
+}): ProjectItemSnapshot {
+  const url = params.resultUrl.trim();
+  const cover = params.coverUrl?.trim();
+  return {
+    itemId: params.itemId,
+    type: params.type,
+    prompt: params.prompt,
+    thumbnailUrl: cover || url || undefined,
+    downloadUrl: url || undefined,
+    createdTime: params.createdTime ?? new Date().toISOString(),
+  };
+}
+
+export function tryAutoAssign(snapshot: ProjectItemSnapshot): void {
+  if (!isAutoAssignEnabled()) return;
+  const projectId = getDefaultProjectId();
+  if (!projectId) return;
+  if (getItemProjectId(snapshot.itemId)) return;
+  assignItem(snapshot, projectId);
+}
+
+export function buildChatProjectSnapshot(params: {
+  sessionId: string;
+  title: string;
+  updatedAt?: number;
+}): ProjectItemSnapshot {
+  return {
+    itemId: params.sessionId,
+    type: 'chat',
+    prompt: params.title,
+    createdTime: params.updatedAt ?? Date.now(),
+  };
+}
+
+/** Gán chat vào dự án đang chọn sidebar, hoặc auto-assign nếu bật. */
+export function assignChatSession(
+  sessionId: string,
+  title: string,
+  opts?: { projectId?: string | null; updatedAt?: number },
+): void {
+  if (getItemProjectId(sessionId)) return;
+  const snapshot = buildChatProjectSnapshot({
+    sessionId,
+    title,
+    updatedAt: opts?.updatedAt,
+  });
+  const explicit = opts?.projectId?.trim();
+  if (explicit) {
+    assignItem(snapshot, explicit);
+    return;
+  }
+  tryAutoAssign(snapshot);
+}
+
+/** Cập nhật title chat đã gán project (sau khi đổi tên session). */
+export function syncChatProjectItem(
+  sessionId: string,
+  title: string,
+  updatedAt?: number,
+): void {
+  const projectId = getItemProjectId(sessionId);
+  if (!projectId) return;
+  assignItem(
+    buildChatProjectSnapshot({ sessionId, title, updatedAt }),
+    projectId,
+  );
+}
+
+export function countChatByProject(): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const it of loadProjectItems()) {
+    if (it.type !== 'chat') continue;
+    counts[it.projectId] = (counts[it.projectId] ?? 0) + 1;
+  }
+  return counts;
 }
 
 export function createProject(name: string, color?: string): Project {
@@ -119,6 +243,11 @@ export function updateProject(id: string, patch: Partial<Pick<Project, 'name' | 
 export function deleteProject(id: string): void {
   saveProjects(loadProjects().filter((p) => p.id !== id));
   saveProjectItems(loadProjectItems().filter((it) => it.projectId !== id));
+  const prefs = loadPrefs();
+  if (prefs.defaultProjectId === id) {
+    prefs.defaultProjectId = null;
+    localStorage.setItem(prefsKey(), JSON.stringify(prefs));
+  }
   dispatch();
 }
 

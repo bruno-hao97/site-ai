@@ -544,3 +544,32 @@ export function feedIsDisplayable(item: FeedItem): boolean {
   const s = (item.status || '').toUpperCase();
   return s.includes('PROCESS') || s.includes('PENDING') || s.includes('QUEUE');
 }
+
+export type CommunityTypeFilter = 'all' | 'video' | 'image' | 'music' | 'tts';
+
+export type LibraryStatusFilter = 'all' | 'success' | 'failed';
+
+export function feedMatchesCommunityType(
+  item: FeedItem,
+  filter: CommunityTypeFilter,
+): boolean {
+  if (filter === 'all') return true;
+  const t = (item.type || '').toLowerCase();
+  if (filter === 'video') return t === 'video' || t === 'avatar-lipsync';
+  if (filter === 'image') return t === 'image';
+  if (filter === 'music') return t === 'music';
+  if (filter === 'tts') {
+    if (t === 'tts') return true;
+    return feedIsAudioItem(item) && t !== 'music';
+  }
+  return true;
+}
+
+export function feedMatchesLibraryStatus(
+  item: FeedItem,
+  status: LibraryStatusFilter,
+): boolean {
+  if (status === 'all') return feedIsDisplayable(item);
+  if (status === 'failed') return feedIsFailed(item);
+  return feedIsDisplayable(item) && !feedIsFailed(item) && Boolean(feedMediaUrl(item) || feedThumb(item));
+}

@@ -1,9 +1,7 @@
 import { useState } from 'react';
-import { Heart, LayoutGrid, Sparkles, User } from 'lucide-react';
+import { LayoutGrid, Sparkles } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import HomeFeed from '../components/HomeFeed';
-import HomeFavoritesFeed from '../components/HomeFavoritesFeed';
-import HomeMyContent, { type MineFilter } from '../components/HomeMyContent';
 import HomePublicFeed from '../components/HomePublicFeed';
 import HomeHero from '../components/home/HomeHero';
 import HomeProjectsPanel from '../components/home/HomeProjectsPanel';
@@ -12,21 +10,14 @@ import HomeCategoryIcon from '../components/home/HomeCategoryIcon';
 import { HOME_QUICK_MENU } from '../lib/homeQuickMenu';
 import { useLocale } from '../i18n';
 import type { TranslationKey } from '../i18n/types';
+import type { CommunityTypeFilter } from '../services/feedApi';
 
-type ExploreFilter =
-  | 'feed'
-  | 'mine'
-  | 'foryou'
-  | 'videos'
-  | 'images'
-  | 'music'
-  | 'audio'
-  | 'favorites';
+type ExploreFilter = 'feed' | 'foryou' | 'videos' | 'images' | 'music' | 'audio';
 
 interface ExploreFilterDef {
   id: ExploreFilter;
   labelKey: TranslationKey;
-  mine?: MineFilter;
+  communityType: CommunityTypeFilter;
   icon: LucideIcon;
   tint: string;
 }
@@ -34,38 +25,48 @@ interface ExploreFilterDef {
 const menuById = Object.fromEntries(HOME_QUICK_MENU.map((item) => [item.id, item]));
 
 const EXPLORE_FILTERS: ExploreFilterDef[] = [
-  { id: 'feed', labelKey: 'home.filter.feed', icon: LayoutGrid, tint: 'rgba(255, 255, 255, 0.08)' },
-  { id: 'mine', labelKey: 'home.filter.mine', mine: 'all', icon: User, tint: 'rgba(255, 255, 255, 0.08)' },
-  { id: 'foryou', labelKey: 'home.filter.foryou', icon: Sparkles, tint: 'rgba(234, 179, 8, 0.12)' },
+  {
+    id: 'feed',
+    labelKey: 'home.filter.feed',
+    communityType: 'all',
+    icon: LayoutGrid,
+    tint: 'rgba(255, 255, 255, 0.08)',
+  },
+  {
+    id: 'foryou',
+    labelKey: 'home.filter.foryou',
+    communityType: 'all',
+    icon: Sparkles,
+    tint: 'rgba(234, 179, 8, 0.12)',
+  },
   {
     id: 'videos',
     labelKey: 'home.filter.videos',
-    mine: 'video',
+    communityType: 'video',
     icon: menuById.video!.icon,
     tint: menuById.video!.tint,
   },
   {
     id: 'images',
     labelKey: 'home.filter.images',
-    mine: 'image',
+    communityType: 'image',
     icon: menuById.image!.icon,
     tint: menuById.image!.tint,
   },
   {
     id: 'music',
     labelKey: 'home.filter.music',
-    mine: 'music',
+    communityType: 'music',
     icon: menuById.music!.icon,
     tint: menuById.music!.tint,
   },
   {
     id: 'audio',
     labelKey: 'home.filter.audio',
-    mine: 'tts',
+    communityType: 'tts',
     icon: menuById.audio!.icon,
     tint: menuById.audio!.tint,
   },
-  { id: 'favorites', labelKey: 'home.filter.favorites', icon: Heart, tint: 'rgba(239, 68, 68, 0.12)' },
 ];
 
 export default function HomePage() {
@@ -101,14 +102,10 @@ export default function HomePage() {
           </div>
         </div>
 
-        {filter === 'favorites' ? (
-          <HomeFavoritesFeed />
-        ) : filter === 'foryou' ? (
-          <HomePublicFeed />
-        ) : active.mine ? (
-          <HomeMyContent key={active.mine} filter={active.mine} />
+        {filter === 'foryou' ? (
+          <HomePublicFeed typeFilter={active.communityType} />
         ) : (
-          <HomeFeed />
+          <HomeFeed key={active.communityType} typeFilter={active.communityType} />
         )}
       </section>
     </div>

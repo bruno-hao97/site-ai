@@ -1,13 +1,13 @@
 import type { Edge, Node } from '@xyflow/react';
+import {
+  createProject,
+  loadProjects,
+  updateProject,
+  type Project,
+} from './projectStore';
 import { authUserKey } from './authStore';
 
-export interface WorkflowGroup {
-  id: string;
-  name: string;
-  color: string;
-  createdAt: string;
-  updatedAt: string;
-}
+export type WorkflowGroup = Project;
 
 export interface SavedTemplate {
   id: string;
@@ -39,12 +39,24 @@ export const WORKFLOW_GROUP_COLORS = [
 
 const EVENT = 'wf-library:updated';
 
+interface LegacyWorkflowGroup {
+  id: string;
+  name: string;
+  color: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 function userKey(): string {
   return authUserKey();
 }
 
-function groupsKey(): string {
+function legacyGroupsKey(): string {
   return `ai_wf_groups:${userKey()}`;
+}
+
+function migrationFlagKey(): string {
+  return `ai_wf_groups_migrated:${userKey()}`;
 }
 
 function templatesKey(): string {
@@ -82,56 +94,83 @@ function stripRuntime(nodes: Node[]): Node[] {
   });
 }
 
-/* ---------- Groups ---------- */
+function migrateLegacyGroups(): void {
+  if (localStorage.getItem(migrationFlagKey())) return;
 
-export function loadGroups(): WorkflowGroup[] {
-  const arr = readJson<WorkflowGroup[]>(groupsKey(), []);
-  return Array.isArray(arr) ? arr : [];
+  const legacy = readJson<LegacyWorkflowGroup[]>(legacyGroupsKey(), []);
+  if (!Array.isArray(legacy) || legacy.length === 0) {
+    localStorage.setItem(migrationFlagKey(), '1');
+    return;
+  }
+
+  const projects = loadProjects();
+  const idMap = new Map<string, string>();
+
+  for (const g of legacy) {
+    const existing =
+      projects.find((p) => p.id === g.id) || projects.find((p) => p.name === g.name);
+    if (existing) {
+      idMap.set(g.id, existing.id);
+    } else {
+      const created = createProject(g.name, g.color);
+      idMap.set(g.id, created.id);
+      projects.unshift(created);
+    }
+  }
+
+  const templates = loadTemplates();
+  let changed = false;
+  const updated = templates.map((t) => {
+    if (t.groupId && idMap.has(t.groupId)) {
+      changed = true;
+      return { ...t, groupId: idMap.get(t.groupId)! };
+    }
+    return t;
+  });
+  if (changed) saveTemplates(updated);
+
+  localStorage.removeItem(legacyGroupsKey());
+  localStorage.setItem(migrationFlagKey(), '1');
+  dispatch();
 }
 
-function saveGroups(list: WorkflowGroup[]): void {
-  localStorage.setItem(groupsKey(), JSON.stringify(list));
+/* ---------- Groups (unified with projectStore) ---------- */
+
+export function loadGroups(): WorkflowGroup[] {
+  migrateLegacyGroups();
+  return loadProjects();
 }
 
 export function createGroup(name: string, color?: string): WorkflowGroup {
-  const list = loadGroups();
-  const now = new Date().toISOString();
-  const group: WorkflowGroup = {
-    id: newId('wfg'),
-    name: name.trim() || 'Nhóm mới',
-    color: color || WORKFLOW_GROUP_COLORS[list.length % WORKFLOW_GROUP_COLORS.length],
-    createdAt: now,
-    updatedAt: now,
-  };
-  saveGroups([group, ...list]);
-  dispatch();
-  return group;
+  migrateLegacyGroups();
+  return createProject(name, color);
 }
 
 export function updateGroup(
   id: string,
   patch: Partial<Pick<WorkflowGroup, 'name' | 'color'>>,
 ): void {
-  const list = loadGroups().map((g) =>
-    g.id === id
-      ? {
-          ...g,
-          name: patch.name != null ? patch.name.trim() || g.name : g.name,
-          color: patch.color ?? g.color,
-          updatedAt: new Date().toISOString(),
-        }
-      : g,
-  );
-  saveGroups(list);
+  updateProject(id, patch);
   dispatch();
 }
 
+/** Chỉ gỡ workflow khỏi nhóm — không xóa dự án trên /projects. */
 export function deleteGroup(id: string): void {
-  saveGroups(loadGroups().filter((g) => g.id !== id));
-  // Template thuộc nhóm bị xóa thì chuyển về "chưa phân nhóm"
-  const templates = loadTemplates().map((t) => (t.groupId === id ? { ...t, groupId: null } : t));
-  saveTemplates(templates);
-  dispatch();
+  unassignTemplatesFromProject(id);
+}
+
+export function unassignTemplatesFromProject(projectId: string): void {
+  const templates = loadTemplates();
+  let changed = false;
+  const updated = templates.map((t) => {
+    if (t.groupId !== projectId) return t;
+    changed = true;
+    return { ...t, groupId: null, updatedAt: new Date().toISOString() };
+  });
+  if (changed) {
+    saveTemplates(updated);
+    dispatch();
+  }
 }
 
 /* ---------- Templates ---------- */

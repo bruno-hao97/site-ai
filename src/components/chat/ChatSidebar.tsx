@@ -1,19 +1,31 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Coins, Folder, GitBranch, Moon, Plus, Search, Trash2 } from 'lucide-react';
 import BrandLogo from '../BrandLogo';
+import ProjectPicker from '../ProjectPicker';
 import { getCreditsAi, getDisplayUser } from '../../services/authStore';
-import { loadProjects, type Project } from '../../services/projectStore';
+import {
+  countChatByProject,
+  getItemProjectId,
+  loadProjects,
+  onProjectsUpdated,
+  type Project,
+} from '../../services/projectStore';
 import { resolveChatAgent } from '../../services/chatAgents';
 import type { ChatSessionSummary } from '../../services/chatSessionsLocal';
 import { SITE_BRAND_LABEL } from '../../services/siteConfig';
 import { useLocale } from '../../i18n';
 import { formatChatSessionTime } from '../../lib/chatPageI18n';
 
+/** null = all sessions, `__unassigned__` = chưa gán dự án */
+type ChatProjectFilter = string | null;
+
 interface Props {
   sessions: ChatSessionSummary[];
   activeSessionId: string;
   agentId: string;
+  projectFilter: ChatProjectFilter;
+  onProjectFilterChange: (filter: ChatProjectFilter) => void;
   onSelectSession: (sessionId: string) => void;
   onNewChat: () => void;
   onDeleteSession: (sessionId: string) => void;
@@ -25,6 +37,8 @@ export default function ChatSidebar({
   sessions,
   activeSessionId,
   agentId,
+  projectFilter,
+  onProjectFilterChange,
   onSelectSession,
   onNewChat,
   onDeleteSession,
@@ -33,18 +47,33 @@ export default function ChatSidebar({
 }: Props) {
   const { t, locale } = useLocale();
   const [query, setQuery] = useState('');
+  const [projects, setProjects] = useState<Project[]>(() => loadProjects());
+  const [chatCounts, setChatCounts] = useState<Record<string, number>>(() => countChatByProject());
   const user = getDisplayUser();
   const credits = getCreditsAi();
   const agent = resolveChatAgent(agentId);
-  const projects: Project[] = loadProjects();
-  const defaultProject = projects[0];
   const localeTag = locale === 'vi' ? 'vi-VN' : 'en-US';
 
+  useEffect(() => {
+    const refresh = () => {
+      setProjects(loadProjects());
+      setChatCounts(countChatByProject());
+    };
+    refresh();
+    return onProjectsUpdated(refresh);
+  }, []);
+
   const filtered = useMemo(() => {
+    let list = sessions;
+    if (projectFilter === '__unassigned__') {
+      list = list.filter((s) => !getItemProjectId(s.sessionId));
+    } else if (projectFilter) {
+      list = list.filter((s) => getItemProjectId(s.sessionId) === projectFilter);
+    }
     const q = query.trim().toLowerCase();
-    if (!q) return sessions;
-    return sessions.filter((s) => s.title.toLowerCase().includes(q));
-  }, [sessions, query]);
+    if (!q) return list;
+    return list.filter((s) => s.title.toLowerCase().includes(q));
+  }, [sessions, query, projectFilter, chatCounts]);
 
   const displayName = user.name || user.username || user.email || 'User';
   const initial = displayName.charAt(0).toUpperCase();
@@ -95,10 +124,54 @@ export default function ChatSidebar({
         </Link>
 
         <div className="chat-sidebar-section">
-          <p className="chat-sidebar-section-label">{t('chat.sidebar.projects')}</p>
-          <div className="chat-sidebar-section-item">
-            <Folder size={14} />
-            <span>{defaultProject?.name ?? t('chat.sidebar.defaultProject')}</span>
+          <div className="chat-sidebar-section-head">
+            <p className="chat-sidebar-section-label">{t('chat.sidebar.projects')}</p>
+            <Link to="/projects" className="chat-sidebar-section-link" onClick={onCloseMobile}>
+              {t('chat.sidebar.manageProjects')}
+            </Link>
+          </div>
+          <div className="chat-sidebar-project-list">
+            <button
+              type="button"
+              className={`chat-sidebar-section-item chat-sidebar-project-btn${
+                projectFilter === null ? ' active' : ''
+              }`}
+              onClick={() => onProjectFilterChange(null)}
+            >
+              <Folder size={14} />
+              <span>{t('chat.sidebar.allProjects')}</span>
+            </button>
+            <button
+              type="button"
+              className={`chat-sidebar-section-item chat-sidebar-project-btn${
+                projectFilter === '__unassigned__' ? ' active' : ''
+              }`}
+              onClick={() => onProjectFilterChange('__unassigned__')}
+            >
+              <span className="chat-sidebar-project-dot chat-sidebar-project-dot--muted" />
+              <span>{t('chat.sidebar.unassigned')}</span>
+            </button>
+            {projects.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className={`chat-sidebar-section-item chat-sidebar-project-btn${
+                  projectFilter === p.id ? ' active' : ''
+                }`}
+                onClick={() => onProjectFilterChange(p.id)}
+              >
+                <span className="chat-sidebar-project-dot" style={{ background: p.color }} />
+                <span className="chat-sidebar-project-name">{p.name}</span>
+                {(chatCounts[p.id] ?? 0) > 0 && (
+                  <span className="chat-sidebar-project-count">{chatCounts[p.id]}</span>
+                )}
+              </button>
+            ))}
+            {projects.length === 0 && (
+              <p className="chat-sidebar-empty chat-sidebar-empty--compact">
+                {t('chat.sidebar.emptyProjects')}
+              </p>
+            )}
           </div>
         </div>
 
@@ -115,7 +188,11 @@ export default function ChatSidebar({
           <div className="chat-sidebar-list" role="list">
             {filtered.length === 0 ? (
               <p className="chat-sidebar-empty">
-                {query ? t('chat.sidebar.emptySearch') : t('chat.sidebar.emptyHistory')}
+                {query
+                  ? t('chat.sidebar.emptySearch')
+                  : projectFilter
+                    ? t('chat.sidebar.emptyProject')
+                    : t('chat.sidebar.emptyHistory')}
               </p>
             ) : (
               filtered.map((s) => (
@@ -137,6 +214,15 @@ export default function ChatSidebar({
                       {formatChatSessionTime(s.updatedAt, locale, t)}
                     </span>
                   </button>
+                  <ProjectPicker
+                    className="chat-sidebar-item-project"
+                    snapshot={{
+                      itemId: s.sessionId,
+                      type: 'chat',
+                      prompt: s.title,
+                      createdTime: s.updatedAt,
+                    }}
+                  />
                   <button
                     type="button"
                     className="chat-sidebar-item-del"

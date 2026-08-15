@@ -14,6 +14,7 @@ import { applyTheme } from './services/themeStore';
 import { prefetchStudioModels } from './lib/studioModelPrefetch';
 import { STUDIO_COMPOSER_PATHS } from './lib/studioRoutes';
 import { useCreditsUpdated } from './hooks/useCreditsUpdated';
+import { resumeAllPendingJobs } from './services/pendingJobRunner';
 import ComposerShell from './pages/ComposerShell';
 import AppSidebar from './components/AppSidebar';
 import BrandLogo from './components/BrandLogo';
@@ -28,6 +29,7 @@ import TermsPage from './pages/TermsPage';
 import LegalShellLayout from './components/legal/LegalShellLayout';
 import HomePage from './pages/HomePage';
 import ProjectsPage from './pages/ProjectsPage';
+import LibraryPage from './pages/LibraryPage';
 import WorkflowPage from './pages/WorkflowPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -148,6 +150,7 @@ function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route path="/home" element={<HomePage />} />
         <Route path="/projects" element={<ProjectsPage />} />
+        <Route path="/library" element={<LibraryPage />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/workflow" element={<WorkflowPage />} />
         <Route path="/audio" element={<AudioPage />} />
@@ -194,6 +197,10 @@ function AppShell() {
   }, [loggedIn]);
 
   useEffect(() => {
+    if (loggedIn) resumeAllPendingJobs();
+  }, [loggedIn]);
+
+  useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname]);
 
@@ -205,6 +212,7 @@ function AppShell() {
   const isChat = location.pathname === '/chat';
   const isHome = location.pathname === '/home';
   const isProjects = location.pathname === '/projects';
+  const isLibrary = location.pathname === '/library';
   const isAccount = location.pathname.startsWith('/account');
   const isSecondary =
     location.pathname === '/dashboard' ||
@@ -243,6 +251,7 @@ function AppShell() {
     isChat && 'app-main-chat',
     isHome && 'app-main-home',
     isProjects && 'app-main-projects',
+    isLibrary && 'app-main-library',
     isAccount && 'app-main-account',
     isSecondary && 'app-main-secondary',
   ]

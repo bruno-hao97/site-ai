@@ -26,6 +26,9 @@
   /* Nút tạo job — xanh thống nhất (#20bb59) */
   --job-btn: #20bb59;
   --job-btn-hover: #159b46;
+  /* Pending / đang tạo — xanh brand thay vì xanh dương cũ */
+  --pending-accent: var(--brand);
+  --pending-accent-soft: #75ef85;
   --radius: 10px;
   --logo-height: 44px;
   --logo-height-sm: 36px;
@@ -3272,6 +3275,7 @@ a.user-pill:hover { color: var(--text); }
 
 .qc-spin {
   animation: qc-spin 0.8s linear infinite;
+  color: var(--pending-accent);
 }
 
 @keyframes qc-spin {
@@ -4664,6 +4668,7 @@ body.qc-sidebar-open .home-quick-create-dock {
 
 .cms-spin {
   animation: cms-spin 0.9s linear infinite;
+  color: var(--pending-accent);
 }
 
 @keyframes cms-spin {
@@ -5467,7 +5472,7 @@ body.qc-sidebar-open .home-quick-create-dock {
 /* Thẻ "đang tạo" trong grid kết quả — kiểu vmedia */
 .hist-card-pending-vmedia {
   grid-column: 1 / -1;
-  border: 1px solid color-mix(in srgb, #3b82f6 35%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pending-accent) 35%, transparent);
   border-radius: 12px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.03);
@@ -5483,7 +5488,7 @@ body.qc-sidebar-open .home-quick-create-dock {
   padding: 2rem 1.5rem 1.25rem;
   background: linear-gradient(
     180deg,
-    rgba(59, 130, 246, 0.06) 0%,
+    color-mix(in srgb, var(--pending-accent) 6%, transparent) 0%,
     rgba(255, 255, 255, 0.02) 100%
   );
 }
@@ -5492,8 +5497,8 @@ body.qc-sidebar-open .home-quick-create-dock {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 3px solid color-mix(in srgb, #3b82f6 22%, transparent);
-  border-top-color: #3b82f6;
+  border: 3px solid color-mix(in srgb, var(--pending-accent) 22%, transparent);
+  border-top-color: var(--pending-accent);
   animation: pending-spin 0.85s linear infinite;
 }
 
@@ -5501,7 +5506,7 @@ body.qc-sidebar-open .home-quick-create-dock {
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.14em;
-  color: #60a5fa;
+  color: var(--pending-accent-soft);
 }
 
 .pending-vmedia-label.failed {
@@ -5520,7 +5525,7 @@ body.qc-sidebar-open .home-quick-create-dock {
 .pending-vmedia-bar-fill {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  background: linear-gradient(90deg, var(--pending-accent), var(--pending-accent-soft));
   transition: width 0.45s ease;
 }
 
@@ -5564,8 +5569,8 @@ body.qc-sidebar-open .home-quick-create-dock {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 3px solid color-mix(in srgb, #3b82f6 30%, transparent);
-  border-top-color: #3b82f6;
+  border: 3px solid color-mix(in srgb, var(--pending-accent) 30%, transparent);
+  border-top-color: var(--pending-accent);
   animation: pending-spin 0.8s linear infinite;
 }
 
@@ -6558,14 +6563,14 @@ body.qc-sidebar-open .home-quick-create-dock {
 }
 
 .chist-block-pending {
-  border-color: color-mix(in srgb, #3b82f6 40%, transparent);
-  background: color-mix(in srgb, #3b82f6 6%, rgba(255, 255, 255, 0.03));
+  border-color: color-mix(in srgb, var(--pending-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--pending-accent) 6%, rgba(255, 255, 255, 0.03));
   cursor: default;
 }
 
 .chist-pending-spin {
   flex-shrink: 0;
-  color: #60a5fa;
+  color: var(--pending-accent-soft);
   animation: pending-spin 0.9s linear infinite;
 }
 
@@ -6580,14 +6585,14 @@ body.qc-sidebar-open .home-quick-create-dock {
 .chist-pending-bar-fill {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  background: linear-gradient(90deg, var(--pending-accent), var(--pending-accent-soft));
   transition: width 0.45s ease;
 }
 
 .chist-processing-label {
   font-size: 0.72rem;
   font-weight: 600;
-  color: #60a5fa;
+  color: var(--pending-accent-soft);
 }
 
 .chist-block-head {
@@ -6595,6 +6600,7 @@ body.qc-sidebar-open .home-quick-create-dock {
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.5rem;
+  padding-right: 4.5rem;
 }
 
 .chist-name {
@@ -6712,10 +6718,6 @@ body.qc-sidebar-open .home-quick-create-dock {
 }
 
 .chist-delete-btn {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 5;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -6727,13 +6729,8 @@ body.qc-sidebar-open .home-quick-create-dock {
   background: rgba(0, 0, 0, 0.55);
   color: #fca5a5;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s ease, background 0.15s ease;
-}
-
-.chist-block-cell:hover .chist-delete-btn,
-.chist-block-cell:focus-within .chist-delete-btn {
-  opacity: 1;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
 }
 
 .chist-delete-btn:hover:not(:disabled) {
@@ -6754,12 +6751,17 @@ body.qc-sidebar-open .home-quick-create-dock {
   position: absolute;
   top: 8px;
   right: 8px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   opacity: 0;
   transition: opacity 0.15s ease;
 }
 
 .chist-block-cell:hover .chist-block-actions,
-.chist-block-actions:focus-within {
+.chist-block-actions:focus-within,
+.chist-block-actions:has(.chist-delete-btn:disabled) {
   opacity: 1;
 }
 
@@ -6863,6 +6865,7 @@ body.qc-sidebar-open .home-quick-create-dock {
 
 .clib-spin {
   animation: pending-spin 0.85s linear infinite;
+  color: var(--pending-accent);
 }
 
 .clib-group-head {
@@ -7984,6 +7987,23 @@ body.qc-sidebar-open .home-quick-create-dock {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.project-item-thumb--chat {
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.55);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.project-item-thumb--chat:hover {
+  color: var(--brand, #4fdf62);
+  background: rgba(79, 223, 98, 0.06);
+}
+
+.project-item--chat .project-item-prompt {
+  cursor: pointer;
 }
 
 .project-item-icon {
@@ -11557,8 +11577,8 @@ body.qc-sidebar-open .app {
 .wf-node-loading-spinner {
   width: 34px;
   height: 34px;
-  border: 3px solid rgba(45, 212, 191, 0.18);
-  border-top-color: #2dd4bf;
+  border: 3px solid color-mix(in srgb, var(--pending-accent) 18%, transparent);
+  border-top-color: var(--pending-accent);
   border-radius: 50%;
   animation: wf-node-spin 0.75s linear infinite;
 }
@@ -13471,7 +13491,7 @@ input.wf-gen-pill--select {
 
 .wf-spin {
   animation: wf-spin 1s linear infinite;
-  color: var(--brand, #2dd4bf);
+  color: var(--pending-accent);
 }
 
 @keyframes wf-spin {
@@ -17365,6 +17385,100 @@ input.wf-gen-pill--select {
   color: #ff6b6b;
 }
 
+.chat-sidebar-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+  padding: 0 0.25rem;
+}
+
+.chat-sidebar-section-head .chat-sidebar-section-label {
+  margin: 0;
+}
+
+.chat-sidebar-section-link {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--brand);
+  text-decoration: none;
+}
+
+.chat-sidebar-section-link:hover {
+  text-decoration: underline;
+}
+
+.chat-sidebar-project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+  max-height: 132px;
+  overflow-y: auto;
+}
+
+.chat-sidebar-project-btn {
+  width: 100%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.chat-sidebar-project-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.chat-sidebar-project-dot--muted {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.chat-sidebar-project-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-sidebar-project-count {
+  margin-left: auto;
+  font-size: 0.6875rem;
+  color: var(--muted);
+}
+
+.chat-sidebar-empty--compact {
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.chat-sidebar-item-project {
+  flex-shrink: 0;
+  opacity: 0;
+}
+
+.chat-sidebar-item:hover .chat-sidebar-item-project,
+.chat-sidebar-item.active .chat-sidebar-item-project {
+  opacity: 1;
+}
+
+.chat-sidebar-item-project.project-pick-btn.assigned {
+  width: 28px;
+  padding: 0;
+}
+
+.chat-sidebar-item-project .project-pick-label {
+  display: none;
+}
+
+.chat-sidebar-item-project .project-pick-dot {
+  width: 10px;
+  height: 10px;
+}
+
 .chat-sidebar-foot {
   padding: 0.75rem;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
@@ -17738,6 +17852,7 @@ input.wf-gen-pill--select {
 
 .chat-spin {
   animation: chat-spin 0.8s linear infinite;
+  color: var(--pending-accent);
 }
 
 @keyframes chat-spin {

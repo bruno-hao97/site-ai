@@ -29,6 +29,7 @@ import {
   type TemplateGraph,
   type WorkflowGroup,
 } from '../services/workflowLibraryStore';
+import { onProjectsUpdated } from '../services/projectStore';
 import { parseWflFile } from '../services/wflImport';
 import { useLocale } from '../i18n';
 
@@ -50,7 +51,15 @@ export default function WorkflowLibrary({ open, currentGraph, onOpenTemplate, on
   const fileRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => onLibraryUpdated(() => setTick((n) => n + 1)), []);
+  useEffect(() => {
+    const bump = () => setTick((n) => n + 1);
+    const unsubLib = onLibraryUpdated(bump);
+    const unsubProj = onProjectsUpdated(bump);
+    return () => {
+      unsubLib();
+      unsubProj();
+    };
+  }, []);
 
   const groups = useMemo(() => loadGroups(), [tick, open]);
   const counts = useMemo(() => countByGroup(), [tick, open]);

@@ -130,6 +130,7 @@ export async function createJobAndPoll(
   fields: Record<string, unknown>,
   onProgress?: (p: PollProgress | { phase: 'creating' }) => void,
   signal?: AbortSignal,
+  onProviderJobId?: (providerJobId: string) => void,
 ): Promise<{
   createEnvelope: unknown;
   pollResult?: PollResult;
@@ -143,6 +144,7 @@ export async function createJobAndPoll(
   const snap = extractPollSnapshot(createEnvelope);
   const providerJobId = snap.idBase?.trim() || undefined;
   const acceptedOnProvider = Boolean(providerJobId);
+  if (providerJobId) onProviderJobId?.(providerJobId);
 
   if (snap.resultUrl && classifyGatewayStatus(snap.status, snap.resultUrl) === 'success') {
     return {

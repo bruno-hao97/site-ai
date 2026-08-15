@@ -28,13 +28,12 @@ import {
   buildQuickSchema,
   canQuickCreate,
   loadQuickModels,
-  quickGenerate,
+  runQuickJobBackground,
   uploadQuickImage,
   uploadQuickMedia,
 } from '../services/quickCreate';
-import { notifyCreditsUpdated } from '../services/authStore';
 import { modelPriceRangeLabel, resolveModelPrice } from '../services/modelPricing';
-import { isJobAcceptedPendingError } from '../services/jobInfraErrors';
+import { addPendingJob, libraryRouteForJobType } from '../services/pendingJobsStore';
 import { HOME_QUICK_MENU, type HomeQuickMenuItem } from '../lib/homeQuickMenu';
 import HomeCategoryIcon from './home/HomeCategoryIcon';
 import { useLocale } from '../i18n';
@@ -159,7 +158,6 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
   const [info, setInfo] = useState('');
   const [result, setResult] = useState<{ url: string; type: JobType } | null>(null);
   const [selections, setSelections] = useState<JobSelections>({});
-  const [providerBusy, setProviderBusy] = useState(false);
 
   const typeRef = useRef<HTMLDivElement>(null);
   const modelRef = useRef<HTMLDivElement>(null);
@@ -300,8 +298,8 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
     }
   };
 
-  const submit = async () => {
-    if (submitting || providerBusy) return;
+  const submit = () => {
+    if (submitting) return;
     if (!canQuickCreate()) {
       setError(t('home.quickCreate.loginRequired'));
       return;
@@ -335,38 +333,31 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
       ...(refs.length ? { subjects: refs } : {}),
     });
 
+    const displayPrompt =
+      type === 'tts'
+        ? text
+        : type === 'music'
+          ? text.slice(0, 60) || 'Quick track'
+          : text;
+
+    const pendingId = crypto.randomUUID();
     setSubmitting(true);
+    addPendingJob({ id: pendingId, type, prompt: displayPrompt });
+    navigate(libraryRouteForJobType(type));
+
+    runQuickJobBackground({
+      pendingId,
+      type,
+      model: currentModel,
+      selections: sel,
+      displayPrompt,
+    });
+
+    setSubmitting(false);
+    setProgress('');
     setError('');
     setInfo('');
     setResult(null);
-    setProgress(t('home.quickCreate.creatingJob'));
-
-    try {
-      const url = await quickGenerate({
-        type,
-        model: currentModel,
-        selections: sel,
-        onProgress: setProgress,
-        signal: abortRef.current.signal,
-      });
-      setResult({ url, type });
-      setProgress('');
-      setProviderBusy(false);
-      notifyCreditsUpdated();
-    } catch (err) {
-      if (isJobAcceptedPendingError(err)) {
-        setError('');
-        setInfo(err.message);
-        setProgress('');
-        setProviderBusy(true);
-        window.setTimeout(() => setProviderBusy(false), 45_000);
-      } else {
-        setError(err instanceof Error ? err.message : String(err));
-        setProgress('');
-      }
-    } finally {
-      setSubmitting(false);
-    }
   };
 
   const modelOptions: ModelOption[] = models.map((m) => ({
@@ -501,10 +492,10 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
             type="button"
             className="qc-send"
             onClick={() => void submit()}
-            disabled={submitting || providerBusy || loadingModels}
+            disabled={submitting || loadingModels}
             title={t('composer.submit', { type: typeShortLabel(type, t) })}
           >
-            {submitting || providerBusy ? (
+            {submitting ? (
               <Loader2 size={16} className="qc-spin" />
             ) : (
               <SendHorizontal size={16} />
@@ -643,10 +634,10 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
             type="button"
             className="qc-send"
             onClick={() => void submit()}
-            disabled={submitting || providerBusy || loadingModels}
+            disabled={submitting || loadingModels}
             title={t('home.quickCreate.create')}
           >
-            {submitting || providerBusy ? (
+            {submitting ? (
               <Loader2 size={16} className="qc-spin" />
             ) : (
               <SendHorizontal size={16} />

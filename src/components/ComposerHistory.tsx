@@ -527,24 +527,6 @@ export default function ComposerHistory({
                       onToggle={() => onToggleSelect(item.id_base)}
                     />
                   )}
-                  {!selectMode && !processing && item.id_base && (
-                    <button
-                      type="button"
-                      className="chist-delete-btn"
-                      aria-label={t('composer.history.deleteAria')}
-                      disabled={deletingId === item.id_base}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void handleDelete(item.id_base);
-                      }}
-                    >
-                      {deletingId === item.id_base ? (
-                        <Loader2 size={14} className="chist-pending-spin" />
-                      ) : (
-                        <Trash2 size={15} />
-                      )}
-                    </button>
-                  )}
                   <button
                     type="button"
                     className={`chist-block${open ? ' open' : ''}${processing ? ' chist-block-pending' : ''}`}
@@ -611,6 +593,24 @@ export default function ComposerHistory({
                     </div>
                   </button>
                   <div className="chist-block-actions">
+                    {!selectMode && !processing && item.id_base && (
+                      <button
+                        type="button"
+                        className="chist-delete-btn"
+                        aria-label={t('composer.history.deleteAria')}
+                        disabled={deletingId === item.id_base}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleDelete(item.id_base);
+                        }}
+                      >
+                        {deletingId === item.id_base ? (
+                          <Loader2 size={14} className="chist-pending-spin" />
+                        ) : (
+                          <Trash2 size={15} />
+                        )}
+                      </button>
+                    )}
                     <ProjectPicker
                       snapshot={{
                         itemId: item.id_base,

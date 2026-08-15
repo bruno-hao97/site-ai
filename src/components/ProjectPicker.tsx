@@ -136,7 +136,10 @@ export default function ProjectPicker({
         title={current ? t('project.picker.inProject', { name: current.name }) : t('project.picker.addToProject')}
       >
         {current ? (
-          <span className="project-pick-dot" style={{ background: current.color }} />
+          <>
+            <span className="project-pick-dot" style={{ background: current.color }} />
+            <span className="project-pick-label">{current.name}</span>
+          </>
         ) : (
           <FolderPlus size={15} />
         )}

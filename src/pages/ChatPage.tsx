@@ -34,6 +34,12 @@ import {
   MOON_CHAT_PROJECT_ID,
 } from '../services/gommoChatConfig';
 import {
+  assignChatSession,
+  getItemProjectId,
+  removeItem,
+  syncChatProjectItem,
+} from '../services/projectStore';
+import {
   deleteChatSession,
   deriveSessionTitle,
   listChatSessions,
@@ -54,6 +60,8 @@ import {
 } from '../lib/chatPageI18n';
 
 type ChatView = 'landing' | 'thread';
+
+type ChatProjectFilter = string | null;
 
 export default function ChatPage() {
   const { t } = useLocale();
@@ -76,6 +84,7 @@ export default function ChatPage() {
   const [marketsOpen, setMarketsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
+  const [projectFilter, setProjectFilter] = useState<ChatProjectFilter>(null);
 
   const abortRef = useRef<AbortController | null>(null);
   const selectedModel = resolveChatAiModel(modelId);
@@ -197,17 +206,29 @@ export default function ChatPage() {
   const persistSession = useCallback(
     (nextMessages: ChatMessage[], title?: string, midStream = false) => {
       const titleToUse = title ?? sessionTitle;
+      const now = Date.now();
       saveChatSession({
         sessionId,
         title: titleToUse,
-        updatedAt: Date.now(),
+        updatedAt: now,
         messages: nextMessages,
         modelId,
         agentId,
       });
+      const hasUserMsg = nextMessages.some((m) => m.role === 'user');
+      if (hasUserMsg) {
+        if (getItemProjectId(sessionId)) {
+          syncChatProjectItem(sessionId, titleToUse, now);
+        } else {
+          assignChatSession(sessionId, titleToUse, {
+            projectId: projectFilter && projectFilter !== '__unassigned__' ? projectFilter : null,
+            updatedAt: now,
+          });
+        }
+      }
       if (!midStream) refreshSessions();
     },
-    [sessionId, sessionTitle, modelId, agentId, refreshSessions],
+    [sessionId, sessionTitle, modelId, agentId, projectFilter, refreshSessions],
   );
 
   const startNewChat = useCallback(() => {
@@ -229,6 +250,7 @@ export default function ChatPage() {
     (id: string) => {
       if (!window.confirm(t('chat.page.deleteConfirm'))) return;
       deleteChatSession(id);
+      removeItem(id);
       if (id === sessionId) startNewChat();
     },
     [sessionId, startNewChat, t],
@@ -444,6 +466,8 @@ export default function ChatPage() {
         sessions={sessions}
         activeSessionId={sessionId}
         agentId={agentId}
+        projectFilter={projectFilter}
+        onProjectFilterChange={setProjectFilter}
         onSelectSession={(id) => loadSessionById(id)}
         onNewChat={startNewChat}
         onDeleteSession={handleDeleteSession}
