@@ -384,7 +384,7 @@ const en: TranslationMap = {
   'home.library.status.success': 'Successful',
   'home.library.status.failed': 'Failed',
   'library.pageTitle': 'My library',
-  'library.pageLead': 'Your successful creations — filter by type.',
+  'library.pageLead': 'Your successful creations.',
   'header.openMenu': 'Open menu',
   'header.pricing': 'Pricing',
   'header.balance': 'Credits',

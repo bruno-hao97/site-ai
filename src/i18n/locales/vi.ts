@@ -385,7 +385,7 @@ const vi: TranslationMap = {
   'home.library.status.success': 'Thành công',
   'home.library.status.failed': 'Thất bại',
   'library.pageTitle': 'Thư viện của tôi',
-  'library.pageLead': 'Sản phẩm bạn đã tạo thành công — lọc theo loại.',
+  'library.pageLead': 'Sản phẩm bạn đã tạo thành công.',
   'header.openMenu': 'Mở menu',
   'header.pricing': 'Bảng giá',
   'header.balance': 'Số dư',
