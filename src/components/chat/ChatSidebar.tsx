@@ -148,7 +148,6 @@ export default function ChatSidebar({
               }`}
               onClick={() => onProjectFilterChange('__unassigned__')}
             >
-              <span className="chat-sidebar-project-dot chat-sidebar-project-dot--muted" />
               <span>{t('chat.sidebar.unassigned')}</span>
             </button>
             {projects.map((p) => (
@@ -160,7 +159,6 @@ export default function ChatSidebar({
                 }`}
                 onClick={() => onProjectFilterChange(p.id)}
               >
-                <span className="chat-sidebar-project-dot" style={{ background: p.color }} />
                 <span className="chat-sidebar-project-name">{p.name}</span>
                 {(chatCounts[p.id] ?? 0) > 0 && (
                   <span className="chat-sidebar-project-count">{chatCounts[p.id]}</span>

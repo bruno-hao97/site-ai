@@ -3788,6 +3788,24 @@ body:has(.app-magnific) .chat-ai-model-group h4 {
   margin-bottom: 2.5rem;
 }
 
+.home-whats-new-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.home-whats-new-head .home-section-title {
+  margin-bottom: 0;
+}
+
+.home-whats-new-dev-hint {
+  margin: -0.5rem 0 0.75rem;
+  font-size: 0.75rem;
+  color: rgba(251, 191, 36, 0.85);
+}
+
 .home-section-title {
   margin: 0 0 1rem;
   font-size: 0.9375rem;
@@ -3802,6 +3820,23 @@ body:has(.app-magnific) .chat-ai-model-group h4 {
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
   padding-bottom: 0.25rem;
+  padding-inline-end: 0.85rem;
+  scroll-padding-inline-end: 0.85rem;
+}
+
+@media (min-width: 960px) {
+  .home-whats-new-track {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    overflow: visible;
+    padding-inline-end: 0;
+    scroll-padding-inline-end: 0;
+  }
+
+  .home-whats-new-card {
+    flex: none;
+    width: 100%;
+  }
 }
 
 .home-whats-new-track::-webkit-scrollbar {
@@ -3818,7 +3853,61 @@ body:has(.app-magnific) .chat-ai-model-group h4 {
   overflow: hidden;
   cursor: pointer;
   scroll-snap-align: start;
-  background: var(--mf-inset);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.home-whats-new-card--news:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.14);
+  transform: translateY(-2px);
+}
+
+.home-whats-new-card--news::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--whats-new-accent, #4fdf62);
+  border-radius: 14px 0 0 14px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.home-whats-new-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.42;
+  transform: scale(1.02);
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+  pointer-events: none;
+}
+
+.home-whats-new-card--has-bg:hover .home-whats-new-bg {
+  opacity: 0.52;
+  transform: scale(1.06);
+}
+
+.home-whats-new-card--news:not(.home-whats-new-card--has-bg)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 75% 55% at 88% 12%,
+    color-mix(in srgb, var(--whats-new-accent, #4fdf62) 16%, transparent),
+    transparent 68%
+  );
+  pointer-events: none;
 }
 
 .home-whats-new-card img {
@@ -3829,9 +3918,23 @@ body:has(.app-magnific) .chat-ai-model-group h4 {
 }
 
 .home-whats-new-card--skeleton {
-  background: linear-gradient(90deg, #161616 25%, #1f1f1f 50%, #161616 75%);
-  background-size: 200% 100%;
-  animation: home-skeleton 1.2s infinite;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  animation: home-whats-new-skeleton 1.4s ease-in-out infinite;
+}
+
+.home-whats-new-card--skeleton::before {
+  display: none;
+}
+
+@keyframes home-whats-new-skeleton {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 @keyframes home-skeleton {
@@ -3845,9 +3948,9 @@ body:has(.app-magnific) .chat-ai-model-group h4 {
   inset: 0;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  padding: 0.85rem;
-  background: linear-gradient(180deg, transparent 40%, rgba(0, 0, 0, 0.75) 100%);
+  justify-content: space-between;
+  padding: 0.75rem 0.85rem 0.85rem 1rem;
+  z-index: 1;
 }
 
 .home-whats-new-play {
@@ -3866,6 +3969,29 @@ body:has(.app-magnific) .chat-ai-model-group h4 {
   opacity: 0.75;
 }
 
+.home-whats-new-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.home-whats-new-type-icon {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: color-mix(in srgb, var(--whats-new-accent, #4fdf62) 55%, rgba(255, 255, 255, 0.35));
+  opacity: 0.85;
+}
+
+.home-whats-new-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
 .home-whats-new-label {
   font-size: 0.8125rem;
   font-weight: 600;
@@ -3875,6 +4001,113 @@ body:has(.app-magnific) .chat-ai-model-group h4 {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.home-whats-new-card--news .home-whats-new-overlay {
+  background: none;
+}
+
+.home-whats-new-card--has-bg .home-whats-new-overlay {
+  background: linear-gradient(
+    180deg,
+    rgba(6, 10, 8, 0.2) 0%,
+    rgba(6, 10, 8, 0.45) 42%,
+    rgba(6, 10, 8, 0.88) 100%
+  );
+}
+
+.home-whats-new-card--video {
+  --whats-new-accent: #38bdf8;
+}
+
+.home-whats-new-card--image {
+  --whats-new-accent: #a78bfa;
+}
+
+.home-whats-new-card--audio {
+  --whats-new-accent: #34d399;
+}
+
+.home-whats-new-card--music {
+  --whats-new-accent: #f472b6;
+}
+
+.home-whats-new-card--feature {
+  --whats-new-accent: #4fdf62;
+}
+
+.home-whats-new-card--model,
+.home-whats-new-card--model-new {
+  --whats-new-accent: #60a5fa;
+}
+
+.home-whats-new-card--pricing {
+  --whats-new-accent: #fbbf24;
+}
+
+.home-whats-new-card--tip {
+  --whats-new-accent: #c084fc;
+}
+
+.home-whats-new-provider {
+  padding: 0.1rem 0.4rem;
+  border-radius: 6px;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.home-whats-new-badge {
+  align-self: flex-start;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #31c992;
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid rgba(16, 185, 129, 0.28);
+}
+
+.home-whats-new-desc {
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.35;
+  text-align: left;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.home-whats-new-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.15rem;
+}
+
+.home-whats-new-price {
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: #fbbf24;
+}
+
+.home-whats-new-tag {
+  font-size: 0.5625rem;
+  font-weight: 600;
+  padding: 0.08rem 0.35rem;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.65);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* —— Explore section —— */

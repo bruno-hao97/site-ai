@@ -300,6 +300,8 @@ export interface GommoModel {
   status_message?: string;
   description?: string;
   server?: string;
+  /** Unix seconds or ISO string — field upstream thường dùng. */
+  created_at?: number | string;
   created_time?: number;
   price?: number;
   /** % giảm giá model (vd. 20 = −20%). */

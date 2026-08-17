@@ -22,6 +22,7 @@ import {
 } from '../services/modelCatalog';
 import { buildNewModelChecker, modelLabel, modelProvider } from '../services/modelCatalogDisplay';
 import { modelSlug } from '../services/modelSchema';
+import { buildStudioModelHref, inferStudioJobType } from '../lib/studioDeepLink';
 import { studioRouteForType } from '../constants/studioTypes';
 import { fetchCreditPackages, type CreditPackage } from '../services/topupApi';
 import { HOME_NOTIF_CONTACT, SITE_DISPLAY_NAME } from '../services/siteConfig';
@@ -261,9 +262,10 @@ export default function ModelsPage() {
   }, [available, filterGroup.types, query]);
 
   function handleCreate(entry: CatalogModel) {
-    const route = studioRouteForType(entry.jobType);
     const slug = modelSlug(entry.model);
-    cta(`${route}?model=${encodeURIComponent(slug)}`);
+    const studioType = inferStudioJobType(entry.model, entry.jobType);
+    const route = studioRouteForType(studioType);
+    cta(buildStudioModelHref(route, slug, entry.model, entry.jobType));
   }
 
   const catalogBody = (

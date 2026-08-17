@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import {
   ChevronLeft,
   ChevronRight,
@@ -59,6 +59,7 @@ import AudioTtsSettingsPanel, {
 } from '../components/audio/AudioTtsSettingsPanel';
 import AudioStudioOnboarding from '../components/audio/AudioStudioOnboarding';
 import { AUDIO_ONBOARDING_ENABLED } from '../lib/audioOnboarding';
+import { matchTtsEngineModel, ttsProviderForEngineModelId, ttsProviderForGommoModel } from '../lib/studioDeepLink';
 import { useLocale } from '../i18n';
 import type { TranslationKey } from '../i18n';
 
@@ -185,6 +186,8 @@ function isVoiceProvider(value: string | undefined): value is VoiceProvider {
 export default function AudioPage() {
   const { t, locale } = useLocale();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const queryModelSlug = searchParams.get('model')?.trim() || '';
   const auth = loadAuth();
   const client = useMemo(
     () => (auth?.access_token ? getGommoClient() : null),
@@ -199,7 +202,9 @@ export default function AudioPage() {
       return false;
     }
   });
-  const [provider, setProvider] = useState<VoiceProvider>('elevenlabs_cheap');
+  const [provider, setProvider] = useState<VoiceProvider>(
+    () => ttsProviderForEngineModelId(queryModelSlug) ?? 'elevenlabs_cheap',
+  );
   const [models, setModels] = useState<GommoModel[]>([]);
   const [modelsLoading, setModelsLoading] = useState(true);
   const [script, setScript] = useState(defaultSelectionsForType('tts').text || '');
@@ -444,18 +449,48 @@ export default function AudioPage() {
   }, [client]);
 
   useEffect(() => {
-    if (modelOptions.length) {
-      const first = modelOptions[0];
-      const label = 'labelKey' in first && first.labelKey ? first.labelKey : first.resolvedId;
-      setVoiceEngineModel(
-        typeof label === 'string' && label.includes('.')
-          ? modelSelectValue(label, first.resolvedId)
-          : first.resolvedId,
-      );
-    } else {
-      setVoiceEngineModel('');
+    if (!queryModelSlug) return;
+    setActiveFeature('tts');
+
+    const fromEngine = ttsProviderForEngineModelId(queryModelSlug);
+    if (fromEngine) {
+      setProvider(fromEngine);
+      return;
     }
-  }, [selectedVoice, provider, modelOptions]);
+
+    if (!models.length) return;
+    const entry = models.find((m) => modelSlug(m) === queryModelSlug);
+    if (entry) setProvider(ttsProviderForGommoModel(entry));
+  }, [queryModelSlug, models]);
+
+  useEffect(() => {
+    if (!modelOptions.length) {
+      if (!queryModelSlug) setVoiceEngineModel('');
+      return;
+    }
+
+    if (queryModelSlug) {
+      const match = matchTtsEngineModel(queryModelSlug, modelOptions);
+      if (match) {
+        setVoiceEngineModel(
+          match.labelKey
+            ? modelSelectValue(match.labelKey, match.resolvedId)
+            : match.resolvedId,
+        );
+        return;
+      }
+      // Chờ provider/modelOptions khớp query — không fallback sang Eleven V3.
+      if (ttsProviderForEngineModelId(queryModelSlug)) return;
+    }
+
+    const first = modelOptions[0];
+    const label = 'labelKey' in first && first.labelKey ? first.labelKey : first.resolvedId;
+    setVoiceEngineModel(
+      typeof label === 'string' && label.includes('.')
+        ? modelSelectValue(label, first.resolvedId)
+        : first.resolvedId,
+    );
+  }, [selectedVoice, provider, modelOptions, queryModelSlug]);
 
   useEffect(() => {
     if (activeFeature !== 'tts') return;

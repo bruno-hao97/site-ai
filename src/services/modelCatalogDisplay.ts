@@ -80,14 +80,66 @@ export function modelSalePercent(m: GommoModel): number | null {
   return null;
 }
 
+function parseCreatedUnix(at: unknown): number | null {
+  if (at == null || at === '') return null;
+  if (typeof at === 'number' && Number.isFinite(at)) {
+    return at > 1e12 ? Math.floor(at / 1000) : Math.floor(at);
+  }
+  if (typeof at === 'string') {
+    const trimmed = at.trim();
+    if (!trimmed) return null;
+    const n = Number(trimmed);
+    if (Number.isFinite(n)) {
+      return n > 1e12 ? Math.floor(n / 1000) : Math.floor(n);
+    }
+    const ms = Date.parse(trimmed);
+    if (Number.isFinite(ms)) return Math.floor(ms / 1000);
+  }
+  return null;
+}
+
+function maxNestedModeCreatedUnix(model: GommoModel): number | null {
+  const raw = model as unknown as Record<string, unknown>;
+  const modeLists = [model.modes, raw.mode, model.mode];
+  let newest = 0;
+
+  for (const list of modeLists) {
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      if (!item || typeof item !== 'object') continue;
+      const row = item as Record<string, unknown>;
+      const ts =
+        parseCreatedUnix(row.created_at) ??
+        parseCreatedUnix(row.created_time);
+      if (ts != null && ts > newest) newest = ts;
+    }
+  }
+
+  return newest > 0 ? newest : null;
+}
+
+/** Unix seconds từ `created_at` (ưu tiên) hoặc `created_time` trên model Gommo. */
+export function modelCreatedUnix(model: GommoModel): number | null {
+  const raw = model as unknown as Record<string, unknown>;
+  const candidates = [raw.created_at, raw.created_time, model.created_at, model.created_time];
+  for (const at of candidates) {
+    const ts = parseCreatedUnix(at);
+    if (ts != null) return ts;
+  }
+  return maxNestedModeCreatedUnix(model);
+}
+
 export function buildNewModelChecker(models: GommoModel[]): (m: GommoModel) => boolean {
   let newest = 0;
   for (const m of models) {
-    if (typeof m.created_time === 'number' && m.created_time > newest) newest = m.created_time;
+    const ts = modelCreatedUnix(m);
+    if (ts != null && ts > newest) newest = ts;
   }
   const threshold = newest - 30 * 24 * 60 * 60;
-  return (m) =>
-    newest > 0 && typeof m.created_time === 'number' && m.created_time >= threshold;
+  return (m) => {
+    const ts = modelCreatedUnix(m);
+    return newest > 0 && ts != null && ts >= threshold;
+  };
 }
 
 export function modelCapabilityTags(model: GommoModel, jobType: JobType): string[] {

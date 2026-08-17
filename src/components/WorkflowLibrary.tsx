@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Check,
   FolderOpen,
   GitBranch,
   Play,
@@ -24,7 +23,6 @@ import {
   onLibraryUpdated,
   saveTemplate,
   updateGroup,
-  WORKFLOW_GROUP_COLORS,
   type SavedTemplate,
   type TemplateGraph,
   type WorkflowGroup,
@@ -188,7 +186,6 @@ export default function WorkflowLibrary({ open, currentGraph, onOpenTemplate, on
               className={`wflib-tab${activeGroup === g.id ? ' active' : ''}`}
               onClick={() => setActiveGroup(g.id)}
             >
-              <span className="wflib-dot" style={{ background: g.color }} />
               {g.name} <span className="wflib-tab-count">{counts[g.id] ?? 0}</span>
             </button>
           ))}
@@ -267,9 +264,8 @@ function TemplateCard({
 
   return (
     <div className="wflib-card">
-      <div className="wflib-card-thumb" style={group ? { borderColor: group.color } : undefined}>
+      <div className="wflib-card-thumb">
         <FolderOpen size={26} />
-        {group && <span className="wflib-card-tag" style={{ background: group.color }} />}
       </div>
       <div className="wflib-card-body">
         <div className="wflib-card-name" title={template.name}>
@@ -317,11 +313,10 @@ function TemplateCard({
 function ManageGroups({ groups, onClose }: { groups: WorkflowGroup[]; onClose: () => void }) {
   const { t } = useLocale();
   const [name, setName] = useState('');
-  const [color, setColor] = useState(WORKFLOW_GROUP_COLORS[0]);
 
   const create = () => {
     if (!name.trim()) return;
-    createGroup(name, color);
+    createGroup(name);
     setName('');
   };
 
@@ -349,19 +344,6 @@ function ManageGroups({ groups, onClose }: { groups: WorkflowGroup[]; onClose: (
             onKeyDown={(e) => e.key === 'Enter' && create()}
             placeholder={t('workflow.lib.newGroupPlaceholder')}
           />
-          <div className="wflib-swatches">
-            {WORKFLOW_GROUP_COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                className={`wflib-swatch${color === c ? ' active' : ''}`}
-                style={{ background: c }}
-                onClick={() => setColor(c)}
-              >
-                {color === c && <Check size={12} />}
-              </button>
-            ))}
-          </div>
           <button type="button" className="wflib-sub-add" onClick={create} disabled={!name.trim()}>
             <Plus size={15} />
           </button>
@@ -391,7 +373,6 @@ function GroupRow({ group }: { group: WorkflowGroup }) {
 
   return (
     <div className="wflib-grp-row">
-      <span className="wflib-dot" style={{ background: group.color }} />
       {editing ? (
         <input
           className="wflib-grp-edit"

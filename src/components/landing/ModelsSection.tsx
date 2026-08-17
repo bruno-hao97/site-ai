@@ -7,6 +7,7 @@ import { useModelCatalog } from '../../hooks/useModelCatalog';
 import { useLocale } from '../../i18n';
 import {
   buildNewModelChecker,
+  modelCreatedUnix,
   modelLabel,
   modelOnSale,
   modelPriceLabel,
@@ -26,7 +27,10 @@ export default function ModelsSection() {
     const sorted = [...available].sort((a, b) => {
       const aScore = (isNew(a.model) ? 2 : 0) + (modelOnSale(a.model) ? 1 : 0);
       const bScore = (isNew(b.model) ? 2 : 0) + (modelOnSale(b.model) ? 1 : 0);
-      return bScore - aScore || (b.model.created_time ?? 0) - (a.model.created_time ?? 0);
+      return (
+        bScore - aScore ||
+        (modelCreatedUnix(b.model) ?? 0) - (modelCreatedUnix(a.model) ?? 0)
+      );
     });
     return sorted.slice(0, 4);
   }, [available]);

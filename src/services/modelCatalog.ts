@@ -1,9 +1,14 @@
 import type { GommoEnvelope, GommoModel, JobType } from './api';
 import { getGommoClient, isLoggedIn } from './authStore';
 import { gommoDeviceFields } from './gommoDevice';
-import { parseModelsList } from './modelSchema';
+import {
+  getCachedModels,
+  isModelAvailable,
+  mergeModelsBySlug,
+  parseModelsList,
+  setCachedModels,
+} from './modelSchema';
 import { DEFAULT_DOMAIN } from './settingsStore';
-import { isModelAvailable } from './modelSchema';
 import { modelOnSale } from './modelCatalogDisplay';
 
 export interface CatalogModel {
@@ -70,16 +75,29 @@ export async function fetchAnonymousModels(type: JobType): Promise<GommoModel[]>
 }
 
 async function fetchModelsForType(type: JobType): Promise<GommoModel[]> {
+  const cached = getCachedModels(type);
+  if (cached?.length) return cached;
+
+  const lists: GommoModel[][] = [];
+
+  try {
+    lists.push(await fetchAnonymousModels(type));
+  } catch {
+    /* anonymous fail — thử auth bên dưới */
+  }
+
   if (isLoggedIn()) {
     try {
       const client = getGommoClient();
-      const envelope = await client.fetchModels(type);
-      return client.listModels(envelope);
+      lists.push(parseModelsList(await client.fetchModels(type)));
     } catch {
-      /* fallback anonymous */
+      /* auth fail */
     }
   }
-  return fetchAnonymousModels(type);
+
+  const merged = mergeModelsBySlug(lists);
+  if (merged.length) setCachedModels(type, merged);
+  return merged;
 }
 
 let catalogCache: CatalogModel[] | null = null;
@@ -89,7 +107,7 @@ export async function fetchModelCatalog(
   types: JobType[] = CATALOG_JOB_TYPES,
   { force = false }: { force?: boolean } = {},
 ): Promise<CatalogModel[]> {
-  if (!force && catalogCache) return catalogCache;
+  if (!force && catalogCache && catalogCache.length > 0) return catalogCache;
   if (!force && catalogPromise) return catalogPromise;
 
   catalogPromise = Promise.allSettled(types.map((jobType) => fetchModelsForType(jobType))).then(

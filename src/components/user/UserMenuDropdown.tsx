@@ -211,7 +211,6 @@ export default function UserMenuDropdown({ credits, onCreditsRefresh }: Props) {
                       className="user-menu-proj-open"
                       onClick={() => openProject(p.id)}
                     >
-                      <span className="project-pick-dot" style={{ background: p.color }} />
                       <span className="user-menu-proj-name">{p.name}</span>
                       <span className="user-menu-proj-count">{counts[p.id] ?? 0}</span>
                     </button>

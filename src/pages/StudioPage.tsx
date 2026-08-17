@@ -96,6 +96,7 @@ import { usePendingJobs } from '../hooks/usePendingJobs';
 import { anchoredPanelStyle, useAnchoredDropdown } from '../hooks/useAnchoredDropdown';
 import { resumeAllPendingJobs } from '../services/pendingJobRunner';
 import { resolveModelPrice } from '../services/modelPricing';
+import { buildNewModelChecker } from '../services/modelCatalogDisplay';
 import {
   formatAcceptedPendingMessage,
   isAcceptedPendingProgressMessage,
@@ -152,6 +153,11 @@ import ComposerVideoOnboarding from '../components/composer/ComposerVideoOnboard
 import ComposerMusicOnboarding from '../components/composer/ComposerMusicOnboarding';
 import ComposerSideSettingsSkeleton from '../components/composer/ComposerSideSettingsSkeleton';
 import { studioTypeFromPath } from '../lib/studioRoutes';
+import {
+  composerRedirectForModelQuery,
+  isVideoEditModel,
+  isVideoMotionModel,
+} from '../lib/studioDeepLink';
 import MusicTrackList, { type MusicTrackItem } from '../components/MusicTrackList';
 import { mediaKindFromUrl, validateMediaUrl } from '../services/mediaUrlValidation';
 import {
@@ -283,11 +289,11 @@ function isModelMaintenance(m: GommoModel): boolean {
 
 // Model dạng "Motion" (Kling Motion…): nhận ảnh nhân vật + video tham chiếu.
 function isMotionModel(m: GommoModel): boolean {
-  return Boolean((m as { withMotion?: boolean }).withMotion);
+  return isVideoMotionModel(m);
 }
 
 function isEditModel(m: GommoModel): boolean {
-  return Boolean((m as { withEdit?: boolean }).withEdit);
+  return isVideoEditModel(m);
 }
 
 // Chuẩn hóa 1 prompt: bỏ khoảng trắng thừa, gộp nhiều dòng/space thành 1 space.
@@ -328,18 +334,6 @@ function modelSelectNotices(m: GommoModel | null): string[] {
   if (Array.isArray(sel)) return sel.filter((x): x is string => typeof x === 'string');
   if (typeof sel === 'string') return [sel];
   return [];
-}
-
-// NEW = model nằm trong đợt phát hành mới nhất (created_time trong vòng 30 ngày
-// so với model mới nhất của danh sách). Robust với clock tuyệt đối.
-function buildNewModelChecker(models: GommoModel[]): (m: GommoModel) => boolean {
-  let newest = 0;
-  for (const m of models) {
-    if (typeof m.created_time === 'number' && m.created_time > newest) newest = m.created_time;
-  }
-  const threshold = newest - 30 * 24 * 60 * 60;
-  return (m: GommoModel) =>
-    newest > 0 && typeof m.created_time === 'number' && m.created_time >= threshold;
 }
 
 function modelOnSale(m: GommoModel): boolean {
@@ -1227,16 +1221,44 @@ export default function StudioPage({
   }, [models, jobType, location.state]);
 
   useEffect(() => {
+    if (!lockType || loadingModels || !models.length) return;
     const fromQuery = searchParams.get('model')?.trim();
-    if (!fromQuery || !models.length) return;
-    if (models.some((m) => modelSlug(m) === fromQuery)) {
-      setSelectedSlug(fromQuery);
+    if (!fromQuery) return;
+    if (models.some((m) => modelSlug(m) === fromQuery)) return;
+
+    const redirect = composerRedirectForModelQuery(fromQuery, location.pathname);
+    if (redirect) {
+      navigate(redirect, { replace: true });
     }
-  }, [models, searchParams]);
+  }, [lockType, loadingModels, models, searchParams, location.pathname, navigate]);
+
+  useEffect(() => {
+    const fromQuery = searchParams.get('model')?.trim();
+    const modeParam = searchParams.get('videoMode');
+
+    if (modeParam === 'edit' || modeParam === 'motion' || modeParam === 'create') {
+      setVideoMode(modeParam);
+    }
+
+    if (!fromQuery || !models.length) return;
+    const match = models.find((m) => modelSlug(m) === fromQuery);
+    if (!match) return;
+
+    if (jobType === 'video' && !modeParam) {
+      if (isEditModel(match) && models.some(isEditModel)) setVideoMode('edit');
+      else if (isMotionModel(match) && models.some(isMotionModel)) setVideoMode('motion');
+      else setVideoMode('create');
+    }
+    setSelectedSlug(fromQuery);
+  }, [models, searchParams, jobType]);
 
   // Luôn chọn sẵn 1 model khi vào trang / đổi loại job (giống 79AI): ưu tiên model
   // dùng gần đây còn khả dụng, rồi tới model đầu tiên đang ON.
   useEffect(() => {
+    const fromQuery = searchParams.get('model')?.trim();
+    if (fromQuery && models.some((m) => modelSlug(m) === fromQuery)) return;
+    if (fromQuery && composerRedirectForModelQuery(fromQuery, location.pathname)) return;
+
     if (!pickerModels.length) return;
     if (selectedSlug && pickerModels.some((m) => modelSlug(m) === selectedSlug)) return;
     const bySlug = new Map(pickerModels.map((m) => [modelSlug(m), m] as const));
@@ -1246,7 +1268,7 @@ export default function StudioPage({
     const fallback = pickerModels.find((m) => !isModelMaintenance(m)) ?? pickerModels[0];
     const pick = recent ?? fallback;
     if (pick) setSelectedSlug(modelSlug(pick));
-  }, [pickerModels, selectedSlug, jobType]);
+  }, [pickerModels, selectedSlug, jobType, searchParams, models, location.pathname]);
 
   useEffect(() => {
     if (!currentModel) {

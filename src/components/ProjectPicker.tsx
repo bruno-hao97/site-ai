@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, FolderPlus, Plus, X } from 'lucide-react';
+import { Check, FolderOpen, FolderPlus, Plus, X } from 'lucide-react';
 import { useLocale } from '../i18n';
 import {
   assignItem,
@@ -137,7 +137,7 @@ export default function ProjectPicker({
       >
         {current ? (
           <>
-            <span className="project-pick-dot" style={{ background: current.color }} />
+            <FolderOpen size={15} aria-hidden />
             <span className="project-pick-label">{current.name}</span>
           </>
         ) : (
@@ -175,7 +175,6 @@ export default function ProjectPicker({
                   className="project-pick-item"
                   onClick={() => pick(p.id)}
                 >
-                  <span className="project-pick-dot" style={{ background: p.color }} />
                   <span className="project-pick-name">{p.name}</span>
                   {currentId === p.id && <Check size={14} className="project-pick-check" />}
                 </button>

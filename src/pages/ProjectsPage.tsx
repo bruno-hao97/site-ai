@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Check,
   FileAudio,
   FolderOpen,
   GitBranch,
@@ -28,7 +27,6 @@ import {
   setAutoAssignEnabled,
   setDefaultProjectId,
   updateProject,
-  PROJECT_COLORS,
   type Project,
   type ProjectItem,
 } from '../services/projectStore';
@@ -236,31 +234,20 @@ export default function ProjectsPage() {
         const preview = it.prompt?.trim() || t('projects.chatPreviewEmpty');
         return (
           <article key={it.itemId} className="project-chat-item">
-            <div
-              className="project-chat-thumb"
-              style={group ? { borderColor: `${group.color}55` } : undefined}
-            >
+            <div className="project-chat-thumb">
               <span className="project-chat-icon-wrap" aria-hidden>
                 <MessageCircle size={24} strokeWidth={1.85} />
               </span>
               <p className="project-chat-preview" title={preview}>
                 {preview}
               </p>
-              {group && (
-                <span className="project-chat-dot" style={{ background: group.color }} />
-              )}
             </div>
             <div className="project-chat-body">
               <h3 className="project-chat-name" title={title}>
                 {title}
               </h3>
               <p className="project-chat-meta">{t('projects.chatMeta')}</p>
-              {!selected && group && (
-                <p className="project-chat-group">
-                  <span className="project-pick-dot" style={{ background: group.color }} />
-                  {group.name}
-                </p>
-              )}
+              {!selected && group && <p className="project-chat-group">{group.name}</p>}
             </div>
             <div className="project-chat-actions">
               <button
@@ -292,12 +279,8 @@ export default function ProjectsPage() {
         const group = projects.find((p) => p.id === tpl.groupId) || null;
         return (
           <article key={tpl.id} className="project-wf-item">
-            <div
-              className="project-wf-thumb"
-              style={group ? { borderColor: group.color } : undefined}
-            >
+            <div className="project-wf-thumb">
               <GitBranch size={28} strokeWidth={1.5} />
-              {group && <span className="project-wf-dot" style={{ background: group.color }} />}
             </div>
             <div className="project-wf-body">
               <h3 className="project-wf-name" title={tpl.name}>
@@ -306,12 +289,7 @@ export default function ProjectsPage() {
               <p className="project-wf-meta">
                 {t('workflow.lib.nodeCount', { count: tpl.nodeCount })}
               </p>
-              {!selected && group && (
-                <p className="project-wf-group">
-                  <span className="project-pick-dot" style={{ background: group.color }} />
-                  {group.name}
-                </p>
-              )}
+              {!selected && group && <p className="project-wf-group">{group.name}</p>}
             </div>
             <div className="project-wf-actions">
               <button type="button" className="project-wf-open" onClick={() => openWorkflow(tpl)}>
@@ -413,7 +391,6 @@ export default function ProjectsPage() {
                 role="button"
                 tabIndex={0}
               >
-                <span className="project-pick-dot" style={{ background: p.color }} />
                 {editing === p.id ? (
                   <input
                     className="projects-edit-input"
@@ -480,9 +457,6 @@ export default function ProjectsPage() {
         <section className="projects-main">
           <header className="projects-main-head">
             <div className="projects-main-title">
-              {selectedProject && (
-                <span className="project-pick-dot" style={{ background: selectedProject.color }} />
-              )}
               <h1 className="projects-main-heading">
                 {selectedProject ? selectedProject.name : t('projects.allTitle')}
               </h1>
@@ -516,23 +490,6 @@ export default function ProjectsPage() {
                 placeholder={searchPlaceholder}
               />
             </div>
-
-            {selectedProject && (
-              <div className="projects-color-row">
-                {PROJECT_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    className={`projects-color${selectedProject.color === c ? ' active' : ''}`}
-                    style={{ background: c }}
-                    onClick={() => updateProject(selectedProject.id, { color: c })}
-                    aria-label={t('projects.colorAria')}
-                  >
-                    {selectedProject.color === c && <Check size={12} />}
-                  </button>
-                ))}
-              </div>
-            )}
 
             <div className="projects-cats" role="tablist" aria-label={t('projects.allTitle')}>
               {CAT_KEYS.map((c) => (

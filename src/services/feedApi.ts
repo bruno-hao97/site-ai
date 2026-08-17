@@ -370,6 +370,17 @@ function isVideoMediaUrl(url: string): boolean {
   return /\.(mp4|webm|mov|m4v|m3u8|avi)(\?|$)/i.test(base) || base.includes('/video/');
 }
 
+/** URL video để preview (clip ngắn hoặc file gốc). */
+export function feedPreviewVideoUrl(item: FeedItem): string | null {
+  const preview = item.url_preview?.trim();
+  if (preview && isVideoMediaUrl(preview)) return preview;
+  const media = feedMediaUrl(item);
+  if (media && isVideoMediaUrl(media)) return media;
+  const thumb = feedThumb(item);
+  if (thumb && isVideoMediaUrl(thumb)) return thumb;
+  return null;
+}
+
 export function isAudioMediaUrl(url: string): boolean {
   const base = url.split('?')[0].split('#')[0].toLowerCase();
   return /\.(mp3|wav|ogg|m4a|aac|flac|opus)(\?|$)/i.test(base) || base.includes('/audio/');

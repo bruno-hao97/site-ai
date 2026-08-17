@@ -24,15 +24,10 @@ export interface ProjectItem {
 /** Dữ liệu tối thiểu để gắn một item Gommo vào project. */
 export type ProjectItemSnapshot = Omit<ProjectItem, 'projectId' | 'addedAt'>;
 
+export const DEFAULT_PROJECT_COLOR = '#64748b';
+
 export const PROJECT_COLORS = [
-  '#2dd4bf',
-  '#60a5fa',
-  '#a78bfa',
-  '#f472b6',
-  '#fbbf24',
-  '#31c992',
-  '#f87171',
-  '#38bdf8',
+  DEFAULT_PROJECT_COLOR,
 ];
 
 interface ProjectPrefs {
@@ -216,7 +211,7 @@ export function createProject(name: string, color?: string): Project {
   const project: Project = {
     id: newId('proj'),
     name: name.trim() || 'Dự án mới',
-    color: color || PROJECT_COLORS[list.length % PROJECT_COLORS.length],
+    color: color || DEFAULT_PROJECT_COLOR,
     createdAt: now,
     updatedAt: now,
   };

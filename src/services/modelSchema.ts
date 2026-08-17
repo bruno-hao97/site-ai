@@ -95,7 +95,40 @@ export function parseModelsList(envelopeOrData: unknown): GommoModel[] {
 }
 
 export function modelSlug(model: GommoModel): string {
-  return model?.model || model?.slug || model?.model_id || model?.id || '';
+  const raw = model as { id_base?: string };
+  return (
+    model?.model ||
+    model?.slug ||
+    model?.model_id ||
+    model?.id ||
+    raw.id_base ||
+    ''
+  );
+}
+
+function modelMergeScore(m: GommoModel): number {
+  let score = 0;
+  if (modelSlug(m)) score += 2;
+  if (m.name) score += 1;
+  if (m.description) score += 1;
+  if (m.prices?.length || typeof m.price === 'number') score += 1;
+  return score;
+}
+
+/** Gộp nhiều list model (anonymous + auth), ưu tiên bản đầy đủ field hơn. */
+export function mergeModelsBySlug(lists: GommoModel[][]): GommoModel[] {
+  const bySlug = new Map<string, GommoModel>();
+  for (const list of lists) {
+    for (const m of list) {
+      const slug = modelSlug(m);
+      if (!slug) continue;
+      const prev = bySlug.get(slug);
+      if (!prev || modelMergeScore(m) > modelMergeScore(prev)) {
+        bySlug.set(slug, m);
+      }
+    }
+  }
+  return [...bySlug.values()];
 }
 
 export function isModelAvailable(model: GommoModel): boolean {
