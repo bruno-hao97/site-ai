@@ -3206,6 +3206,15 @@ a.user-pill:hover { color: var(--text); }
   z-index: 5;
 }
 
+/* Portal menus: fixed position via JS, scroll within viewport */
+.qc-menu-portal {
+  position: fixed;
+  bottom: auto;
+  z-index: 1000;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .qc-qty {
   display: inline-flex;
   align-items: center;

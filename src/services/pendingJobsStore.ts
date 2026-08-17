@@ -13,22 +13,77 @@ export interface LibraryPendingJob {
 const KEY = 'library_pending_jobs';
 const MAX_AGE_MS = 45 * 60 * 1000;
 
+export type LibraryTypeTabId = 'image' | 'video' | 'tts' | 'music';
+export type MineFilterLike = 'all' | 'video' | 'image' | 'music' | 'tts' | 'favorite';
+
+const pendingListeners = new Set<() => void>();
+
+const EMPTY_TAB_COUNTS: Record<LibraryTypeTabId, number> = {
+  image: 0,
+  video: 0,
+  tts: 0,
+  music: 0,
+};
+
+let cachedRawSignature = '';
+let cachedRawJobs: LibraryPendingJob[] = [];
+const filteredSnapshots = new Map<MineFilterLike, LibraryPendingJob[]>();
+let cachedTabCounts: Record<LibraryTypeTabId, number> | null = null;
+
+function invalidateSnapshotCaches(): void {
+  cachedRawSignature = '';
+  filteredSnapshots.clear();
+  cachedTabCounts = null;
+}
+
+export function subscribePendingStore(onStoreChange: () => void): () => void {
+  pendingListeners.add(onStoreChange);
+  return () => pendingListeners.delete(onStoreChange);
+}
+
+function notifyPendingStore(): void {
+  invalidateSnapshotCaches();
+  for (const listener of pendingListeners) listener();
+  document.dispatchEvent(new CustomEvent('pending:updated'));
+}
+
 function loadRaw(): LibraryPendingJob[] {
   try {
-    const raw = sessionStorage.getItem(KEY);
-    if (!raw) return [];
+    const raw = sessionStorage.getItem(KEY) ?? '';
+    if (raw === cachedRawSignature) return cachedRawJobs;
+    if (!raw) {
+      cachedRawSignature = raw;
+      cachedRawJobs = [];
+      filteredSnapshots.clear();
+      cachedTabCounts = null;
+      return cachedRawJobs;
+    }
     const parsed = JSON.parse(raw) as LibraryPendingJob[];
-    if (!Array.isArray(parsed)) return [];
+    if (!Array.isArray(parsed)) {
+      cachedRawSignature = raw;
+      cachedRawJobs = [];
+      filteredSnapshots.clear();
+      cachedTabCounts = null;
+      return cachedRawJobs;
+    }
     const cutoff = Date.now() - MAX_AGE_MS;
-    return parsed.filter((j) => j.createdAt >= cutoff);
+    cachedRawSignature = raw;
+    cachedRawJobs = parsed.filter((j) => j.createdAt >= cutoff);
+    filteredSnapshots.clear();
+    cachedTabCounts = null;
+    return cachedRawJobs;
   } catch {
-    return [];
+    cachedRawSignature = '';
+    cachedRawJobs = [];
+    filteredSnapshots.clear();
+    cachedTabCounts = null;
+    return cachedRawJobs;
   }
 }
 
 function save(jobs: LibraryPendingJob[]): void {
   sessionStorage.setItem(KEY, JSON.stringify(jobs));
-  document.dispatchEvent(new CustomEvent('pending:updated'));
+  notifyPendingStore();
 }
 
 export function listPendingJobs(): LibraryPendingJob[] {
@@ -79,11 +134,16 @@ export function markPendingFailed(id: string): void {
   patchPendingJob(id, { status: 'failed', progress: 100 });
 }
 
+/** Xóa job failed cũ khỏi session (Library không hiển thị failed). */
+export function clearFailedPendingJobs(): void {
+  const jobs = loadRaw();
+  const next = jobs.filter((j) => j.status !== 'failed');
+  if (next.length !== jobs.length) save(next);
+}
+
 export function removePendingJob(id: string): void {
   save(loadRaw().filter((j) => j.id !== id));
 }
-
-export type LibraryTypeTabId = 'image' | 'video' | 'tts' | 'music';
 
 export function jobTypeToLibraryTab(type: JobType): LibraryTypeTabId {
   if (type === 'music') return 'music';
@@ -92,27 +152,49 @@ export function jobTypeToLibraryTab(type: JobType): LibraryTypeTabId {
   return 'image';
 }
 
-export function countProcessingByLibraryTab(): Record<LibraryTypeTabId, number> {
+function buildTabCounts(jobs: LibraryPendingJob[]): Record<LibraryTypeTabId, number> {
   const counts: Record<LibraryTypeTabId, number> = {
     image: 0,
     video: 0,
     tts: 0,
     music: 0,
   };
-  for (const job of loadRaw()) {
+  for (const job of jobs) {
     if (job.status !== 'processing') continue;
     counts[jobTypeToLibraryTab(job.type)]++;
   }
   return counts;
 }
 
+export function countProcessingByLibraryTab(): Record<LibraryTypeTabId, number> {
+  return buildTabCounts(loadRaw());
+}
+
+/** Stable snapshot for useSyncExternalStore — same reference until store notifies. */
+export function getPendingJobsSnapshot(filter: MineFilterLike): LibraryPendingJob[] {
+  loadRaw();
+  const cached = filteredSnapshots.get(filter);
+  if (cached) return cached;
+  const next = cachedRawJobs.filter((j) => pendingMatchesFilter(j, filter));
+  filteredSnapshots.set(filter, next);
+  return next;
+}
+
+/** Stable snapshot for useSyncExternalStore — same reference until store notifies. */
+export function getPendingTabCountsSnapshot(): Record<LibraryTypeTabId, number> {
+  loadRaw();
+  if (!cachedTabCounts) cachedTabCounts = buildTabCounts(cachedRawJobs);
+  return cachedTabCounts;
+}
+
+export const EMPTY_PENDING_JOBS: LibraryPendingJob[] = [];
+export const EMPTY_PENDING_TAB_COUNTS = EMPTY_TAB_COUNTS;
+
 export function libraryRouteForJobType(type: JobType): string {
   const tab =
     type === 'music' ? 'music' : type === 'tts' ? 'tts' : type === 'video' ? 'video' : 'image';
   return `/library?type=${tab}`;
 }
-
-export type MineFilterLike = 'all' | 'video' | 'image' | 'music' | 'tts' | 'favorite';
 
 export function studioJobTypeToFilter(type: JobType): MineFilterLike {
   if (type === 'music') return 'music';

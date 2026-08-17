@@ -85,12 +85,17 @@ import { createJobAndPoll, type PollProgress } from '../services/polling';
 import {
   addPendingJob,
   bumpPendingProgress as bumpStoredPendingProgress,
+  listPendingJobs,
   markPendingFailed,
   patchPendingJob,
+  pendingMatchesFilter,
   removePendingJob,
   studioJobTypeToFilter,
 } from '../services/pendingJobsStore';
 import { usePendingJobs } from '../hooks/usePendingJobs';
+import { anchoredPanelStyle, useAnchoredDropdown } from '../hooks/useAnchoredDropdown';
+import { resumeAllPendingJobs } from '../services/pendingJobRunner';
+import { resolveModelPrice } from '../services/modelPricing';
 import {
   formatAcceptedPendingMessage,
   isAcceptedPendingProgressMessage,
@@ -271,27 +276,6 @@ function modelPriceLabel(m: GommoModel): string {
   return min === max ? formatPrice(min) : `${formatPrice(min)}-${formatPrice(max)}`;
 }
 
-// Giá thực tế theo tổ hợp mode + resolution đang chọn. Xử lý mọi dạng prices[]:
-// có cả mode+resolution, chỉ resolution (Kling), hoặc chỉ mode (Midjourney 7.0).
-function resolveModelPrice(
-  model: GommoModel | null,
-  mode: string,
-  resolution: string,
-): number {
-  if (!model) return 0;
-  const prices = model.prices;
-  if (!Array.isArray(prices) || prices.length === 0) return model.price ?? 0;
-  const eq = (a?: string, b?: string) => (a ?? '').toLowerCase() === (b ?? '').toLowerCase();
-
-  const hit =
-    prices.find((p) => eq(p.mode, mode) && eq(p.resolution, resolution)) ??
-    prices.find((p) => p.mode == null && eq(p.resolution, resolution)) ??
-    prices.find((p) => p.resolution == null && eq(p.mode, mode)) ??
-    prices.find((p) => eq(p.resolution, resolution)) ??
-    prices.find((p) => eq(p.mode, mode));
-  return hit?.price ?? model.price ?? prices[0]?.price ?? 0;
-}
-
 function isModelMaintenance(m: GommoModel): boolean {
   const s = String(m.status || 'ON').toUpperCase();
   return s !== 'ON' && s !== 'ACTIVE';
@@ -390,85 +374,6 @@ function pushRecentModelSlug(slug: string, type: JobType): void {
   } catch {
     /* ignore */
   }
-}
-
-interface AnchorPos {
-  top: number;
-  left: number;
-  width: number;
-  maxHeight: number;
-  placement: 'down' | 'up';
-}
-
-// Định vị panel theo trigger (fixed) + đóng khi click ngoài/Escape + reposition khi
-// cuộn/resize. Dùng cho dropdown render qua portal để không bị container overflow cắt.
-function useAnchoredDropdown(open: boolean, setOpen: (v: boolean) => void) {
-  const triggerRef = useRef<HTMLDivElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<AnchorPos | null>(null);
-
-  const updatePos = useCallback(() => {
-    const el = triggerRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const gap = 4;
-    const spaceBelow = window.innerHeight - r.bottom - 8;
-    const spaceAbove = r.top - 8;
-    const placeUp = spaceBelow < 240 && spaceAbove > spaceBelow;
-    const maxHeight = Math.max(200, Math.min(560, (placeUp ? spaceAbove : spaceBelow) - gap));
-    setPos({
-      left: r.left,
-      width: r.width,
-      top: placeUp ? r.top - gap : r.bottom + gap,
-      maxHeight,
-      placement: placeUp ? 'up' : 'down',
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!open) {
-      setPos(null);
-      return;
-    }
-    updatePos();
-    const onDoc = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (triggerRef.current?.contains(t)) return;
-      if (panelRef.current?.contains(t)) return;
-      setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onKey);
-    window.addEventListener('scroll', updatePos, true);
-    window.addEventListener('resize', updatePos);
-    return () => {
-      document.removeEventListener('mousedown', onDoc);
-      document.removeEventListener('keydown', onKey);
-      window.removeEventListener('scroll', updatePos, true);
-      window.removeEventListener('resize', updatePos);
-    };
-  }, [open, setOpen, updatePos]);
-
-  return { triggerRef, panelRef, pos };
-}
-
-function anchoredPanelStyle(pos: AnchorPos | null): CSSProperties | undefined {
-  if (!pos) return undefined;
-  // Panel có thể rộng hơn trigger do min-width (option 180 / model 320). Clamp mép
-  // trái để không tràn khỏi viewport bên phải.
-  const effectiveWidth = Math.max(pos.width, 320);
-  const left = Math.max(8, Math.min(pos.left, window.innerWidth - effectiveWidth - 8));
-  return {
-    position: 'fixed',
-    left,
-    width: pos.width,
-    top: pos.top,
-    maxHeight: pos.maxHeight,
-    ...(pos.placement === 'up' ? { transform: 'translateY(-100%)' } : {}),
-  };
 }
 
 function ModelPicker({
@@ -838,7 +743,10 @@ export default function StudioPage({
   const [refSelectMode, setRefSelectMode] = useState<'fixed' | 'sequential' | 'random'>('sequential');
   const [concurrencyLimit, setConcurrencyLimit] = useState(2);
   const [multiRefs, setMultiRefs] = useState<string[]>([]);
-  const storedPendingJobs = usePendingJobs(studioJobTypeToFilter(jobType));
+  const pendingFilter = studioJobTypeToFilter(
+    (lockType ? studioTypeFromPath(location.pathname) : null) ?? jobType,
+  );
+  const storedPendingJobs = usePendingJobs(pendingFilter);
   const pendingJobs: PendingJob[] = useMemo(
     () =>
       storedPendingJobs
@@ -995,8 +903,23 @@ export default function StudioPage({
   // fallback về unitCost nếu model chưa có bảng giá.
   const composerCost = useMemo(() => {
     if (isMotionView) return motionRatePerSec;
-    return resolveModelPrice(currentModel, selections.mode || '', selections.resolution || '') || unitCost;
-  }, [isMotionView, motionRatePerSec, currentModel, selections.mode, selections.resolution, unitCost]);
+    return (
+      resolveModelPrice(
+        currentModel,
+        selections.mode || '',
+        selections.resolution || '',
+        selections.duration || '',
+      ) || unitCost
+    );
+  }, [
+    isMotionView,
+    motionRatePerSec,
+    currentModel,
+    selections.mode,
+    selections.resolution,
+    selections.duration,
+    unitCost,
+  ]);
   const submitQty = composerMode === 'multi' ? 1 : qty;
   const submitTotalCost = useMemo(() => {
     if (isMotionView) {
@@ -1006,7 +929,15 @@ export default function StudioPage({
       return selectedSlugs.reduce((sum, slug) => {
         const m = pickerModels.find((x) => modelSlug(x) === slug);
         if (!m) return sum;
-        return sum + (resolveModelPrice(m, selections.mode || '', selections.resolution || '') || unitCost);
+        return (
+          sum +
+          (resolveModelPrice(
+            m,
+            selections.mode || '',
+            selections.resolution || '',
+            selections.duration || '',
+          ) || unitCost)
+        );
       }, 0);
     }
     return (composerCost || 0) * submitQty;
@@ -1020,6 +951,7 @@ export default function StudioPage({
     composerCost,
     selections.mode,
     selections.resolution,
+    selections.duration,
     unitCost,
   ]);
 
@@ -1262,6 +1194,26 @@ export default function StudioPage({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, lockType]);
+
+  useEffect(() => {
+    if (!lockType) return;
+    const routeType = studioTypeFromPath(location.pathname);
+    if (routeType !== 'video' && routeType !== 'image') return;
+    resumeAllPendingJobs();
+    const filter = studioJobTypeToFilter(routeType);
+    const hasPending = listPendingJobs().some(
+      (j) => j.status === 'processing' && pendingMatchesFilter(j, filter),
+    );
+    if (hasPending) setMainTab('current');
+    // Chỉ khi vào /video|/image — không ép tab mỗi lần progress tick
+  }, [location.pathname, lockType]);
+
+  useEffect(() => {
+    if (!storedPendingJobs.some((j) => j.status === 'processing')) return;
+    resumeAllPendingJobs();
+    const timer = window.setInterval(() => resumeAllPendingJobs(), 12_000);
+    return () => window.clearInterval(timer);
+  }, [storedPendingJobs]);
 
   useEffect(() => {
     const reuse = (location.state as { reuseHistory?: {
@@ -1916,17 +1868,17 @@ export default function StudioPage({
     isImageComposer &&
     mainTab === 'current' &&
     displayedResults.length === 0 &&
-    pendingJobs.length === 0;
+    storedPendingJobs.every((j) => j.status !== 'processing');
   const showVideoOnboarding =
     isVideoCreateComposer &&
     mainTab === 'current' &&
     displayedResults.length === 0 &&
-    pendingJobs.length === 0;
+    storedPendingJobs.every((j) => j.status !== 'processing');
   const showMusicOnboarding =
     isMusicComposer &&
     mainTab === 'current' &&
     displayedResults.length === 0 &&
-    pendingJobs.length === 0;
+    storedPendingJobs.every((j) => j.status !== 'processing');
   const showStudioOnboarding =
     showImageOnboarding || showVideoOnboarding || showMusicOnboarding;
 
@@ -3638,6 +3590,57 @@ export default function StudioPage({
               onItemDeleted={handleFeedItemDeleted}
               buildPreviewHandlers={buildPreviewHandlers}
             />
+          ) : mainTab === 'current' && pendingJobs.length > 0 && displayedResults.length === 0 ? (
+            <div className={useClibLayout ? 'clib-wrap' : 'composer-results'}>
+              <section className={useClibLayout ? 'clib-group' : 'composer-day-group'}>
+                {useClibLayout ? (
+                  <header className="clib-group-head">
+                    <span className="clib-group-label">{t('studio.pending.section')}</span>
+                    <span className="clib-count">({pendingJobs.length})</span>
+                  </header>
+                ) : (
+                  <h3 className="composer-day">{t('studio.pending.section')}</h3>
+                )}
+                <div
+                  className={useClibLayout ? 'clib-grid' : 'composer-grid'}
+                  style={
+                    useClibLayout
+                      ? { ['--clib-thumb' as string]: `${zoom}px` }
+                      : { ['--thumb' as string]: `${zoom}px` }
+                  }
+                >
+                  {pendingJobs.map((p) => (
+                    <article
+                      key={p.id}
+                      className={`hist-card hist-card-pending-vmedia ${p.status}`}
+                    >
+                      <div className="pending-vmedia-body">
+                        <span className="pending-spinner-lg" aria-hidden />
+                        <span className="pending-vmedia-label">{t('studio.pending.badge')}</span>
+                        <div
+                          className="pending-vmedia-bar"
+                          role="progressbar"
+                          aria-valuenow={p.progress ?? 12}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-label={t('studio.pending.progressAria')}
+                        >
+                          <div
+                            className="pending-vmedia-bar-fill"
+                            style={{ width: `${p.progress ?? 12}%` }}
+                          />
+                        </div>
+                      </div>
+                      {p.prompt ? (
+                        <p className="pending-vmedia-prompt" title={p.prompt}>
+                          {p.prompt}
+                        </p>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              </section>
+            </div>
           ) : showImageOnboarding ? (
             <ComposerImageOnboarding onApplyPrompt={(prompt) => updateSelection('prompt', prompt)} />
           ) : showVideoOnboarding ? (

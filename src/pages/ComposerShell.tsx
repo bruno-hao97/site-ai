@@ -9,7 +9,7 @@ export default function ComposerShell() {
   if (!type) return <Navigate to="/image" replace />;
   return (
     <>
-      <StudioPage lockType />
+      <StudioPage lockType initialType={type} />
       <Outlet />
     </>
   );

@@ -8,8 +8,6 @@ import ChatHero from '../components/chat/ChatHero';
 import ChatCompose, { type ChatAttachmentPreview } from '../components/chat/ChatCompose';
 import ChatSuggestions from '../components/chat/ChatSuggestions';
 import ChatMessageList from '../components/chat/ChatMessageList';
-import ChatMarketplaceStrip from '../components/chat/ChatMarketplaceStrip';
-import ChatMarketsModal from '../components/chat/ChatMarketsModal';
 import { askGommo, isGommoChatConfigured, type ChatAttachment, type ChatTurn } from '../services/gommoChat';
 import {
   loadChatPageModelId,
@@ -26,7 +24,7 @@ import {
   MINI_APP_PROMPT_KEY,
   type ChatActionPill,
 } from '../services/chatPageData';
-import { fetchMiniAppInfo, type MarketplaceApp } from '../services/miniAppsApi';
+import { fetchMiniAppInfo } from '../services/miniAppsApi';
 import { uploadQuickImage } from '../services/quickCreate';
 import { notifyCreditsUpdated, refreshSession } from '../services/authStore';
 import {
@@ -81,7 +79,6 @@ export default function ChatPage() {
   const [modelId, setModelId] = useState(() => loadChatPageModelId());
   const [agentId] = useState(() => loadChatPageAgentId());
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
-  const [marketsOpen, setMarketsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
   const [projectFilter, setProjectFilter] = useState<ChatProjectFilter>(null);
@@ -451,15 +448,6 @@ export default function ChatPage() {
     });
   };
 
-  const handleMarketplaceApp = (app: MarketplaceApp) => {
-    setInput(
-      app.description
-        ? t('chat.page.miniAppGuide', { name: app.title, description: app.description })
-        : t('chat.page.miniAppGuideSimple', { name: app.title }),
-    );
-    textareaFocus();
-  };
-
   return (
     <div className="chat-page">
       <ChatSidebar
@@ -517,10 +505,6 @@ export default function ChatPage() {
               onFill={setInput}
               disabled={thinking || uploading}
             />
-            <ChatMarketplaceStrip
-              onOpenApp={handleMarketplaceApp}
-              onViewAll={() => setMarketsOpen(true)}
-            />
           </div>
         ) : (
           <div className="chat-thread">
@@ -548,12 +532,6 @@ export default function ChatPage() {
         selectedId={modelId}
         onSelect={onSelectModel}
         onClose={() => setModelPickerOpen(false)}
-      />
-
-      <ChatMarketsModal
-        open={marketsOpen}
-        onClose={() => setMarketsOpen(false)}
-        onOpenApp={handleMarketplaceApp}
       />
     </div>
   );

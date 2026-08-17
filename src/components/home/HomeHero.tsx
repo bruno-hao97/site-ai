@@ -20,10 +20,6 @@ export default function HomeHero() {
   const greet = t(greetingKey(hour));
 
   const onCategory = (item: (typeof HOME_QUICK_MENU)[number]) => {
-    if (item.action === 'open-chat') {
-      window.dispatchEvent(new CustomEvent('quick-chat:open'));
-      return;
-    }
     if (item.href) {
       navigate(item.href);
       return;

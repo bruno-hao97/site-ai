@@ -11,7 +11,6 @@ import { createJobAndPoll, startPolling, type PollProgress } from './polling';
 import { buildProjectSnapshot, tryAutoAssign } from './projectStore';
 import {
   bumpPendingProgress,
-  markPendingFailed,
   removePendingJob,
   patchPendingJob,
   listPendingJobs,
@@ -23,6 +22,18 @@ const activeCreates = new Set<string>();
 
 export function notifyPendingLibraryRefresh(): void {
   document.dispatchEvent(new CustomEvent('history:updated'));
+}
+
+function notifyPendingJobFailed(prompt: string): void {
+  document.dispatchEvent(
+    new CustomEvent('pending:job-failed', { detail: { prompt: prompt.trim() } }),
+  );
+}
+
+function failPendingJob(pendingId: string, displayPrompt = ''): void {
+  removePendingJob(pendingId);
+  notifyPendingJobFailed(displayPrompt);
+  notifyPendingLibraryRefresh();
 }
 
 function schedulePendingRemoval(pendingId: string, delayMs = 45_000): void {
@@ -81,7 +92,7 @@ function handlePendingPollOutcome(
       schedulePendingRemoval(pendingId);
       return;
     }
-    markPendingFailed(pendingId);
+    failPendingJob(pendingId, displayPrompt);
     return;
   }
 
@@ -103,7 +114,7 @@ export async function runCreateAndPollPendingJob(args: {
   try {
     const auth = loadAuth();
     if (!auth) {
-      markPendingFailed(pendingId);
+      failPendingJob(pendingId, displayPrompt);
       return;
     }
 
@@ -140,7 +151,7 @@ export async function runCreateAndPollPendingJob(args: {
       schedulePendingRemoval(pendingId);
       return;
     }
-    markPendingFailed(pendingId);
+    failPendingJob(pendingId, displayPrompt);
   } finally {
     activeCreates.delete(pendingId);
   }
@@ -183,7 +194,7 @@ export async function resumePendingJobPoll(job: LibraryPendingJob): Promise<void
       return;
     }
 
-    markPendingFailed(job.id);
+    failPendingJob(job.id, job.prompt);
     notifyPendingLibraryRefresh();
   } finally {
     activeResumes.delete(job.id);
@@ -210,7 +221,7 @@ export function runQuickJobBackground(args: {
 }): void {
   const auth = loadAuth();
   if (!auth) {
-    markPendingFailed(args.pendingId);
+    failPendingJob(args.pendingId, args.displayPrompt);
     return;
   }
 

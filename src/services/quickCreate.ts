@@ -12,9 +12,27 @@ export function canQuickCreate(): boolean {
   return Boolean(loadAuth()?.access_token?.trim());
 }
 
+export function isMotionModel(m: GommoModel): boolean {
+  return Boolean(m.withMotion);
+}
+
+export function isEditModel(m: GommoModel): boolean {
+  return Boolean(m.withEdit);
+}
+
+/** Quickstart video: cùng bộ model create thường như Studio (không Motion/Edit). */
+export function filterQuickCreateModels(type: JobType, models: GommoModel[]): GommoModel[] {
+  if (type !== 'video') return models;
+  const hasMotion = models.some(isMotionModel);
+  const hasEdit = models.some(isEditModel);
+  if (!hasMotion && !hasEdit) return models;
+  return models.filter((m) => !isMotionModel(m) && !isEditModel(m));
+}
+
 export async function loadQuickModels(type: JobType): Promise<GommoModel[]> {
   if (!loadAuth()) return [];
-  return parseModelsList(await getGommoClient().fetchModels(type));
+  const list = parseModelsList(await getGommoClient().fetchModels(type));
+  return filterQuickCreateModels(type, list);
 }
 
 export function buildQuickSchema(model: GommoModel, type: JobType): ModelSchema {

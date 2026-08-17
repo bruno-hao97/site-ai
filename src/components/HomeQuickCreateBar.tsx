@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronDown,
@@ -34,40 +35,37 @@ import {
 } from '../services/quickCreate';
 import { modelPriceRangeLabel, resolveModelPrice } from '../services/modelPricing';
 import { addPendingJob, libraryRouteForJobType } from '../services/pendingJobsStore';
-import { HOME_QUICK_MENU, type HomeQuickMenuItem } from '../lib/homeQuickMenu';
+import {
+  HOME_QUICK_MENU,
+  type HomeQuickMenuItem,
+  type QuickCreateJobType,
+} from '../lib/homeQuickMenu';
 import HomeCategoryIcon from './home/HomeCategoryIcon';
 import { useLocale } from '../i18n';
 import type { TranslationKey } from '../i18n/types';
+import { anchoredPanelStyle, useAnchoredDropdown } from '../hooks/useAnchoredDropdown';
 
-const JOB_TYPES: JobType[] = ['video', 'image', 'tts', 'music'];
+const QUICK_CREATE_TYPES: QuickCreateJobType[] = ['video', 'image'];
 
 const MAX_MEDIA = 4;
 
-function typeShortLabel(type: JobType, t: (key: TranslationKey) => string): string {
+function typeShortLabel(type: QuickCreateJobType, t: (key: TranslationKey) => string): string {
   switch (type) {
     case 'video':
       return t('home.quickCreate.type.video');
     case 'image':
       return t('home.quickCreate.type.image');
-    case 'tts':
-      return t('home.quickCreate.type.tts');
-    case 'music':
-      return t('home.quickCreate.type.music');
     default:
       return type.toUpperCase();
   }
 }
 
-function promptPlaceholder(type: JobType, t: (key: TranslationKey) => string): string {
+function promptPlaceholder(type: QuickCreateJobType, t: (key: TranslationKey) => string): string {
   switch (type) {
     case 'video':
       return t('home.quickCreate.placeholder.video');
     case 'image':
       return t('home.quickCreate.placeholder.image');
-    case 'tts':
-      return t('home.quickCreate.placeholder.tts');
-    case 'music':
-      return t('home.quickCreate.placeholder.music');
     default:
       return t('home.quickCreate.placeholder.default');
   }
@@ -86,7 +84,8 @@ interface MiniDropdownProps {
 
 function MiniDropdown({ icon, options, value, onChange }: MiniDropdownProps) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const { triggerRef, panelRef, pos } = useAnchoredDropdown(open, setOpen);
+  const panelStyle = anchoredPanelStyle(pos, { minWidth: 110 });
   const resolved = pickAllowedOption(value, options) ?? options[0]?.value ?? '';
   const current = options.find((o) => o.value === resolved) ?? options[0];
 
@@ -97,41 +96,35 @@ function MiniDropdown({ icon, options, value, onChange }: MiniDropdownProps) {
     if (next && next !== value) onChange(next);
   }, [options, value, onChange]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [open]);
-
   if (!options.length) return null;
 
   return (
-    <div className="qc-mini" ref={ref}>
+    <div className="qc-mini" ref={triggerRef}>
       <button type="button" className="qc-mini-trigger" onClick={() => setOpen((v) => !v)}>
         {icon}
         <span>{current?.label ?? resolved}</span>
         <ChevronDown size={12} />
       </button>
-      {open && (
-        <div className="qc-mini-menu">
-          {options.map((o) => (
-            <button
-              key={o.value}
-              type="button"
-              className={o.value === resolved ? 'active' : ''}
-              onClick={() => {
-                onChange(o.value);
-                setOpen(false);
-              }}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-      )}
+      {open &&
+        pos &&
+        createPortal(
+          <div className="qc-mini-menu qc-menu-portal" ref={panelRef} style={panelStyle}>
+            {options.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                className={o.value === resolved ? 'active' : ''}
+                onClick={() => {
+                  onChange(o.value);
+                  setOpen(false);
+                }}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -140,9 +133,9 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
   const navigate = useNavigate();
   const { t } = useLocale();
   const isHero = variant === 'hero';
-  const [type, setType] = useState<JobType>('video');
+  const [type, setType] = useState<QuickCreateJobType>('video');
   const [typeMenuOpen, setTypeMenuOpen] = useState(false);
-  const [typeCounts, setTypeCounts] = useState<Partial<Record<JobType, number>>>({});
+  const [typeCounts, setTypeCounts] = useState<Partial<Record<QuickCreateJobType, number>>>({});
   const [expanded, setExpanded] = useState(false);
   const [models, setModels] = useState<GommoModel[]>([]);
   const [modelSlugSel, setModelSlugSel] = useState('');
@@ -159,10 +152,16 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
   const [result, setResult] = useState<{ url: string; type: JobType } | null>(null);
   const [selections, setSelections] = useState<JobSelections>({});
 
-  const typeRef = useRef<HTMLDivElement>(null);
-  const modelRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const { triggerRef: typeTriggerRef, panelRef: typePanelRef, pos: typePos } = useAnchoredDropdown(
+    typeMenuOpen,
+    setTypeMenuOpen,
+  );
+  const typeMenuStyle = anchoredPanelStyle(typePos, { minWidth: 248 });
+  const { triggerRef: modelTriggerRef, panelRef: modelPanelRef, pos: modelPos } =
+    useAnchoredDropdown(modelMenuOpen, setModelMenuOpen);
+  const modelMenuStyle = anchoredPanelStyle(modelPos, { minWidth: 220 });
 
   const currentModel = useMemo(
     () => models.find((m) => modelSlug(m) === modelSlugSel) ?? null,
@@ -174,13 +173,11 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
   );
   const unitCost = useMemo(() => {
     if (!currentModel) return 0;
-    return (
-      resolveModelPrice(
-        currentModel,
-        selections.mode || '',
-        selections.resolution || '',
-        selections.duration || '',
-      ) || (currentModel.price ?? 0)
+    return resolveModelPrice(
+      currentModel,
+      selections.mode || '',
+      selections.resolution || '',
+      selections.duration || '',
     );
   }, [currentModel, selections.mode, selections.resolution, selections.duration]);
   const cost = unitCost * qty;
@@ -206,7 +203,7 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
     if (!canQuickCreate()) return;
     let active = true;
     void Promise.all(
-      JOB_TYPES.map(async (jobType) => {
+      QUICK_CREATE_TYPES.map(async (jobType) => {
         try {
           const list = await loadQuickModels(jobType);
           return [jobType, list.length] as const;
@@ -228,15 +225,6 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
   }, [schema]);
 
   useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
-      if (typeRef.current && !typeRef.current.contains(e.target as Node)) setTypeMenuOpen(false);
-      if (modelRef.current && !modelRef.current.contains(e.target as Node)) setModelMenuOpen(false);
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, []);
-
-  useEffect(() => {
     if (isHero) return;
     document.body.classList.add('qc-dock-active');
     return () => document.body.classList.remove('qc-dock-active');
@@ -246,7 +234,7 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
     if (!isHero) return;
     const onType = (e: Event) => {
       const jobType = (e as CustomEvent<JobType>).detail;
-      if (jobType) {
+      if (jobType === 'video' || jobType === 'image') {
         setType(jobType);
         setExpanded(true);
         promptRef.current?.focus();
@@ -325,20 +313,11 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
 
     const sel = normalizeComponentSelections({
       ...selections,
-      prompt: type === 'tts' ? selections.prompt : type === 'music' ? '' : text,
-      text: type === 'tts' ? text : selections.text,
-      name: type === 'music' ? text.slice(0, 60) || 'Quick track' : selections.name,
-      style: type === 'music' ? text || 'instrumental pop' : selections.style,
-      instrumental: type === 'music' ? true : selections.instrumental,
+      prompt: text,
       ...(refs.length ? { subjects: refs } : {}),
     });
 
-    const displayPrompt =
-      type === 'tts'
-        ? text
-        : type === 'music'
-          ? text.slice(0, 60) || 'Quick track'
-          : text;
+    const displayPrompt = text;
 
     const pendingId = crypto.randomUUID();
     setSubmitting(true);
@@ -370,17 +349,12 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
   const showStoryboard = expanded && (type === 'video' || type === 'image');
 
   const menuCount = (item: HomeQuickMenuItem): number | null => {
-    if (item.fixedCount != null) return item.fixedCount;
     if (item.jobType) return typeCounts[item.jobType] ?? null;
     return null;
   };
 
   const onMenuSelect = (item: HomeQuickMenuItem) => {
     setTypeMenuOpen(false);
-    if (item.action === 'open-chat') {
-      window.dispatchEvent(new CustomEvent('quick-chat:open'));
-      return;
-    }
     if (item.href) {
       navigate(item.href);
       return;
@@ -508,7 +482,7 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
       {info && !error && <div className="qc-info">{info}</div>}
 
       <div className="qc-toolbar">
-        <div className="qc-type" ref={typeRef}>
+        <div className="qc-type" ref={typeTriggerRef}>
           <button
             type="button"
             className="qc-type-trigger"
@@ -517,36 +491,39 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
             <span className="qc-dot" /> {typeShortLabel(type, t)}
             <ChevronUp size={12} />
           </button>
-          {typeMenuOpen && (
-            <div className="qc-type-menu" role="menu">
-              {HOME_QUICK_MENU.map((item) => {
-                const count = menuCount(item);
-                const active = item.jobType === type;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    role="menuitem"
-                    className={`qc-type-item${active ? ' active' : ''}`}
-                    onClick={() => onMenuSelect(item)}
-                  >
-                    <span className="qc-type-accent" aria-hidden />
-                    <HomeCategoryIcon
-                      icon={item.icon}
-                      tint={item.tint}
-                      size="sm"
-                      className="qc-type-icon-img"
-                    />
-                    <span className="qc-type-label">{t(item.labelKey)}</span>
-                    {count != null && <span className="qc-type-count">{count}</span>}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          {typeMenuOpen &&
+            typePos &&
+            createPortal(
+              <div className="qc-type-menu qc-menu-portal" ref={typePanelRef} style={typeMenuStyle} role="menu">
+                {HOME_QUICK_MENU.map((item) => {
+                  const count = menuCount(item);
+                  const active = item.jobType === type;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      role="menuitem"
+                      className={`qc-type-item${active ? ' active' : ''}`}
+                      onClick={() => onMenuSelect(item)}
+                    >
+                      <span className="qc-type-accent" aria-hidden />
+                      <HomeCategoryIcon
+                        icon={item.icon}
+                        tint={item.tint}
+                        size="sm"
+                        className="qc-type-icon-img"
+                      />
+                      <span className="qc-type-label">{t(item.labelKey)}</span>
+                      {count != null && <span className="qc-type-count">{count}</span>}
+                    </button>
+                  );
+                })}
+              </div>,
+              document.body,
+            )}
         </div>
 
-        <div className="qc-model" ref={modelRef}>
+        <div className="qc-model" ref={modelTriggerRef}>
           <button
             type="button"
             className="qc-model-trigger"
@@ -561,26 +538,30 @@ export default function HomeQuickCreateBar({ variant = 'dock' }: { variant?: 'he
             </span>
             <ChevronDown size={12} />
           </button>
-          {modelMenuOpen && modelOptions.length > 0 && (
-            <div className="qc-model-menu">
-              {modelOptions.map((o) => (
-                <button
-                  key={o.value}
-                  type="button"
-                  className={o.value === modelSlugSel ? 'active' : ''}
-                  onClick={() => {
-                    setModelSlugSel(o.value);
-                    setModelMenuOpen(false);
-                  }}
-                >
-                  <span>{o.label}</span>
-                  {(o.description || o.price != null) && (
-                    <small>{o.description || o.price}</small>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
+          {modelMenuOpen &&
+            modelPos &&
+            modelOptions.length > 0 &&
+            createPortal(
+              <div className="qc-model-menu qc-menu-portal" ref={modelPanelRef} style={modelMenuStyle}>
+                {modelOptions.map((o) => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    className={o.value === modelSlugSel ? 'active' : ''}
+                    onClick={() => {
+                      setModelSlugSel(o.value);
+                      setModelMenuOpen(false);
+                    }}
+                  >
+                    <span>{o.label}</span>
+                    {(o.description || o.price != null) && (
+                      <small>{o.description || o.price}</small>
+                    )}
+                  </button>
+                ))}
+              </div>,
+              document.body,
+            )}
         </div>
 
         {schema?.fields.ratio && (

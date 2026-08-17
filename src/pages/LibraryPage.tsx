@@ -4,6 +4,7 @@ import HomeMyContent, { type MineFilter } from '../components/HomeMyContent';
 import HomeCategoryIcon from '../components/home/HomeCategoryIcon';
 import { usePendingTabCounts } from '../hooks/usePendingJobs';
 import { HOME_QUICK_MENU } from '../lib/homeQuickMenu';
+import { clearFailedPendingJobs } from '../services/pendingJobsStore';
 import { useLocale } from '../i18n';
 import type { TranslationKey } from '../i18n/types';
 
@@ -53,14 +54,35 @@ function parseType(raw: string | null): LibraryTypeTab {
 export default function LibraryPage() {
   const { t } = useLocale();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [typeTab, setTypeTab] = useState<LibraryTypeTab>(() => parseType(searchParams.get('type')));
+  const typeTab = parseType(searchParams.get('type'));
+  const [jobFailMsg, setJobFailMsg] = useState('');
+
+  const setTypeTab = (tab: LibraryTypeTab) => {
+    setSearchParams({ type: tab }, { replace: true });
+  };
 
   useEffect(() => {
-    const next = new URLSearchParams();
-    next.set('type', typeTab);
-    setSearchParams(next, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [typeTab]);
+    clearFailedPendingJobs();
+  }, []);
+
+  useEffect(() => {
+    const onFailed = (e: Event) => {
+      const prompt = (e as CustomEvent<{ prompt?: string }>).detail?.prompt?.trim();
+      setJobFailMsg(
+        prompt
+          ? `${t('studio.error.jobFailed')}: ${prompt}`
+          : t('studio.error.jobFailed'),
+      );
+    };
+    document.addEventListener('pending:job-failed', onFailed);
+    return () => document.removeEventListener('pending:job-failed', onFailed);
+  }, [t]);
+
+  useEffect(() => {
+    if (!jobFailMsg) return;
+    const timer = window.setTimeout(() => setJobFailMsg(''), 8000);
+    return () => window.clearTimeout(timer);
+  }, [jobFailMsg]);
 
   const pendingByTab = usePendingTabCounts();
   const activeType = TYPE_TABS.find((tab) => tab.id === typeTab)!;
@@ -98,6 +120,12 @@ export default function LibraryPage() {
           })}
         </div>
       </header>
+
+      {jobFailMsg && (
+        <p className="error library-job-fail-banner" role="alert">
+          {jobFailMsg}
+        </p>
+      )}
 
       <HomeMyContent key={typeTab} filter={activeType.id} statusFilter="success" />
     </div>

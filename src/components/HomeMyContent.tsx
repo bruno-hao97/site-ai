@@ -399,11 +399,11 @@ export default function HomeMyContent({
   const [audioPlayerUrl, setAudioPlayerUrl] = useState<string | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
   const pendingJobs = usePendingJobs(filter);
-  const activePendingJobs = useMemo(
+  const processingPendingJobs = useMemo(
     () => pendingJobs.filter((j) => j.status === 'processing'),
     [pendingJobs],
   );
-  const showPending = activePendingJobs.length > 0;
+  const showPending = processingPendingJobs.length > 0;
 
   const afterRefs = useRef<Record<SourceKey, string>>({
     video: '',
@@ -681,7 +681,7 @@ export default function HomeMyContent({
 
   return (
     <div className="home-feed">
-      {showPending && <LibraryPendingSection jobs={activePendingJobs} />}
+      {showPending && <LibraryPendingSection jobs={processingPendingJobs} />}
       {libraryBody}
 
       {previewIndex != null && visualItems.length > 0 && (

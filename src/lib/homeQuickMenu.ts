@@ -1,9 +1,7 @@
 import {
   Bot,
   Clapperboard,
-  FileText,
   Image as ImageIcon,
-  LayoutGrid,
   Mic,
   Music,
   Volume2,
@@ -12,7 +10,9 @@ import type { LucideIcon } from 'lucide-react';
 import type { JobType } from '../services/api';
 import type { TranslationKey } from '../i18n';
 
-export type QuickMenuId = 'chat' | 'script' | 'video' | 'image' | 'tts' | 'music' | 'audio' | 'apps';
+export type QuickMenuId = 'chat' | 'video' | 'image' | 'tts' | 'music' | 'audio';
+
+export type QuickCreateJobType = Extract<JobType, 'video' | 'image'>;
 
 export interface HomeQuickMenuItem {
   id: QuickMenuId;
@@ -20,10 +20,10 @@ export interface HomeQuickMenuItem {
   icon: LucideIcon;
   /** Magnific-style subtle tile tint */
   tint: string;
-  jobType?: JobType;
+  /** Chỉ video/image — tạo job ngay trên Home quickstart */
+  jobType?: QuickCreateJobType;
+  /** Các mục còn lại — điều hướng sang trang studio tương ứng */
   href?: string;
-  action?: 'open-chat';
-  fixedCount?: number;
 }
 
 export const HOME_QUICK_MENU: HomeQuickMenuItem[] = [
@@ -46,22 +46,21 @@ export const HOME_QUICK_MENU: HomeQuickMenuItem[] = [
     labelKey: 'home.category.tts',
     icon: Volume2,
     tint: 'rgba(234, 88, 12, 0.14)',
-    jobType: 'tts',
+    href: '/audio',
   },
   {
     id: 'music',
     labelKey: 'home.category.music',
     icon: Music,
     tint: 'rgba(217, 119, 6, 0.14)',
-    jobType: 'music',
+    href: '/music',
   },
   {
     id: 'chat',
     labelKey: 'home.category.chat',
     icon: Bot,
     tint: 'rgba(255, 255, 255, 0.08)',
-    action: 'open-chat',
-    fixedCount: 1,
+    href: '/chat',
   },
   {
     id: 'audio',
@@ -69,22 +68,5 @@ export const HOME_QUICK_MENU: HomeQuickMenuItem[] = [
     icon: Mic,
     tint: 'rgba(219, 39, 119, 0.12)',
     href: '/audio',
-    fixedCount: 1,
-  },
-  {
-    id: 'script',
-    labelKey: 'home.category.script',
-    icon: FileText,
-    tint: 'rgba(5, 150, 105, 0.12)',
-    href: '/video',
-    fixedCount: 1,
-  },
-  {
-    id: 'apps',
-    labelKey: 'home.category.apps',
-    icon: LayoutGrid,
-    tint: 'rgba(8, 145, 178, 0.12)',
-    href: '/workflow',
-    fixedCount: 1,
   },
 ];
