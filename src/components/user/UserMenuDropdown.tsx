@@ -52,6 +52,15 @@ export default function UserMenuDropdown({ credits, onCreditsRefresh }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
+  useEffect(() => {
     function onDoc(e: MouseEvent) {
       if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
     }

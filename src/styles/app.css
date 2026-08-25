@@ -1636,9 +1636,39 @@ a.user-pill:hover { color: var(--text); }
   z-index: 100;
   overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
 }
 
-[data-theme='light'] .user-menu-panel { background: var(--surface); }
+.user-menu-panel::-webkit-scrollbar {
+  width: 4px;
+}
+
+.user-menu-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.user-menu-panel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+}
+
+.user-menu-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+[data-theme='light'] .user-menu-panel {
+  background: var(--surface);
+  scrollbar-color: rgba(0, 0, 0, 0.18) transparent;
+}
+
+[data-theme='light'] .user-menu-panel::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+}
+
+[data-theme='light'] .user-menu-panel::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.28);
+}
 
 .user-menu-head {
   display: flex;
