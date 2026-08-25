@@ -1626,12 +1626,16 @@ a.user-pill:hover { color: var(--text); }
   right: 0;
   top: calc(100% + 8px);
   width: 300px;
+  max-height: calc(100dvh - 7rem);
+  padding-bottom: 0.75rem;
+  scroll-padding-bottom: 0.75rem;
   background: #1a1f2b;
   border: 1px solid var(--border);
   border-radius: 14px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
   z-index: 100;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 [data-theme='light'] .user-menu-panel { background: var(--surface); }
@@ -1726,8 +1730,6 @@ a.user-pill:hover { color: var(--text); }
   display: flex;
   flex-direction: column;
   gap: 1px;
-  max-height: 180px;
-  overflow-y: auto;
 }
 
 .user-menu-proj-empty {
